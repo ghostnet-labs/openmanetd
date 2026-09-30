@@ -6,6 +6,9 @@ const (
 	BCM2711_MM6108_SDIO string = "bcm2711,mm6108-sdio"
 	BCM2711_MM8108_USB  string = "bcm2711,mm8108-usb"
 
+	// BCM2712 (Raspberry Pi 5 / CM5)
+	BCM2712_MM8108_USB string = "bcm2712,mm8108-usb"
+
 	// BCM2710
 	BCM2710_MM6108_SPI  string = "bcm2710,mm6108-spi"
 	BCM2710_MM6108_SDIO string = "bcm2710,mm6108-sdio"

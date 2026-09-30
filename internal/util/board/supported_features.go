@@ -12,6 +12,7 @@ var newBoardConfigInfoFn = NewBoardConfigInfo //nolint:gochecknoglobals // test 
 //   - BCM2711_MM6108_SPI
 //   - BCM2711_MM6108_SDIO
 //   - BCM2711_MM8108_USB
+//   - BCM2712_MM8108_USB
 //   - BCM2710_MM6108_SPI
 //   - BCM2710_MM6108_SDIO
 //   - GW7100_2
@@ -35,7 +36,8 @@ func GNSSsupoorted() bool {
 	switch boardConfigInfo.Model.ID {
 	case BCM2711_MM6108_SPI,
 		BCM2711_MM6108_SDIO,
-		BCM2711_MM8108_USB:
+		BCM2711_MM8108_USB,
+		BCM2712_MM8108_USB:
 		return true
 	case BCM2710_MM6108_SPI, BCM2710_MM6108_SDIO:
 		return true
@@ -61,6 +63,7 @@ func GNSSsupoorted() bool {
 //   - BCM2711_MM6108_SPI
 //   - BCM2711_MM6108_SDIO
 //   - BCM2711_MM8108_USB
+//   - BCM2712_MM8108_USB
 //   - GW7100_2
 //   - GW7200_2
 //   - GW7300_2
@@ -81,7 +84,8 @@ func BLOSsupported() bool {
 	switch boardConfigInfo.Model.ID {
 	case BCM2711_MM6108_SPI,
 		BCM2711_MM6108_SDIO,
-		BCM2711_MM8108_USB:
+		BCM2711_MM8108_USB,
+		BCM2712_MM8108_USB:
 		return true
 	case BCM2710_MM6108_SPI, BCM2710_MM6108_SDIO:
 		return false
@@ -107,6 +111,7 @@ func BLOSsupported() bool {
 //   - BCM2711_MM6108_SPI
 //   - BCM2711_MM6108_SDIO
 //   - BCM2711_MM8108_USB
+//   - BCM2712_MM8108_USB
 //   - BCM2710_MM6108_SPI
 //   - BCM2710_MM6108_SDIO
 //   - HalowLink2
@@ -133,6 +138,7 @@ func CommsSupported() bool {
 	case BCM2711_MM6108_SPI,
 		BCM2711_MM6108_SDIO,
 		BCM2711_MM8108_USB,
+		BCM2712_MM8108_USB,
 		BCM2710_MM6108_SPI,
 		BCM2710_MM6108_SDIO,
 		HalowLink2,

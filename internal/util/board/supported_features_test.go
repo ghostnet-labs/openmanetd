@@ -15,6 +15,7 @@ func TestGNSSsupoorted(t *testing.T) {
 		{name: "BCM2711_MM6108_SPI", modelID: BCM2711_MM6108_SPI, want: true},
 		{name: "BCM2711_MM6108_SDIO", modelID: BCM2711_MM6108_SDIO, want: true},
 		{name: "BCM2711_MM8108_USB", modelID: BCM2711_MM8108_USB, want: true},
+		{name: "BCM2712_MM8108_USB", modelID: BCM2712_MM8108_USB, want: true},
 		{name: "BCM2710_MM6108_SPI", modelID: BCM2710_MM6108_SPI, want: true},
 		{name: "BCM2710_MM6108_SDIO", modelID: BCM2710_MM6108_SDIO, want: true},
 		{name: "GW7100_2", modelID: GW7100_2, want: true},
@@ -94,6 +95,7 @@ func TestBLOSsupported(t *testing.T) {
 		{name: "BCM2711_MM6108_SPI", modelID: BCM2711_MM6108_SPI, want: true},
 		{name: "BCM2711_MM6108_SDIO", modelID: BCM2711_MM6108_SDIO, want: true},
 		{name: "BCM2711_MM8108_USB", modelID: BCM2711_MM8108_USB, want: true},
+		{name: "BCM2712_MM8108_USB", modelID: BCM2712_MM8108_USB, want: true},
 		{name: "GW7100_2", modelID: GW7100_2, want: true},
 		{name: "GW7200_2", modelID: GW7200_2, want: true},
 		{name: "GW7300_2", modelID: GW7300_2, want: true},
@@ -170,6 +172,7 @@ func TestCommsSupported(t *testing.T) {
 		{name: "BCM2711_MM6108_SPI", modelID: BCM2711_MM6108_SPI, want: true},
 		{name: "BCM2711_MM6108_SDIO", modelID: BCM2711_MM6108_SDIO, want: true},
 		{name: "BCM2711_MM8108_USB", modelID: BCM2711_MM8108_USB, want: true},
+		{name: "BCM2712_MM8108_USB", modelID: BCM2712_MM8108_USB, want: true},
 		{name: "BCM2710_MM6108_SPI", modelID: BCM2710_MM6108_SPI, want: true},
 		{name: "BCM2710_MM6108_SDIO", modelID: BCM2710_MM6108_SDIO, want: true},
 		{name: "HalowLink2", modelID: HalowLink2, want: true},
@@ -247,6 +250,7 @@ func TestGPIOSelectorSupported(t *testing.T) {
 	}{
 		{name: "raven", modelID: BCM2711_RAVEN_USB, want: true},
 		{name: "mm6108 spi", modelID: BCM2711_MM6108_SPI, want: false},
+		{name: "cm5 mm8108 usb", modelID: BCM2712_MM8108_USB, want: false},
 		{name: "halowlink2", modelID: HalowLink2, want: false},
 		{name: "unknown", modelID: "vendor,unknown", want: false},
 	}
