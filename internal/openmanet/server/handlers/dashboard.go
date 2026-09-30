@@ -56,6 +56,7 @@ type DashboardService struct {
 	Tailscale   TailscaleStatusProvider
 	Services    system.ServiceChecker
 	Actions     system.QuickActionExecutor
+	Battery     system.BatteryProvider
 
 	// MonitoredServices overrides the default service list.
 	MonitoredServices []string
@@ -129,6 +130,9 @@ func (d *DashboardService) GetDashboardStatus(ctx context.Context, _ *emptypb.Em
 	}
 
 	resp.NetworkSummary = netSummary
+
+	// Battery
+	resp.Battery = d.buildBattery()
 
 	// Active services
 	services, err := d.Services.CheckServices(ctx, d.monitoredServices())
@@ -263,6 +267,32 @@ func (d *DashboardService) buildSystemResources() (*v1.SystemResources, error) {
 	}
 
 	return res, errors.Join(errs...)
+}
+
+// buildBattery reports the battery monitor, or an absent battery when the
+// device has none or the read fails.
+func (d *DashboardService) buildBattery() *v1.BatteryStatus {
+	absent := &v1.BatteryStatus{ChargePercent: -1}
+
+	if d.Battery == nil {
+		return absent
+	}
+
+	st, err := d.Battery.GetBatteryStatus()
+	if err != nil {
+		d.Log.Warn().Err(err).Msg("Partial failure reading battery monitor")
+
+		return absent
+	}
+
+	return &v1.BatteryStatus{
+		Present:       st.Present,
+		VoltageVolts:  st.VoltageVolts,
+		CurrentAmps:   st.CurrentAmps,
+		PowerWatts:    st.PowerWatts,
+		ChargePercent: st.ChargePercent,
+		CellCount:     st.CellCount,
+	}
 }
 
 func (d *DashboardService) buildNetworkSummary() (*v1.NetworkSummary, error) {
