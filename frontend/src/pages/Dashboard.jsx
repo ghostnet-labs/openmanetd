@@ -30,6 +30,7 @@ import { useBLOSStatus } from '../hooks/useBLOSStatus.js';
 import { useNetworkInterfaces } from '../hooks/useNetworkInterfaces.js';
 import { pushSparklineSample, useSparklineSamples } from '../services/sparklineStore.js';
 import { classifyAlerts, findLostPeers } from './dashboardAlerts.js';
+import { batteryView } from './dashboardBattery.js';
 import './Dashboard.css';
 
 // Key used by the module-scoped sparkline store. Kept as a constant so
@@ -464,6 +465,8 @@ export default function DashboardPage() {
   const tempClass = !tempAvailable ? '' : cpuTemp >= 85 ? 'crit' : cpuTemp >= 70 ? 'warn' : '';
   const tempLabel = tempAvailable ? `${cpuTemp.toFixed(1)} °C` : '—';
 
+  const battery = batteryView(data?.battery);
+
   const alerts = useMemo(
     () => classifyAlerts({ mesh: meshData, lostPeers, delta }),
     [meshData, lostPeers, delta],
@@ -690,6 +693,9 @@ export default function DashboardPage() {
                 pct={memPct(data?.systemResources?.overlayUsedBytes, data?.systemResources?.overlayTotalBytes)}
                 detail={`${formatBytes(data?.systemResources?.overlayUsedBytes)} / ${formatBytes(data?.systemResources?.overlayTotalBytes)}`}
               />
+              {battery && (
+                <PbarRow label="BATT" pct={battery.pct} detail={battery.detail} level={battery.level} />
+              )}
             </div>
             <div className="dashboard-resources-kv">
               <div className="kv"><span className="k">Uptime</span><span className="v accent">{formatUptime(data?.systemResources?.uptime)}</span></div>
@@ -749,8 +755,10 @@ function memPct(used, total) {
   return Math.max(0, Math.min(100, Math.round((u / t) * 100)));
 }
 
-function PbarRow({ label, pct, detail }) {
-  const warn = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : '';
+// level overrides the default high-is-bad colouring (used by BATT, where
+// low charge is the bad direction).
+function PbarRow({ label, pct, detail, level }) {
+  const warn = level ?? (pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : '');
   return (
     <div className="pbar-row">
       <span className="pbar-label">{label}</span>
