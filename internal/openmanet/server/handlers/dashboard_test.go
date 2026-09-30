@@ -172,6 +172,15 @@ func (m *mockQuickActionExecutor) Reboot(_ context.Context) error            { r
 func (m *mockQuickActionExecutor) RestartNetwork(_ context.Context) error    { return m.networkErr }
 func (m *mockQuickActionExecutor) RestartOpenmanetd(_ context.Context) error { return m.openmanetErr }
 
+type mockBatteryProvider struct {
+	status *system.BatteryStatus
+	err    error
+}
+
+func (m *mockBatteryProvider) GetBatteryStatus() (*system.BatteryStatus, error) {
+	return m.status, m.err
+}
+
 // --- Tests ---
 
 func newTestDashboardService() *DashboardService {
@@ -256,6 +265,58 @@ func TestDashboardService_GetDashboardStatus_SystemResources(t *testing.T) {
 	assert.Equal(t, int64((248168-80000)*1024), sr.MemoryUsedBytes)
 	assert.Equal(t, int64(3700000), sr.OverlayTotalBytes)
 	assert.Equal(t, int64(3100000), sr.OverlayUsedBytes)
+}
+
+func TestDashboardService_GetDashboardStatus_Battery(t *testing.T) {
+	tests := []struct {
+		name    string
+		battery system.BatteryProvider
+		want    *v1.BatteryStatus
+	}{
+		{
+			name: "present",
+			battery: &mockBatteryProvider{status: &system.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: -0.85, PowerWatts: 9.69,
+				ChargePercent: 60, CellCount: 3,
+			}},
+			want: &v1.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: -0.85, PowerWatts: 9.69,
+				ChargePercent: 60, CellCount: 3,
+			},
+		},
+		{
+			name:    "no monitor",
+			battery: &mockBatteryProvider{status: &system.BatteryStatus{ChargePercent: -1}},
+			want:    &v1.BatteryStatus{ChargePercent: -1},
+		},
+		{
+			name:    "read error reports absent",
+			battery: &mockBatteryProvider{err: errors.New("i2c read failed")},
+			want:    &v1.BatteryStatus{ChargePercent: -1},
+		},
+		{
+			name:    "no provider",
+			battery: nil,
+			want:    &v1.BatteryStatus{ChargePercent: -1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestDashboardService()
+			svc.Battery = tt.battery
+
+			resp, err := svc.GetDashboardStatus(context.Background(), &emptypb.Empty{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Battery)
+			assert.Equal(t, tt.want.Present, resp.Battery.Present)
+			assert.InDelta(t, tt.want.VoltageVolts, resp.Battery.VoltageVolts, 0.001)
+			assert.InDelta(t, tt.want.CurrentAmps, resp.Battery.CurrentAmps, 0.001)
+			assert.InDelta(t, tt.want.PowerWatts, resp.Battery.PowerWatts, 0.001)
+			assert.InDelta(t, tt.want.ChargePercent, resp.Battery.ChargePercent, 0.001)
+			assert.Equal(t, tt.want.CellCount, resp.Battery.CellCount)
+		})
+	}
 }
 
 func TestDashboardService_GetDashboardStatus_NetworkSummary(t *testing.T) {

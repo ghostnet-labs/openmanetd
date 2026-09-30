@@ -371,6 +371,101 @@ func (x *SystemResources) GetCpuTempCelsius() float32 {
 	return 0
 }
 
+// BatteryStatus reports the node's battery monitor, such as the INA219 on a
+// UPS module, as exposed by the kernel hwmon subsystem.
+type BatteryStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether a battery monitor was found. All other fields are zero when false.
+	Present bool `protobuf:"varint,1,opt,name=present,proto3" json:"present,omitempty"`
+	// Battery (bus) voltage in volts.
+	VoltageVolts float32 `protobuf:"fixed32,2,opt,name=voltage_volts,json=voltageVolts,proto3" json:"voltage_volts,omitempty"`
+	// Current through the monitor's shunt in amps. The sign follows the
+	// monitor's wiring, so it is not a reliable charge/discharge indicator.
+	CurrentAmps float32 `protobuf:"fixed32,3,opt,name=current_amps,json=currentAmps,proto3" json:"current_amps,omitempty"`
+	// Power in watts as reported by the monitor.
+	PowerWatts float32 `protobuf:"fixed32,4,opt,name=power_watts,json=powerWatts,proto3" json:"power_watts,omitempty"`
+	// Estimated state of charge (0–100) from the Li-ion voltage curve.
+	// Negative when it cannot be estimated.
+	ChargePercent float32 `protobuf:"fixed32,5,opt,name=charge_percent,json=chargePercent,proto3" json:"charge_percent,omitempty"`
+	// Number of series Li-ion cells inferred from the voltage, used for the
+	// charge estimate. Zero when unknown.
+	CellCount     uint32 `protobuf:"varint,6,opt,name=cell_count,json=cellCount,proto3" json:"cell_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatteryStatus) Reset() {
+	*x = BatteryStatus{}
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatteryStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatteryStatus) ProtoMessage() {}
+
+func (x *BatteryStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatteryStatus.ProtoReflect.Descriptor instead.
+func (*BatteryStatus) Descriptor() ([]byte, []int) {
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *BatteryStatus) GetPresent() bool {
+	if x != nil {
+		return x.Present
+	}
+	return false
+}
+
+func (x *BatteryStatus) GetVoltageVolts() float32 {
+	if x != nil {
+		return x.VoltageVolts
+	}
+	return 0
+}
+
+func (x *BatteryStatus) GetCurrentAmps() float32 {
+	if x != nil {
+		return x.CurrentAmps
+	}
+	return 0
+}
+
+func (x *BatteryStatus) GetPowerWatts() float32 {
+	if x != nil {
+		return x.PowerWatts
+	}
+	return 0
+}
+
+func (x *BatteryStatus) GetChargePercent() float32 {
+	if x != nil {
+		return x.ChargePercent
+	}
+	return 0
+}
+
+func (x *BatteryStatus) GetCellCount() uint32 {
+	if x != nil {
+		return x.CellCount
+	}
+	return 0
+}
+
 // NetworkSummaryEntry describes one line in the network summary panel.
 type NetworkSummaryEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -397,7 +492,7 @@ type NetworkSummaryEntry struct {
 
 func (x *NetworkSummaryEntry) Reset() {
 	*x = NetworkSummaryEntry{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[2]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -409,7 +504,7 @@ func (x *NetworkSummaryEntry) String() string {
 func (*NetworkSummaryEntry) ProtoMessage() {}
 
 func (x *NetworkSummaryEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[2]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,7 +517,7 @@ func (x *NetworkSummaryEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkSummaryEntry.ProtoReflect.Descriptor instead.
 func (*NetworkSummaryEntry) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{2}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *NetworkSummaryEntry) GetInterfaceName() string {
@@ -478,7 +573,7 @@ type NetworkSummary struct {
 
 func (x *NetworkSummary) Reset() {
 	*x = NetworkSummary{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[3]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -490,7 +585,7 @@ func (x *NetworkSummary) String() string {
 func (*NetworkSummary) ProtoMessage() {}
 
 func (x *NetworkSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[3]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -503,7 +598,7 @@ func (x *NetworkSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkSummary.ProtoReflect.Descriptor instead.
 func (*NetworkSummary) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{3}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *NetworkSummary) GetEntries() []*NetworkSummaryEntry {
@@ -528,7 +623,7 @@ type ServiceInfo struct {
 
 func (x *ServiceInfo) Reset() {
 	*x = ServiceInfo{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[4]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +635,7 @@ func (x *ServiceInfo) String() string {
 func (*ServiceInfo) ProtoMessage() {}
 
 func (x *ServiceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[4]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +648,7 @@ func (x *ServiceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceInfo.ProtoReflect.Descriptor instead.
 func (*ServiceInfo) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{4}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ServiceInfo) GetName() string {
@@ -588,13 +683,15 @@ type GetDashboardStatusResponse struct {
 	NetworkSummary *NetworkSummary `protobuf:"bytes,3,opt,name=network_summary,json=networkSummary,proto3" json:"network_summary,omitempty"`
 	// Status of monitored system services.
 	ActiveServices []*ServiceInfo `protobuf:"bytes,4,rep,name=active_services,json=activeServices,proto3" json:"active_services,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Battery monitor readings, when the device has one.
+	Battery       *BatteryStatus `protobuf:"bytes,5,opt,name=battery,proto3" json:"battery,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetDashboardStatusResponse) Reset() {
 	*x = GetDashboardStatusResponse{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[5]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -606,7 +703,7 @@ func (x *GetDashboardStatusResponse) String() string {
 func (*GetDashboardStatusResponse) ProtoMessage() {}
 
 func (x *GetDashboardStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[5]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -619,7 +716,7 @@ func (x *GetDashboardStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetDashboardStatusResponse) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{5}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetDashboardStatusResponse) GetDeviceInfo() *DeviceInfo {
@@ -650,6 +747,13 @@ func (x *GetDashboardStatusResponse) GetActiveServices() []*ServiceInfo {
 	return nil
 }
 
+func (x *GetDashboardStatusResponse) GetBattery() *BatteryStatus {
+	if x != nil {
+		return x.Battery
+	}
+	return nil
+}
+
 // ExecuteQuickActionRequest identifies the action to perform.
 type ExecuteQuickActionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -661,7 +765,7 @@ type ExecuteQuickActionRequest struct {
 
 func (x *ExecuteQuickActionRequest) Reset() {
 	*x = ExecuteQuickActionRequest{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[6]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +777,7 @@ func (x *ExecuteQuickActionRequest) String() string {
 func (*ExecuteQuickActionRequest) ProtoMessage() {}
 
 func (x *ExecuteQuickActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[6]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +790,7 @@ func (x *ExecuteQuickActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteQuickActionRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteQuickActionRequest) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{6}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExecuteQuickActionRequest) GetAction() QuickAction {
@@ -709,7 +813,7 @@ type ExecuteQuickActionResponse struct {
 
 func (x *ExecuteQuickActionResponse) Reset() {
 	*x = ExecuteQuickActionResponse{}
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[7]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -721,7 +825,7 @@ func (x *ExecuteQuickActionResponse) String() string {
 func (*ExecuteQuickActionResponse) ProtoMessage() {}
 
 func (x *ExecuteQuickActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[7]
+	mi := &file_openmanet_dashboard_v1_dashboard_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -734,7 +838,7 @@ func (x *ExecuteQuickActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteQuickActionResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteQuickActionResponse) Descriptor() ([]byte, []int) {
-	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{7}
+	return file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ExecuteQuickActionResponse) GetSuccess() bool {
@@ -772,7 +876,16 @@ const file_openmanet_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x11memory_used_bytes\x18\x05 \x01(\x03R\x0fmemoryUsedBytes\x12.\n" +
 	"\x13overlay_total_bytes\x18\x06 \x01(\x03R\x11overlayTotalBytes\x12,\n" +
 	"\x12overlay_used_bytes\x18\a \x01(\x03R\x10overlayUsedBytes\x12(\n" +
-	"\x10cpu_temp_celsius\x18\b \x01(\x02R\x0ecpuTempCelsius\"\xf2\x01\n" +
+	"\x10cpu_temp_celsius\x18\b \x01(\x02R\x0ecpuTempCelsius\"\xd8\x01\n" +
+	"\rBatteryStatus\x12\x18\n" +
+	"\apresent\x18\x01 \x01(\bR\apresent\x12#\n" +
+	"\rvoltage_volts\x18\x02 \x01(\x02R\fvoltageVolts\x12!\n" +
+	"\fcurrent_amps\x18\x03 \x01(\x02R\vcurrentAmps\x12\x1f\n" +
+	"\vpower_watts\x18\x04 \x01(\x02R\n" +
+	"powerWatts\x12%\n" +
+	"\x0echarge_percent\x18\x05 \x01(\x02R\rchargePercent\x12\x1d\n" +
+	"\n" +
+	"cell_count\x18\x06 \x01(\rR\tcellCount\"\xf2\x01\n" +
 	"\x13NetworkSummaryEntry\x12%\n" +
 	"\x0einterface_name\x18\x01 \x01(\tR\rinterfaceName\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12C\n" +
@@ -785,13 +898,14 @@ const file_openmanet_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\vServiceInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12=\n" +
 	"\x06status\x18\x02 \x01(\x0e2%.openmanet.dashboard.v1.ServiceStatusR\x06status\x12\x10\n" +
-	"\x03pid\x18\x03 \x01(\x05R\x03pid\"\xd4\x02\n" +
+	"\x03pid\x18\x03 \x01(\x05R\x03pid\"\x95\x03\n" +
 	"\x1aGetDashboardStatusResponse\x12C\n" +
 	"\vdevice_info\x18\x01 \x01(\v2\".openmanet.dashboard.v1.DeviceInfoR\n" +
 	"deviceInfo\x12R\n" +
 	"\x10system_resources\x18\x02 \x01(\v2'.openmanet.dashboard.v1.SystemResourcesR\x0fsystemResources\x12O\n" +
 	"\x0fnetwork_summary\x18\x03 \x01(\v2&.openmanet.dashboard.v1.NetworkSummaryR\x0enetworkSummary\x12L\n" +
-	"\x0factive_services\x18\x04 \x03(\v2#.openmanet.dashboard.v1.ServiceInfoR\x0eactiveServices\"X\n" +
+	"\x0factive_services\x18\x04 \x03(\v2#.openmanet.dashboard.v1.ServiceInfoR\x0eactiveServices\x12?\n" +
+	"\abattery\x18\x05 \x01(\v2%.openmanet.dashboard.v1.BatteryStatusR\abattery\"X\n" +
 	"\x19ExecuteQuickActionRequest\x12;\n" +
 	"\x06action\x18\x01 \x01(\x0e2#.openmanet.dashboard.v1.QuickActionR\x06action\"a\n" +
 	"\x1aExecuteQuickActionResponse\x12\x18\n" +
@@ -828,38 +942,40 @@ func file_openmanet_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 }
 
 var file_openmanet_dashboard_v1_dashboard_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_openmanet_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_openmanet_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_openmanet_dashboard_v1_dashboard_proto_goTypes = []any{
 	(NetworkInterfaceState)(0),         // 0: openmanet.dashboard.v1.NetworkInterfaceState
 	(ServiceStatus)(0),                 // 1: openmanet.dashboard.v1.ServiceStatus
 	(QuickAction)(0),                   // 2: openmanet.dashboard.v1.QuickAction
 	(*DeviceInfo)(nil),                 // 3: openmanet.dashboard.v1.DeviceInfo
 	(*SystemResources)(nil),            // 4: openmanet.dashboard.v1.SystemResources
-	(*NetworkSummaryEntry)(nil),        // 5: openmanet.dashboard.v1.NetworkSummaryEntry
-	(*NetworkSummary)(nil),             // 6: openmanet.dashboard.v1.NetworkSummary
-	(*ServiceInfo)(nil),                // 7: openmanet.dashboard.v1.ServiceInfo
-	(*GetDashboardStatusResponse)(nil), // 8: openmanet.dashboard.v1.GetDashboardStatusResponse
-	(*ExecuteQuickActionRequest)(nil),  // 9: openmanet.dashboard.v1.ExecuteQuickActionRequest
-	(*ExecuteQuickActionResponse)(nil), // 10: openmanet.dashboard.v1.ExecuteQuickActionResponse
-	(*durationpb.Duration)(nil),        // 11: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),      // 12: google.protobuf.Timestamp
+	(*BatteryStatus)(nil),              // 5: openmanet.dashboard.v1.BatteryStatus
+	(*NetworkSummaryEntry)(nil),        // 6: openmanet.dashboard.v1.NetworkSummaryEntry
+	(*NetworkSummary)(nil),             // 7: openmanet.dashboard.v1.NetworkSummary
+	(*ServiceInfo)(nil),                // 8: openmanet.dashboard.v1.ServiceInfo
+	(*GetDashboardStatusResponse)(nil), // 9: openmanet.dashboard.v1.GetDashboardStatusResponse
+	(*ExecuteQuickActionRequest)(nil),  // 10: openmanet.dashboard.v1.ExecuteQuickActionRequest
+	(*ExecuteQuickActionResponse)(nil), // 11: openmanet.dashboard.v1.ExecuteQuickActionResponse
+	(*durationpb.Duration)(nil),        // 12: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),      // 13: google.protobuf.Timestamp
 }
 var file_openmanet_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	11, // 0: openmanet.dashboard.v1.SystemResources.uptime:type_name -> google.protobuf.Duration
-	12, // 1: openmanet.dashboard.v1.SystemResources.local_time:type_name -> google.protobuf.Timestamp
+	12, // 0: openmanet.dashboard.v1.SystemResources.uptime:type_name -> google.protobuf.Duration
+	13, // 1: openmanet.dashboard.v1.SystemResources.local_time:type_name -> google.protobuf.Timestamp
 	0,  // 2: openmanet.dashboard.v1.NetworkSummaryEntry.state:type_name -> openmanet.dashboard.v1.NetworkInterfaceState
-	5,  // 3: openmanet.dashboard.v1.NetworkSummary.entries:type_name -> openmanet.dashboard.v1.NetworkSummaryEntry
+	6,  // 3: openmanet.dashboard.v1.NetworkSummary.entries:type_name -> openmanet.dashboard.v1.NetworkSummaryEntry
 	1,  // 4: openmanet.dashboard.v1.ServiceInfo.status:type_name -> openmanet.dashboard.v1.ServiceStatus
 	3,  // 5: openmanet.dashboard.v1.GetDashboardStatusResponse.device_info:type_name -> openmanet.dashboard.v1.DeviceInfo
 	4,  // 6: openmanet.dashboard.v1.GetDashboardStatusResponse.system_resources:type_name -> openmanet.dashboard.v1.SystemResources
-	6,  // 7: openmanet.dashboard.v1.GetDashboardStatusResponse.network_summary:type_name -> openmanet.dashboard.v1.NetworkSummary
-	7,  // 8: openmanet.dashboard.v1.GetDashboardStatusResponse.active_services:type_name -> openmanet.dashboard.v1.ServiceInfo
-	2,  // 9: openmanet.dashboard.v1.ExecuteQuickActionRequest.action:type_name -> openmanet.dashboard.v1.QuickAction
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	7,  // 7: openmanet.dashboard.v1.GetDashboardStatusResponse.network_summary:type_name -> openmanet.dashboard.v1.NetworkSummary
+	8,  // 8: openmanet.dashboard.v1.GetDashboardStatusResponse.active_services:type_name -> openmanet.dashboard.v1.ServiceInfo
+	5,  // 9: openmanet.dashboard.v1.GetDashboardStatusResponse.battery:type_name -> openmanet.dashboard.v1.BatteryStatus
+	2,  // 10: openmanet.dashboard.v1.ExecuteQuickActionRequest.action:type_name -> openmanet.dashboard.v1.QuickAction
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_openmanet_dashboard_v1_dashboard_proto_init() }
@@ -867,14 +983,14 @@ func file_openmanet_dashboard_v1_dashboard_proto_init() {
 	if File_openmanet_dashboard_v1_dashboard_proto != nil {
 		return
 	}
-	file_openmanet_dashboard_v1_dashboard_proto_msgTypes[7].OneofWrappers = []any{}
+	file_openmanet_dashboard_v1_dashboard_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openmanet_dashboard_v1_dashboard_proto_rawDesc), len(file_openmanet_dashboard_v1_dashboard_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

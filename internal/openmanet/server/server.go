@@ -188,6 +188,7 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Tailscale:   cfg.Tailscale,
 		Services:    dashServices,
 		Actions:     &system.InitDActionExecutor{},
+		Battery:     &system.HwmonBatteryProvider{},
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(gnssconnect.NewGNSSServiceHandler(&handlers.GNSSService{
