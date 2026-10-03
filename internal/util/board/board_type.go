@@ -9,6 +9,10 @@ const (
 	// BCM2712 (Raspberry Pi 5 / CM5)
 	BCM2712_MM8108_USB string = "bcm2712,mm8108-usb"
 
+	// Ghostnet V1 carrier (CM5, GW16170 HaLow over USB, AW7916-AED Wi-Fi,
+	// MAX-M10S GNSS, OpenVLM USB audio/PTT port)
+	GhostnetV1 string = "ghostnet,v1"
+
 	// BCM2710
 	BCM2710_MM6108_SPI  string = "bcm2710,mm6108-spi"
 	BCM2710_MM6108_SDIO string = "bcm2710,mm6108-sdio"
