@@ -33,9 +33,12 @@ func TestCachedBatteryProvider_freshness(t *testing.T) {
 			cache := system.NewCachedBatteryProvider(provider, clock.Now)
 			first, err := cache.GetBatteryStatus()
 			require.NoError(t, err)
+
 			first.VoltageVolts = 99 // callers must not mutate the retained sample
+
 			provider.Set(system.BatteryStatus{}, errors.New("monitor unavailable"))
 			clock.Advance(tt.age)
+
 			st, err := cache.GetBatteryStatus()
 			if !tt.fresh {
 				require.Error(t, err)
@@ -43,6 +46,7 @@ func TestCachedBatteryProvider_freshness(t *testing.T) {
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, float32(12), st.VoltageVolts)
 			assert.True(t, st.Present)
@@ -57,18 +61,22 @@ func TestCachedBatteryProvider_absenceAndRecovery(t *testing.T) {
 	_, err := cache.GetBatteryStatus()
 	require.Error(t, err)
 	provider.Set(system.BatteryStatus{Present: true, VoltageVolts: 11}, nil)
+
 	st, err := cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.True(t, st.Present)
 	provider.Set(system.BatteryStatus{ChargePercent: -1}, nil)
+
 	st, err = cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.False(t, st.Present) // authoritative removal is immediate
 	assert.Negative(t, st.ChargePercent)
 	provider.Set(system.BatteryStatus{}, errors.New("removed"))
+
 	_, err = cache.GetBatteryStatus()
 	require.Error(t, err) // removal must invalidate the last-good value
 	provider.Set(system.BatteryStatus{Present: true, VoltageVolts: 12}, nil)
+
 	st, err = cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.Equal(t, float32(12), st.VoltageVolts)
@@ -81,19 +89,23 @@ func TestCachedBatteryProvider_hwmonHotplug(t *testing.T) {
 	st, err := cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.False(t, st.Present)
+
 	dir := filepath.Join(root, "hwmon3")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "name"), []byte("ina228\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "in1_input"), []byte("11400\n"), 0o644))
+
 	st, err = cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.True(t, st.Present)
 	assert.InDelta(t, 11.4, st.VoltageVolts, 0.001)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "in1_input"), []byte("invalid\n"), 0o644))
 	clock.Advance(6 * time.Second)
+
 	_, err = cache.GetBatteryStatus()
 	require.Error(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "in1_input"), []byte("12000\n"), 0o644))
+
 	st, err = cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.Equal(t, float32(12), st.VoltageVolts)
@@ -111,6 +123,7 @@ func TestCachedBatteryProvider_concurrentReadOrdering(t *testing.T) {
 	block := make(chan struct{})
 	read := make(chan struct{})
 	done := make(chan struct{})
+
 	var release sync.Once
 
 	provider := &fakeBatteryProvider{
@@ -119,6 +132,7 @@ func TestCachedBatteryProvider_concurrentReadOrdering(t *testing.T) {
 		read:   read,
 	}
 	cache := system.NewCachedBatteryProvider(provider, clock.Now)
+
 	t.Cleanup(func() {
 		release.Do(func() { close(block) })
 		<-done
@@ -126,16 +140,20 @@ func TestCachedBatteryProvider_concurrentReadOrdering(t *testing.T) {
 
 	go func() {
 		defer close(done)
+
 		_, _ = cache.GetBatteryStatus() // slow first read; result checked below
 	}()
+
 	<-read
 	provider.UnblockNext(system.BatteryStatus{Present: true, VoltageVolts: 12})
+
 	st, err := cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.Equal(t, float32(12), st.VoltageVolts)
 	release.Do(func() { close(block) })
 	<-done
 	provider.Set(system.BatteryStatus{}, errors.New("read failed"))
+
 	st, err = cache.GetBatteryStatus()
 	require.NoError(t, err)
 	assert.Equal(t, float32(12), st.VoltageVolts) // older read did not overwrite
