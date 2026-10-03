@@ -15,7 +15,7 @@ const BatteryFreshnessLimit = 5 * time.Second
 // so hotplug is rediscovered by the underlying provider. It owns no goroutines.
 // The current dashboard protocol has no stale flag: readings older than the
 // limit fail closed as absent instead of retaining fresh-looking values.
-type CachedBatteryProvider struct {
+type CachedBatteryProvider struct { //nolint:govet // Keep mutex immediately above all guarded fields, including the timestamp.
 	provider BatteryProvider
 	now      func() time.Time
 
