@@ -35,6 +35,7 @@ func (p *fakeBatteryProvider) GetBatteryStatus() (*system.BatteryStatus, error) 
 func (p *fakeBatteryProvider) UnblockNext(st system.BatteryStatus) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.status = st
 	p.block, p.read = nil, nil
 }
@@ -42,6 +43,7 @@ func (p *fakeBatteryProvider) UnblockNext(st system.BatteryStatus) {
 func (p *fakeBatteryProvider) Set(st system.BatteryStatus, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.status, p.err = st, err
 }
 
@@ -60,5 +62,6 @@ func (c *fakeBatteryClock) Now() time.Time {
 func (c *fakeBatteryClock) Advance(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.now = c.now.Add(d)
 }
