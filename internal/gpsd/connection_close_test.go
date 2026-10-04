@@ -1,6 +1,7 @@
 package gpsd
 
 import (
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -10,6 +11,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// A reader may close the descriptor before it clears the service pointer.
+// Reproduce that ordering directly instead of relying on goroutine scheduling.
+func TestGPSServiceClose_alreadyClosedSocket(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	client, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	server, err := listener.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.Close() })
+	require.NoError(t, client.Close())
+
+	g := &GPSService{Log: zerolog.Nop(), conn: client}
+	require.NoError(t, g.Close())
+	assert.Nil(t, g.conn)
+	require.NoError(t, g.Close(), "socket shutdown should be repeatable")
+}
+
+func TestGPSServiceClose_preservesCloseError(t *testing.T) {
+	want := errors.New("close failed")
+	conn := &fakeClosingConn{closeErr: want}
+	g := &GPSService{Log: zerolog.Nop(), conn: conn}
+
+	assert.ErrorIs(t, g.Close(), want)
+	assert.Nil(t, g.conn)
+	require.NoError(t, g.Close())
+	assert.Equal(t, 1, conn.CloseCount())
+}
 
 // TestReadGPSD_closesConnOnLoss pins the regression where a lost GPSD
 // connection was abandoned unclosed before reconnecting, leaking the
