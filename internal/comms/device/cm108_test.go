@@ -1,6 +1,8 @@
 package device_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -55,6 +57,36 @@ func TestDiscoverCM108_HappyPath(t *testing.T) {
 	assert.Equal(t, uint16(0x0D8C), d.VID)
 	assert.Equal(t, uint16(0x0012), d.PID)
 	assert.Equal(t, "ABC123", d.Serial)
+}
+
+func TestDiscoverCM108_SysfsDeviceSymlinks(t *testing.T) {
+	root := t.TempDir()
+	usbRoot := filepath.Join(root, "bus", "usb", "devices")
+	require.NoError(t, os.MkdirAll(usbRoot, 0o755))
+
+	// Linux exposes USB devices here as symlinks into /sys/devices, not
+	// directories. Keep the real interface children under the target.
+	for path, file := range mkFS("1-1", "0d8c", "0012", "VLM123", "1-1:1.3", "hidraw2", "card4") {
+		target := filepath.Join(root, "devices", path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+		require.NoError(t, os.WriteFile(target, file.Data, 0o600))
+	}
+
+	require.NoError(t, os.Symlink("../../../devices/bus/usb/devices/1-1", filepath.Join(usbRoot, "1-1")))
+	// An interface alias, a dangling device alias, and a non-directory
+	// alias must not create descriptors or hide the working device.
+	require.NoError(t, os.Symlink("../../../devices/bus/usb/devices/1-1/1-1:1.3", filepath.Join(usbRoot, "1-1:1.3")))
+	require.NoError(t, os.Symlink("missing-device", filepath.Join(usbRoot, "2-1")))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "regular-file"), []byte("not a device"), 0o600))
+	require.NoError(t, os.Symlink("../../../regular-file", filepath.Join(usbRoot, "3-1")))
+
+	descs, err := device.DiscoverCM108(os.DirFS(root))
+	require.NoError(t, err)
+	require.Len(t, descs, 1)
+	assert.Equal(t, "/dev/hidraw2", descs[0].HIDPath)
+	assert.Equal(t, 4, descs[0].ALSACardIdx)
+	assert.Equal(t, "VLM123", descs[0].Serial)
+	assert.Equal(t, "bus/usb/devices/1-1", descs[0].SysPath)
 }
 
 func TestDiscoverCM108_NonMatchingVendorSkipped(t *testing.T) {
