@@ -260,7 +260,11 @@ func (cfg *CommsConfig) drainPlaybackBuffer(rt *CommsRuntime) {
 // frames to the Opus encoder + RTP send pipeline. When the gate is closed
 // the capture callback still runs (the VOX tap continues to observe mic
 // frames) but encoded frames never hit the wire.
-func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
+func (cfg *CommsConfig) beginTransmission(ctx context.Context, rt *CommsRuntime) {
+	if ctx.Err() != nil {
+		return
+	}
+
 	if rt.Broadcasting.Load() {
 		cfg.Log.Debug().Msg("PTTDown ignored; already broadcasting")
 
@@ -296,8 +300,10 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	// also covers hardware that warms its capture path slowly. Sized
 	// by transmitSettleWait from the playback output latency and
 	// CommsConfig.PttStartDelayMs.
-	if d := cfg.transmitSettleWait(rt); d > 0 {
-		time.Sleep(d)
+	if !waitForPTTSettle(ctx, cfg.transmitSettleWait(rt)) {
+		rt.Broadcasting.Store(false)
+
+		return
 	}
 
 	bs := rt.Broadcast()
@@ -311,6 +317,22 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	bs.SetTxEnabled(true)
 
 	cfg.Log.Debug().Msg("TX gate opened")
+}
+
+// waitForPTTSettle keeps cancellation from opening TX after the start delay.
+func waitForPTTSettle(ctx context.Context, delay time.Duration) bool {
+	if delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+		}
+	}
+
+	return ctx.Err() == nil
 }
 
 // endTransmission closes the TX gate on the always-on capture stream and
@@ -429,7 +451,7 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 
 			switch ev {
 			case control.PTTDown:
-				cfg.beginTransmission(rt)
+				cfg.beginTransmission(ctx, rt)
 			case control.PTTUp:
 				cfg.endTransmission(rt)
 			case control.PTTToggle:
@@ -438,7 +460,7 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 					cfg.endTransmission(rt)
 				} else {
 					cfg.Log.Debug().Msg("Comm toggle: starting transmission")
-					cfg.beginTransmission(rt)
+					cfg.beginTransmission(ctx, rt)
 				}
 			}
 		}

@@ -393,7 +393,7 @@ func TestBeginTransmission_BeepSentToOnePort(t *testing.T) {
 	rt.SetBroadcast(&mockStream{})
 
 	cfg := &CommsConfig{Log: zerolog.Nop()}
-	cfg.beginTransmission(rt)
+	cfg.beginTransmission(t.Context(), rt)
 
 	if len(pc0.PlaybackBuffer) != 1 {
 		t.Errorf("port 0: beeps queued = %d, want 1", len(pc0.PlaybackBuffer))
