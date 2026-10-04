@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/openmanet/openmanetd/internal/util/board"
 )
 
 // BatteryStatus holds one reading from the node's battery monitor.
@@ -28,7 +30,27 @@ type BatteryProvider interface {
 // kernel hwmon subsystem (the ina2xx driver).
 type HwmonBatteryProvider struct {
 	// HwmonDir is the hwmon class directory (default "/sys/class/hwmon").
-	HwmonDir string
+	HwmonDir      string
+	seriesCells   uint32
+	chargeUnknown bool
+}
+
+// NewHwmonBatteryProviderForBoard applies only the documented V1 battery
+// measurement profile. Its INA228 measures the charger/system bus, not battery
+// current; that voltage cannot establish SOC while charging or bridging a swap.
+// V1 has a known 3S pack, so a depleted pack must never be inferred as full 2S.
+// Other identified boards retain generic voltage estimation. An empty board ID
+// keeps the measurements but leaves cell count and SOC unknown.
+func NewHwmonBatteryProviderForBoard(modelID string) *HwmonBatteryProvider {
+	if modelID == board.GhostnetV1 {
+		return &HwmonBatteryProvider{seriesCells: 3, chargeUnknown: true}
+	}
+
+	if modelID == "" {
+		return &HwmonBatteryProvider{chargeUnknown: true}
+	}
+
+	return &HwmonBatteryProvider{}
 }
 
 func (h *HwmonBatteryProvider) hwmonDir() string {
@@ -96,6 +118,13 @@ func (h *HwmonBatteryProvider) GetBatteryStatus() (*BatteryStatus, error) {
 
 	if microwatts, err := readHwmonInt(filepath.Join(dir, "power1_input")); err == nil {
 		status.PowerWatts = float32(microwatts) / 1_000_000
+	}
+
+	if h.chargeUnknown {
+		status.CellCount = h.seriesCells
+		status.ChargePercent = -1
+
+		return status, nil
 	}
 
 	status.CellCount, status.ChargePercent = EstimateLiionCharge(status.VoltageVolts)
