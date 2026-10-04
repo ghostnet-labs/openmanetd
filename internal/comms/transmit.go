@@ -358,6 +358,9 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 	// permanently dead sockets until Disable is called.
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
+	// Device loss closes the event channel without necessarily delivering
+	// PTTUp. Close the capture gate before Start tears down audio resources.
+	defer cfg.endTransmission(rt)
 
 	for _, pc := range rt.Ports {
 		if pc.Receiver != nil {
