@@ -178,6 +178,7 @@ func NewAPIServer(cfg APIServer) *APIServer {
 	}
 
 	dashBoard := handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{})
+
 	dashBattery := system.NewHwmonBatteryProviderForBoard("")
 	if b, err := dashBoard.GetBoard(); err == nil && b != nil {
 		dashBattery = system.NewHwmonBatteryProviderForBoard(b.Model.ID)
