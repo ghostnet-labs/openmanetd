@@ -7,6 +7,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
   pull_request_review:
     types: [submitted, dismissed]
+  # Revisit dependencies and resolved conversations that have no local CI event.
+  schedule:
+    - cron: '4,19,34,49 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
