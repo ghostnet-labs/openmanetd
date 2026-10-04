@@ -136,8 +136,13 @@ func (m *CommsManager) Enable() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.running {
+	if m.isRunningLocked() {
 		return nil
+	}
+	// A source or startup failure can end Start without Disable being called.
+	// Release that run's context before building a fresh runtime on Enable.
+	if m.cancel != nil {
+		m.cancel()
 	}
 
 	cc := m.buildFn()
@@ -191,5 +196,20 @@ func (m *CommsManager) IsRunning() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return m.running
+	return m.isRunningLocked()
+}
+
+// isRunningLocked reports the live goroutine, not merely the last Enable.
+// The caller must hold m.mu. done closes only after Start's cleanup returns.
+func (m *CommsManager) isRunningLocked() bool {
+	if !m.running {
+		return false
+	}
+
+	select {
+	case <-m.done:
+		return false
+	default:
+		return true
+	}
 }

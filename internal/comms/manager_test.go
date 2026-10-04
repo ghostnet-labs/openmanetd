@@ -200,6 +200,50 @@ func TestCommsManager_StartError(t *testing.T) {
 	}
 }
 
+func TestCommsManager_EnableAfterUnexpectedExit(t *testing.T) {
+	for _, startErr := range []error{nil, errors.New("HID disconnected")} {
+		name := "source closed"
+		if startErr != nil {
+			name = "start error"
+		}
+		t.Run(name, func(t *testing.T) {
+			var starts atomic.Int32
+			var builds atomic.Int32
+			m := &CommsManager{
+				logger: zerolog.Nop(),
+				buildFn: func() *CommsConfig {
+					builds.Add(1)
+					return &CommsConfig{}
+				},
+				startFn: func(_ *CommsConfig) startFunc {
+					return func(ctx context.Context) error {
+						if starts.Add(1) == 1 {
+							return startErr
+						}
+						<-ctx.Done()
+						return nil
+					}
+				},
+			}
+			t.Cleanup(m.Disable)
+			require.NoError(t, m.Enable())
+			select {
+			case <-m.done:
+			case <-time.After(time.Second):
+				t.Fatal("first runtime did not finish")
+			}
+			assert.False(t, m.IsRunning(), "exited subsystem must not report running")
+
+			require.NoError(t, m.Enable())
+			assert.True(t, m.IsRunning())
+			assert.Equal(t, int32(2), builds.Load(), "re-enable must rebuild from current config")
+			m.Disable()
+			assert.Equal(t, int32(2), starts.Load())
+			assert.False(t, m.IsRunning())
+		})
+	}
+}
+
 // TestCommsManager_EnableRejectsUnknownControlSource verifies that Enable
 // runs Validate() before starting the background goroutine, surfacing an
 // invalid ControlSource as a synchronous error to the caller.
