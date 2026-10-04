@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -64,13 +65,22 @@ func (g *GPSService) Close() error {
 	}
 
 	g.mu.Lock()
-	defer g.mu.Unlock()
+	conn := g.conn
+	g.conn = nil
+	g.mu.Unlock()
 
-	if g.conn != nil {
-		return g.conn.Close()
+	if conn == nil {
+		return nil
 	}
 
-	return nil
+	// The reader also closes its socket while unwinding. That shutdown may
+	// finish before it clears g.conn, so an already-closed socket is success.
+	err := conn.Close()
+	if errors.Is(err, net.ErrClosed) {
+		return nil
+	}
+
+	return err
 }
 
 // connectionHandler manages the connection to GPSD with automatic reconnection

@@ -250,21 +250,27 @@ func (cfg *CommsConfig) drainPlaybackBuffer(rt *CommsRuntime) {
 	}
 }
 
-// beginTransmission opens the TX gate on the always-on capture stream and
-// plays the start-tone into the local speaker to signal the start of
-// transmission.
+// beginTransmission prepares TX and plays the start-tone into the local
+// speaker. The gate opens immediately only when the settle wait is disabled.
+// A non-nil returned timer is owned by the caller, which must stop it on
+// release/shutdown and call openTXGate after it fires. Run keeps this wait
+// in its select so device loss and PTTUp can cancel a pending start.
 //
 // The broadcast capture stream is opened once at StartHardware and stays
-// open for the lifetime of the comms run. beginTransmission flips an atomic
+// open for the lifetime of the comms run. openTXGate flips an atomic
 // gate inside BroadcastCapture so the captureCallback begins forwarding
 // frames to the Opus encoder + RTP send pipeline. When the gate is closed
 // the capture callback still runs (the VOX tap continues to observe mic
 // frames) but encoded frames never hit the wire.
-func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
+func (cfg *CommsConfig) beginTransmission(ctx context.Context, rt *CommsRuntime) *time.Timer {
+	if ctx.Err() != nil {
+		return nil
+	}
+
 	if rt.Broadcasting.Load() {
 		cfg.Log.Debug().Msg("PTTDown ignored; already broadcasting")
 
-		return
+		return nil
 	}
 
 	// Half-duplex: refuse to transmit while the channel is actively receiving
@@ -272,7 +278,7 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	if cfg.isReceivingRemote(rt) {
 		cfg.Log.Debug().Msg("PTTDown ignored; channel busy (receiving remote audio)")
 
-		return
+		return nil
 	}
 
 	rt.Broadcasting.Store(true)
@@ -282,10 +288,10 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	if rt.WebBridge != nil {
 		cfg.Log.Debug().Msg("Begin web transmission")
 
-		return
+		return nil
 	}
 
-	cfg.Log.Debug().Msg("Begin transmission: playing start tone and opening TX gate")
+	cfg.Log.Debug().Msg("Begin transmission: playing start tone and preparing TX gate")
 	cfg.drainPlaybackBuffer(rt)
 	cfg.queueBeep(rt, rt.BeepBufferStart)
 
@@ -296,8 +302,25 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	// also covers hardware that warms its capture path slowly. Sized
 	// by transmitSettleWait from the playback output latency and
 	// CommsConfig.PttStartDelayMs.
-	if d := cfg.transmitSettleWait(rt); d > 0 {
-		time.Sleep(d)
+	if delay := cfg.transmitSettleWait(rt); delay > 0 {
+		return time.NewTimer(delay)
+	}
+
+	cfg.openTXGate(ctx, rt)
+
+	return nil
+}
+
+// openTXGate completes a pending start only while the run and press are live.
+func (cfg *CommsConfig) openTXGate(ctx context.Context, rt *CommsRuntime) {
+	if ctx.Err() != nil {
+		rt.Broadcasting.Store(false)
+
+		return
+	}
+
+	if !rt.Broadcasting.Load() {
+		return
 	}
 
 	bs := rt.Broadcast()
@@ -311,6 +334,82 @@ func (cfg *CommsConfig) beginTransmission(rt *CommsRuntime) {
 	bs.SetTxEnabled(true)
 
 	cfg.Log.Debug().Msg("TX gate opened")
+}
+
+// pendingPTTStart owns the settle timer on the Run goroutine. A nil ready
+// channel leaves the select case inactive. Release and shutdown stop the timer.
+type pendingPTTStart struct {
+	timer *time.Timer
+	ready <-chan time.Time
+}
+
+func (p *pendingPTTStart) cancel() {
+	if p.timer != nil {
+		p.timer.Stop()
+	}
+
+	p.timer = nil
+	p.ready = nil
+}
+
+func (p *pendingPTTStart) begin(ctx context.Context, cfg *CommsConfig, rt *CommsRuntime) {
+	if timer := cfg.beginTransmission(ctx, rt); timer != nil {
+		p.cancel()
+		p.timer = timer
+		p.ready = timer.C
+	}
+}
+
+// handlePTTEvent runs only on the Run goroutine, which also owns pending.
+func (cfg *CommsConfig) handlePTTEvent(ctx context.Context, rt *CommsRuntime, pending *pendingPTTStart, ev control.PTTEvent) {
+	switch ev {
+	case control.PTTDown:
+		pending.begin(ctx, cfg, rt)
+	case control.PTTUp:
+		pending.cancel()
+		cfg.endTransmission(rt)
+	case control.PTTToggle:
+		if cfg.isBroadcasting(rt) {
+			cfg.Log.Debug().Msg("Comm toggle: stopping transmission")
+			pending.cancel()
+			cfg.endTransmission(rt)
+		} else {
+			cfg.Log.Debug().Msg("Comm toggle: starting transmission")
+			pending.begin(ctx, cfg, rt)
+		}
+	}
+}
+
+// finish gives already-queued release/loss precedence over an expired timer.
+// Returns false on cancellation/source closure so Run performs exit cleanup.
+func (p *pendingPTTStart) finish(ctx context.Context, cfg *CommsConfig, rt *CommsRuntime, events <-chan control.PTTEvent) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+
+	timer := p.timer
+
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			return false
+		}
+
+		cfg.handlePTTEvent(ctx, rt, p, ev)
+
+		// An ignored repeated press must not extend the original delay.
+		// Retry readiness after draining queued events, without allocating
+		// another timer or opening before a queued release can be read.
+		if p.timer == timer && timer != nil {
+			timer.Reset(0)
+			p.ready = timer.C
+		}
+	default:
+		p.cancel()
+		cfg.openTXGate(ctx, rt)
+	}
+
+	return true
 }
 
 // endTransmission closes the TX gate on the always-on capture stream and
@@ -358,6 +457,9 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 	// permanently dead sockets until Disable is called.
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
+	// Device loss closes the event channel without necessarily delivering
+	// PTTUp. Close the capture gate before Start tears down audio resources.
+	defer cfg.endTransmission(rt)
 
 	for _, pc := range rt.Ports {
 		if pc.Receiver != nil {
@@ -372,6 +474,9 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 	}
 
 	events := src.Events(ctx)
+
+	var pendingStart pendingPTTStart
+	defer pendingStart.cancel()
 
 	if aux, ok := src.(control.AuxEventSource); ok && cfg.AuxHandler != nil {
 		// The aux pump deliberately runs on the parent context, not the
@@ -411,6 +516,10 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 			cfg.Log.Info().Msg("comms context canceled; exiting run loop")
 
 			return
+		case <-pendingStart.ready:
+			if !pendingStart.finish(ctx, cfg, rt, events) {
+				return
+			}
 		case <-recoverC:
 			recoverAttempts++
 
@@ -424,20 +533,7 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 				return
 			}
 
-			switch ev {
-			case control.PTTDown:
-				cfg.beginTransmission(rt)
-			case control.PTTUp:
-				cfg.endTransmission(rt)
-			case control.PTTToggle:
-				if cfg.isBroadcasting(rt) {
-					cfg.Log.Debug().Msg("Comm toggle: stopping transmission")
-					cfg.endTransmission(rt)
-				} else {
-					cfg.Log.Debug().Msg("Comm toggle: starting transmission")
-					cfg.beginTransmission(rt)
-				}
-			}
+			cfg.handlePTTEvent(ctx, rt, &pendingStart, ev)
 		}
 	}
 }
