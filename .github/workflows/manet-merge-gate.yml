@@ -1,0 +1,32 @@
+name: Manet merge gate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+concurrency:
+  group: manet-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  gate:
+    name: Manet merge gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ghostnet-labs/docs
+          ref: cf03ee6ae58d2d7a22ed058f5f3b1bbd9b8f712d
+          persist-credentials: false
+      - name: Verify merge policy regression suite
+        run: python3 -m unittest discover -s project/tests -v
+      - name: Wait for applicable current-head tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 project/scripts/merge_policy.py gate --repo "$REPO" --pr "$PR" --sha "$SHA"
