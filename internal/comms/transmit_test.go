@@ -472,9 +472,11 @@ func TestRun_ExitClosesActiveTXGate(t *testing.T) {
 			rt := &CommsRuntime{}
 			rt.SetBroadcast(stream)
 			rt.Broadcasting.Store(true)
+
 			cfg := newSilentComms()
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
+
 			events := make(chan control.PTTEvent)
 			if cause == "source closed" {
 				close(events)
