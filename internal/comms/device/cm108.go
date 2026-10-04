@@ -100,7 +100,9 @@ func DiscoverCM108(fsys fs.FS) ([]CM108Descriptor, error) {
 	results := make([]CM108Descriptor, 0, 4)
 
 	for _, e := range entries {
-		if !e.IsDir() {
+		// Real sysfs USB entries are symlinks into /sys/devices. Attribute
+		// reads below follow them and safely skip dangling/non-device links.
+		if !e.IsDir() && e.Type()&fs.ModeSymlink == 0 {
 			continue
 		}
 
