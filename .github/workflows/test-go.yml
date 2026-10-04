@@ -76,10 +76,10 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Build daemon and check HID source races
+      - name: Build daemon and check comms races
         run: |
           go build ./...
-          go test -race -count=1 ./internal/comms/control
+          go test -race -count=1 ./internal/comms/...
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
