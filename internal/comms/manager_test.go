@@ -206,13 +206,18 @@ func TestCommsManager_EnableAfterUnexpectedExit(t *testing.T) {
 		if startErr != nil {
 			name = "start error"
 		}
+
 		t.Run(name, func(t *testing.T) {
-			var starts atomic.Int32
-			var builds atomic.Int32
+			var (
+				starts atomic.Int32
+				builds atomic.Int32
+			)
+
 			m := &CommsManager{
 				logger: zerolog.Nop(),
 				buildFn: func() *CommsConfig {
 					builds.Add(1)
+
 					return &CommsConfig{}
 				},
 				startFn: func(_ *CommsConfig) startFunc {
@@ -220,18 +225,22 @@ func TestCommsManager_EnableAfterUnexpectedExit(t *testing.T) {
 						if starts.Add(1) == 1 {
 							return startErr
 						}
+
 						<-ctx.Done()
+
 						return nil
 					}
 				},
 			}
 			t.Cleanup(m.Disable)
 			require.NoError(t, m.Enable())
+
 			select {
 			case <-m.done:
 			case <-time.After(time.Second):
 				t.Fatal("first runtime did not finish")
 			}
+
 			assert.False(t, m.IsRunning(), "exited subsystem must not report running")
 
 			require.NoError(t, m.Enable())
