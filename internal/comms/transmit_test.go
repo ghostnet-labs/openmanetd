@@ -462,6 +462,35 @@ func TestRun_PTTDownStartsTransmission(t *testing.T) {
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1", stream.txEnableCalls)
 	}
+	assert.Equal(t, 1, stream.txDisableCalls, "source loss must close the TX gate")
+	assert.False(t, stream.txEnabledLatest)
+	assert.False(t, rt.Broadcasting.Load())
+}
+
+func TestRun_ExitClosesActiveTXGate(t *testing.T) {
+	for _, cause := range []string{"source closed", "context canceled"} {
+		t.Run(cause, func(t *testing.T) {
+			stream := &mockStream{txEnabledLatest: true}
+			rt := &CommsRuntime{}
+			rt.SetBroadcast(stream)
+			rt.Broadcasting.Store(true)
+			cfg := newSilentComms()
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			events := make(chan control.PTTEvent)
+			if cause == "source closed" {
+				close(events)
+			} else {
+				cancel()
+			}
+
+			cfg.Run(ctx, rt, &mockEventSource{ch: events})
+
+			assert.Equal(t, 1, stream.txDisableCalls)
+			assert.False(t, stream.txEnabledLatest)
+			assert.False(t, rt.Broadcasting.Load())
+		})
+	}
 }
 
 func TestRun_PTTUpStopsTransmission(t *testing.T) {
