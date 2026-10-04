@@ -26,13 +26,17 @@ func TestOpenVLMSource_disconnectReleasesActivePTT(t *testing.T) {
 			for _, pressed := range tt.reports {
 				reports <- makeOpenVLMReport(pressed)
 			}
+
 			close(reports)
 
 			src := NewOpenVLMSourceWithOpener(openerReturning(&fakeDisconnectHIDDevice{reports: reports}), zerolog.Nop())
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			t.Cleanup(cancel)
+
 			events := src.Events(ctx)
+
 			var got []PTTEvent
+
 			for {
 				select {
 				case ev, ok := <-events:
@@ -41,13 +45,16 @@ func TestOpenVLMSource_disconnectReleasesActivePTT(t *testing.T) {
 
 						return
 					}
+
 					got = append(got, ev)
 				case <-ctx.Done():
 					// Cancel before joining; the event sender must always have
 					// a shutdown path even if a regression fills its buffer.
 					cancel()
+
 					for range events {
 					}
+
 					t.Fatal("source did not close after disconnect")
 				}
 			}
