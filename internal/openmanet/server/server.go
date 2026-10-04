@@ -177,9 +177,15 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		dashServices = cfg.SystemSnapshotter
 	}
 
+	dashBoard := handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{})
+	dashBattery := system.NewHwmonBatteryProviderForBoard("")
+	if b, err := dashBoard.GetBoard(); err == nil && b != nil {
+		dashBattery = system.NewHwmonBatteryProviderForBoard(b.Model.ID)
+	}
+
 	api.Handle(dashboardconnect.NewDashboardServiceHandler(&handlers.DashboardService{
 		Log:         cfg.Log,
-		Board:       handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{}),
+		Board:       dashBoard,
 		SysInfo:     dashSysInfo,
 		Firmware:    handlers.NewCachedFirmwareProvider(&system.OpenWrtFirmwareProvider{}),
 		Interfaces:  interfaces,
@@ -188,7 +194,7 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Tailscale:   cfg.Tailscale,
 		Services:    dashServices,
 		Actions:     &system.InitDActionExecutor{},
-		Battery:     system.NewCachedBatteryProvider(&system.HwmonBatteryProvider{}, nil),
+		Battery:     system.NewCachedBatteryProvider(dashBattery, nil),
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(gnssconnect.NewGNSSServiceHandler(&handlers.GNSSService{
