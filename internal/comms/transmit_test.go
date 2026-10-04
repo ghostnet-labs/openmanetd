@@ -460,6 +460,7 @@ func TestRun_PTTDownStartsTransmission(t *testing.T) {
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1", stream.txEnableCalls)
 	}
+
 	assert.Equal(t, 1, stream.txDisableCalls, "source loss must close the TX gate")
 	assert.False(t, stream.txEnabledLatest)
 	assert.False(t, rt.Broadcasting.Load())
