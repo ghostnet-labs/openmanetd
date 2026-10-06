@@ -1,0 +1,37 @@
+name: Handle passing PRs
+on:
+  workflow_run:
+    workflows: ["Manet merge gate","Build Frontend Assets","CodeQL Advanced","Release","Frontend Tests","Go Tests"]
+    types: [completed]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
+  pull_request_review:
+    types: [submitted, dismissed]
+  # Revisit dependencies and resolved conversations that have no local CI event.
+  schedule:
+    - cron: '4,19,34,49 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+concurrency:
+  group: manet-auto-merge
+  cancel-in-progress: false
+jobs:
+  merge:
+    name: Handle passing PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ghostnet-labs/docs
+          ref: 68563cbe2dec67b2c94780f75eda8f7b0bcf38ae
+          persist-credentials: false
+      - name: Merge only eligible, protected PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: python3 project/scripts/merge_policy.py merge --repo "$REPO"
