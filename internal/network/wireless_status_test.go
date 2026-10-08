@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/fstest"
 
 	"github.com/openmanet/openmanetd/internal/iwinfo"
 	"github.com/stretchr/testify/assert"
@@ -110,9 +111,136 @@ func TestResolveWirelessRadioHardwareName_interfaces(t *testing.T) {
 		"phy1-mesh0": {Hardware: iwinfo.HardwareInfo{Name: "MediaTek MT7915AN"}},
 	}
 
-	assert.Equal(t, "MediaTek MT7915AN", ResolveWirelessRadioHardwareName("radio2", status, info))
-	assert.Empty(t, ResolveWirelessRadioHardwareName("missing", status, info))
-	assert.Empty(t, ResolveWirelessRadioHardwareName("radio2", status, nil))
+	sysfs := fstest.MapFS{}
+
+	assert.Equal(t, "MediaTek MT7915AN", resolveWirelessRadioHardwareName(sysfs, "radio2", status, info))
+	assert.Empty(t, resolveWirelessRadioHardwareName(sysfs, "missing", status, info))
+	assert.Empty(t, resolveWirelessRadioHardwareName(sysfs, "radio2", status, nil))
+}
+
+// pciUevent builds a sysfs PCI device uevent body.
+func pciUevent(driver, pciID, subsys string) *fstest.MapFile {
+	return &fstest.MapFile{Data: []byte("DRIVER=" + driver + "\nPCI_CLASS=28000\nPCI_ID=" + pciID +
+		"\nPCI_SUBSYS_ID=" + subsys + "\nPCI_SLOT_NAME=0001:01:00.0\nMODALIAS=pci:v000014C3\n")}
+}
+
+func TestResolveWirelessRadioHardwareName_sysfsFallback(t *testing.T) {
+	t.Parallel()
+
+	status := map[string]*WirelessRadioStatus{
+		"radio0": {Interfaces: []WirelessRadioInterface{{Ifname: "phy0-mesh0"}}},
+	}
+
+	cases := []struct {
+		name  string
+		hw    string // iwinfo hardware name; "" means iwinfo did not name it
+		phy   string // iwinfo phy; "" forces the netdev path
+		sysfs fstest.MapFS
+		want  string
+	}{
+		{
+			name:  "iwinfo names MT7916, sysfs not consulted",
+			hw:    "MediaTek MT7916AN",
+			phy:   "phy0",
+			sysfs: fstest.MapFS{},
+			want:  "MediaTek MT7916AN",
+		},
+		{
+			name: "generic iwinfo name, MT7916 PCI ID with vendor subsystem",
+			hw:   "Generic MAC80211",
+			phy:  "phy0",
+			sysfs: fstest.MapFS{
+				"class/ieee80211/phy0/device/uevent": pciUevent("mt7915e", "14C3:7906", "1A3B:5458"),
+			},
+			want: "MediaTek MT7916",
+		},
+		{
+			name: "no iwinfo name, MT7915 PCI ID",
+			phy:  "phy0",
+			sysfs: fstest.MapFS{
+				"class/ieee80211/phy0/device/uevent": pciUevent("mt7915e", "14c3:7915", "14C3:7915"),
+			},
+			want: "MediaTek MT7915",
+		},
+		{
+			name: "unknown PCI ID but mt7915e driver",
+			hw:   "Generic MAC80211",
+			phy:  "phy0",
+			sysfs: fstest.MapFS{
+				"class/ieee80211/phy0/device/uevent": pciUevent("mt7915e", "14C3:0000", "0000:0000"),
+			},
+			want: "MediaTek MT7915/MT7916",
+		},
+		{
+			name: "no phy reported, netdev path used",
+			hw:   "Generic MAC80211",
+			sysfs: fstest.MapFS{
+				"class/net/phy0-mesh0/device/uevent": pciUevent("mt7915e", "14C3:7906", "1A3B:5458"),
+			},
+			want: "MediaTek MT7916",
+		},
+		{
+			name: "other driver keeps iwinfo name",
+			hw:   "Generic MAC80211",
+			phy:  "phy0",
+			sysfs: fstest.MapFS{
+				"class/ieee80211/phy0/device/uevent": pciUevent("mt7921e", "14C3:7961", "14C3:7961"),
+			},
+			want: "Generic MAC80211",
+		},
+		{
+			name:  "sysfs missing keeps iwinfo name",
+			hw:    "Generic MAC80211",
+			phy:   "phy0",
+			sysfs: fstest.MapFS{},
+			want:  "Generic MAC80211",
+		},
+		{
+			name: "malformed uevent ignored",
+			hw:   "Generic MAC80211",
+			phy:  "phy0",
+			sysfs: fstest.MapFS{
+				"class/ieee80211/phy0/device/uevent": &fstest.MapFile{Data: []byte("garbage\n\nDRIVER\n")},
+			},
+			want: "Generic MAC80211",
+		},
+		{
+			name: "path traversal in phy rejected",
+			hw:   "Generic MAC80211",
+			phy:  "../phy0",
+			sysfs: fstest.MapFS{
+				"class/phy0/device/uevent": pciUevent("mt7915e", "14C3:7906", "1A3B:5458"),
+			},
+			want: "Generic MAC80211",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			info := map[string]*iwinfo.InterfaceInfo{
+				"phy0-mesh0": {PHY: tc.phy, Hardware: iwinfo.HardwareInfo{Name: tc.hw}},
+			}
+
+			got := resolveWirelessRadioHardwareName(tc.sysfs, "radio0", status, info)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, SupportsSecondaryMeshLink(tc.want), SupportsSecondaryMeshLink(got))
+		})
+	}
+}
+
+func TestResolveWirelessRadioHardwareName_noIwinfoEntry(t *testing.T) {
+	t.Parallel()
+
+	status := map[string]*WirelessRadioStatus{
+		"radio0": {Interfaces: []WirelessRadioInterface{{Ifname: "phy0-ap0"}}},
+	}
+	sysfs := fstest.MapFS{
+		"class/net/phy0-ap0/device/uevent": pciUevent("mt7915e", "14C3:7906", "1A3B:5458"),
+	}
+
+	assert.Equal(t, "MediaTek MT7916", resolveWirelessRadioHardwareName(sysfs, "radio0", status, nil))
 }
 
 func TestGetWirelessStatus_DisabledRadio(t *testing.T) {
