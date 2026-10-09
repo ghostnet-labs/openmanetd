@@ -3,12 +3,13 @@
 // =============================================================================
 
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createClient } from '@connectrpc/connect';
 import { DashboardService } from '../gen/openmanet/dashboard/v1/dashboard_service_pb.js';
 import { transport } from '../services/connectClient.js';
 import { useAuth } from '../contexts/useAuth.js';
-import { returnPathFrom } from '../utils/returnPath.js';
+import { knownLuciProxyEnabled } from '../hooks/useLuciProxy.js';
+import { safeReturnPath } from '../utils/returnPath.js';
 import openmanetMark from '../assets/openmanet-mark.svg';
 import './LoginPage.css';
 
@@ -30,10 +31,26 @@ function formatDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+// Why the operator is on the login page. Only the OpenMANET sign-in is
+// described: LuCI (Advanced) has its own root login that this page neither
+// creates nor ends.
+function sessionNotice(endReason, luciEnabled) {
+  if (endReason === 'expired') {
+    return { tone: 'warn', text: 'Your OpenMANET session expired. Sign in again to continue.' };
+  }
+  if (endReason === 'signed-out') {
+    const luci = luciEnabled
+      ? ' LuCI (Advanced) has its own sign-in and is not signed out here.'
+      : '';
+    return { tone: '', text: `Signed out of OpenMANET.${luci}` };
+  }
+  return null;
+}
+
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, endReason } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -41,13 +58,14 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState(null);
   const now = useUtcClock();
-  // Where ProtectedRoute was sending the operator before it bounced them here.
-  const returnTo = returnPathFrom(location.state);
+
+  // Where to go after sign-in: the validated `next` deep link, else '/'.
+  const returnPath = safeReturnPath(searchParams.get('next'));
 
   // Redirect if already authenticated.
   useEffect(() => {
-    if (isAuthenticated) navigate(returnTo, { replace: true });
-  }, [isAuthenticated, navigate, returnTo]);
+    if (isAuthenticated) navigate(returnPath, { replace: true });
+  }, [isAuthenticated, navigate, returnPath]);
 
   // Best-effort unauthenticated device-info fetch for the corner readouts.
   useEffect(() => {
@@ -69,7 +87,7 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      navigate(returnTo, { replace: true });
+      navigate(returnPath, { replace: true });
     } catch (err) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -82,6 +100,9 @@ export default function LoginPage() {
   const model = deviceInfo?.model || '—';
   const kernel = deviceInfo?.kernel || '';
   const arch = deviceInfo?.architecture || '';
+  const notice = sessionNotice(endReason, knownLuciProxyEnabled());
+  const noticeClass = notice?.tone ? `lat-alert ${notice.tone}` : 'lat-alert';
+  const returnHint = returnPath === '/' ? null : `Returns to ${returnPath} after sign-in.`;
 
   return (
     <div className="login-screen">
@@ -104,6 +125,13 @@ export default function LoginPage() {
         <div className="login-sub">Mesh Operator Terminal</div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
+          {notice ? (
+            <div className={noticeClass} role="status">{notice.text}</div>
+          ) : null}
+          {returnHint ? (
+            <div className="login-return">{returnHint}</div>
+          ) : null}
+
           <div className="lat-field">
             <label htmlFor="username">Operator</label>
             <input

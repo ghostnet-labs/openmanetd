@@ -33,6 +33,13 @@ export function fetchLuciProxyEnabled() {
   return inflight;
 }
 
+// knownLuciProxyEnabled reports the cached answer without fetching. The
+// login page uses it: /api/system/info needs a session, so asking there
+// would only produce a 401.
+export function knownLuciProxyEnabled() {
+  return cached === true;
+}
+
 // Test seam: forget the cached answer.
 export function resetLuciProxyCache() {
   cached = null;

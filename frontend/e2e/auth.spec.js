@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
 import { gotoPage, mockAuth, navigateTo, pageHeading, signOut } from './support/helpers.js';
 
 async function logIn(page) {
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(\?|$)/);
   await page.getByLabel('Operator').fill('e2e-operator');
   await page.getByLabel('Passphrase').fill('e2e-passphrase');
   await page.getByRole('button', { name: /authenticate/i }).click();
@@ -42,9 +42,9 @@ test('sign out lands on login and protected routes stay closed', async ({ page }
   await mockAuth(page);
   await gotoPage(page, { path: '/', heading: 'Dashboard' });
   await signOut(page, testInfo);
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(\?|$)/);
 
   await page.goto('/comms');
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(\?|$)/);
   await expect(page.getByRole('button', { name: /authenticate/i })).toBeVisible();
 });

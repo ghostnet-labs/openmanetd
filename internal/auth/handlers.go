@@ -18,10 +18,9 @@ const errorKey = "error"
 // session-check endpoints. These are registered on the API server's mux
 // alongside the ConnectRPC service handlers.
 //
-// Session cookies are written without the Secure attribute because the
-// device is addressed over both http:// and https:// on the local LAN;
-// setting Secure would cause browsers to drop the cookie over plain HTTP.
-// Non-browser clients can authenticate via the Authorization: Bearer
+// Over HTTPS the session cookie is __Host-session with Secure; over plain
+// HTTP it is session without Secure (see SessionCookieName for why the two
+// differ by name). Both are HttpOnly, SameSite=Lax and Path=/. Non-browser clients can authenticate via the Authorization: Bearer
 // <token> header instead — see NewAPIAuthMiddleware.
 type AuthHandler struct {
 	Log            zerolog.Logger
@@ -97,16 +96,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	token := h.Store.Create(req.Username)
 	h.Log.Info().Str("username", req.Username).Msg("user logged in")
 
-	// Secure is intentionally omitted: the device serves both http:// and
-	// https:// on the local LAN; setting Secure would silently drop the
-	// session cookie over plain HTTP.
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // see comment above re: dual http/https LAN access
-		Name:     SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, sessionCookie(r, token, false))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(loginResponse{Username: req.Username, Token: token})
@@ -123,21 +113,21 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if token := extractSessionToken(r); token != "" {
+	// Every token the request carries is revoked, so signing out on the
+	// HTTPS origin also ends a plain-HTTP session held on the same host.
+	for _, token := range sessionTokens(r) {
 		h.Store.Delete(token)
 	}
 
-	// Secure is intentionally omitted to match the login cookie set above
-	// (the LAN supports both http:// and https://).
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // mirrors HandleLogin; see comment there
-		Name:     SessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0),
-	})
+	http.SetCookie(w, sessionCookie(r, "", true))
+
+	// A __Host- cookie can only be cleared by a Secure response, so the
+	// plain-HTTP origin leaves it for the HTTPS one; its token is already
+	// revoked above when the browser sent it here. Over HTTPS, also clear
+	// the plain cookie the browser may hold from an HTTP sign-in.
+	if RequestIsTLS(r) {
+		http.SetCookie(w, plainSessionCookie("", true))
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -155,14 +145,7 @@ func (h *AuthHandler) HandleCheck(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	token := extractSessionToken(r)
-	if token == "" {
-		_ = json.NewEncoder(w).Encode(checkResponse{Authenticated: false, AuthEnabled: true})
-
-		return
-	}
-
-	sess, ok := h.Store.Validate(token)
+	sess, ok := lookupSession(h.Store, r)
 	if !ok {
 		_ = json.NewEncoder(w).Encode(checkResponse{Authenticated: false, AuthEnabled: true})
 
@@ -267,6 +250,50 @@ func HandleCheckDisabled(w http.ResponseWriter, r *http.Request) {
 		Username:      "root",
 		AuthEnabled:   false,
 	})
+}
+
+// sessionCookie builds the session cookie for the request's scheme: the
+// Secure __Host-session cookie over HTTPS, the plain session cookie over
+// HTTP. With expire set it builds the matching deletion cookie instead.
+func sessionCookie(r *http.Request, token string, expire bool) *http.Cookie {
+	if !RequestIsTLS(r) {
+		return plainSessionCookie(token, expire)
+	}
+
+	c := &http.Cookie{
+		Name:     SecureSessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	if expire {
+		c.MaxAge = -1
+		c.Expires = time.Unix(0, 0)
+	}
+
+	return c
+}
+
+// plainSessionCookie builds the plain-HTTP session cookie. Secure is
+// omitted on purpose: the browser would never send it back over http://.
+func plainSessionCookie(token string, expire bool) *http.Cookie {
+	c := &http.Cookie{ //nolint:gosec // plain-HTTP origin; Secure would drop the cookie (see SessionCookieName)
+		Name:     SessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	if expire {
+		c.MaxAge = -1
+		c.Expires = time.Unix(0, 0)
+	}
+
+	return c
 }
 
 func writeJSONError(w http.ResponseWriter, status int, message string) {

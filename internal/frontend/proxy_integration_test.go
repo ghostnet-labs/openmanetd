@@ -29,7 +29,15 @@ func (stubAuth) Authenticate(_, _ string) error { return nil }
 func newAuthEnabledAPIServer(t *testing.T) (*httptest.Server, *auth.SessionStore) {
 	t.Helper()
 
-	store := auth.NewSessionStore(time.Hour, 16)
+	return newAuthEnabledAPIServerWithMaxAge(t, time.Hour)
+}
+
+// newAuthEnabledAPIServerWithMaxAge is newAuthEnabledAPIServer with a chosen
+// session lifetime; a negative one makes every session expire on first use.
+func newAuthEnabledAPIServerWithMaxAge(t *testing.T, maxAge time.Duration) (*httptest.Server, *auth.SessionStore) {
+	t.Helper()
+
+	store := auth.NewSessionStore(maxAge, 16)
 
 	authHandler := &auth.AuthHandler{
 		Log:           zerolog.Nop(),
@@ -122,7 +130,7 @@ func TestProxyAuthFlow_HTTPSCookieRoundTrip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "check body=%s", body)
 	assert.Contains(t, string(body), `"authenticated":false`)
 
-	// 2. /auth/login — must succeed and set the session cookie.
+	// 2. /auth/login — must succeed and set the HTTPS session cookie.
 	resp, err = client.Post(front.URL+"/auth/login", "application/json",
 		strings.NewReader(`{"username":"root","password":""}`))
 	require.NoError(t, err)
@@ -135,7 +143,10 @@ func TestProxyAuthFlow_HTTPSCookieRoundTrip(t *testing.T) {
 	frontURL, _ := url.Parse(front.URL)
 	cookies := client.Jar.Cookies(frontURL)
 	require.Len(t, cookies, 1, "expected exactly one cookie after login, got %d", len(cookies))
-	assert.Equal(t, auth.SessionCookieName, cookies[0].Name)
+	assert.Equal(t, auth.SecureSessionCookieName, cookies[0].Name,
+		"the frontend terminated TLS, so the API must issue the Secure __Host- cookie")
+	assert.True(t, cookies[0].Secure)
+	assert.True(t, cookies[0].HttpOnly)
 	assert.NotEmpty(t, cookies[0].Value)
 
 	// And the session must exist in the upstream store.
