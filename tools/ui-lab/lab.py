@@ -23,7 +23,7 @@ def up():
  if not online(URLS['sample_api']):start('sample_api',[sys.executable,str(LAB/'tools/sample-api.py')])
  if not online(URLS['dashboard']):start('dashboard',[str(NODE),'node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5173','--strictPort'],OPENMANETD/'frontend')
  vm_ready=all((WORK/f).exists() for f in ['openwrt-kernel.bin','luci-rootfs.img'])
- if not vm_ready:print('LuCI VM skipped: put openwrt-kernel.bin and luci-rootfs.img in '+str(WORK)+' (see README.md)')
+ if not vm_ready:print('LuCI VM skipped: run `python3 lab.py build-vm` first')
  if vm_ready and not online(URLS['luci']):
   binary,libs=qemu();vm_env=env.copy()
   if libs:vm_env['DYLD_LIBRARY_PATH']=libs
@@ -50,5 +50,6 @@ def down():
 if __name__=='__main__':
  action=sys.argv[1] if len(sys.argv)>1 else 'up'
  if action=='sync':subprocess.run([sys.executable,str(LAB/'tools/sync-luci.py')],check=True)
+ elif action=='build-vm':subprocess.run([sys.executable,str(LAB/'tools/build-vm.py')]+sys.argv[2:],check=True)
  elif action in ['up','down','status']:globals()[action]()
- else:raise SystemExit('Use: python3 lab.py up|down|status|sync')
+ else:raise SystemExit('Use: python3 lab.py build-vm [--force]|up|down|status|sync')

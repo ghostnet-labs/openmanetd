@@ -18,8 +18,7 @@ The two interfaces use separate backends. Changing dashboard sample settings doe
 | Python 3 | System Python; the lab uses only the standard library |
 | Node.js and pnpm | Any recent Node.js on `PATH` (or `UI_LAB_NODE`). Install the dashboard's dependencies once with `pnpm -C frontend install` from the openmanetd root |
 | QEMU (`qemu-system-aarch64`) | `brew install qemu`, or set `UI_LAB_QEMU`. A copy unpacked into `$UI_LAB_WORK/runtime/qemu` is also found |
-| OpenWrt 24.10.5 armsr/armv8 kernel | `openwrt-24.10.5-armsr-armv8-generic-kernel.bin` from the OpenWrt download page below, saved as `$UI_LAB_WORK/openwrt-kernel.bin`. Check it against that page's `sha256sums` |
-| LuCI VM disk | `$UI_LAB_WORK/luci-rootfs.img`: the matching `generic-ext4-rootfs.img.gz`, unpacked, with LuCI installed, an empty root password, and SSH on the LAN address. **No script builds this disk yet**; the first copy was set up by hand. Without it, `up` starts only the dashboard and sample backend |
+| OpenWrt 24.10.5 VM | `python3 lab.py build-vm` downloads the armsr/armv8 kernel and ext4 rootfs from the OpenWrt download page below, checks them against the release's `sha256sums`, boots the image once on its serial console, and installs `luci-compat`, `kmod-mac80211-hwsim` and `wpad-basic-mbedtls`. It needs internet access and takes a few minutes. LuCI, the empty root password and SSH come with the stock image. `--force` rebuilds an existing disk. Without the VM, `up` starts only the dashboard and sample backend |
 | `luci` and `packages` checkouts | `ghostnet-labs/luci` (branch `mm-23.05`) and `ghostnet-labs/packages` (branch `24.10`), cloned beside this openmanetd checkout |
 
 Only the LuCI half needs QEMU and the VM disk. The dashboard and sample backend run with Python and Node alone.
@@ -56,6 +55,7 @@ Follow each repository's instructions before changing product code. This setup d
 From this folder (`tools/ui-lab` in openmanetd):
 
 ```sh
+python3 lab.py build-vm   # once
 python3 lab.py up
 python3 lab.py status
 python3 lab.py sync
@@ -80,6 +80,7 @@ Real audio/PTT transmission, terminal access, firmware flashing, service restart
 - Dashboard radio settings saved through its actual UI to the sample backend.
 - LuCI theme/resources synchronized successfully to the VM.
 - OpenWrt kernel/rootfs downloads matched the official SHA-256 checksums.
+- `build-vm` built a fresh disk from the release images. After `sync`, root login, the system and wireless pages, the OpenMANET theme and the channel map all loaded, and the simulated radio came up.
 - Focused sample-backend tests cover radio save/readback, radio isolation, and rejection of unsupported hardware actions.
 
 ```sh
