@@ -650,6 +650,31 @@ reopens audio on the paired card immediately. While nothing is bound in
 card; RTP relay keeps running. Binding state is exposed as
 `comms.device_binding` in the instrumentation snapshot.
 
+#### Port fault telemetry (`ghostnet,v1`)
+
+[`gpio.FaultMonitor`](gpio/fault.go) watches `VLM_USB_FAULT_N`, an active-low
+line that reports a power or overcurrent fault on the USB host port feeding
+the OpenVLM. The line is found by name (default `GPIO25`) and requested with a
+pull-up, events on both edges, and a 10 ms debounce applied in the kernel. The
+monitor reads the line once at start and again on each edge. It only reports:
+an assertion is logged at error level and counted. It does not switch port
+power. Rediscovery after the port recovers is the binder's job.
+
+The monitor runs only when the board routes the line
+(`board.VLMUSBFaultSupported()`, which is true for `ghostnet,v1` only) and
+`comms.vlmUsbFault.enable` is `true`. That key **defaults to false** because
+the pin mapping has not been verified on hardware. `comms.vlmUsbFault.line`
+overrides the line name. If the line request fails, the failure is logged and
+comms keeps running without fault telemetry. The state is published as
+`comms.vlm_usb_fault` in the instrumentation snapshot.
+
+```yaml
+comms:
+  vlmUsbFault:
+    enable: false   # opt in once the GPIO25 mapping is verified on hardware
+    line: GPIO25
+```
+
 ### Audio init retry and in-run recovery
 
 Hardware audio init is retried up to 3 times at startup (750 ms apart,

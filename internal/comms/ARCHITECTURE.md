@@ -275,6 +275,10 @@ CommsConfig
 │
 ├── GPIOSelectorEnable        bool                  comms.gpioSelector.enable
 │                                                   (honored on Raven only)
+├── VLMUSBFaultEnable         bool                  comms.vlmUsbFault.enable
+│                                                   (default false; ghostnet,v1)
+├── VLMUSBFaultLine           string                comms.vlmUsbFault.line
+│                                                   (default GPIO25)
 │
 └── Debug, Loopback, Trace    bool
 ```
@@ -1452,6 +1456,23 @@ A selection that changes nothing emits no event. The direction toggles
   glitches only bump the counter.
 - `hardware.go` is the only file that imports the library; tests run
   against the `lineGroup` fake via the `openFn` seam.
+
+### VLM USB fault monitor (`gpio/fault.go`)
+
+- `ghostnet,v1` only (`board.VLMUSBFaultSupported()`). It is opt-in through
+  `comms.vlmUsbFault.enable`, which defaults to false because the `GPIO25`
+  mapping has not been verified on hardware.
+- One line, found by name, read as active low (`VLM_USB_FAULT_N`). The line
+  is requested with a pull-up, events on both edges, and a 10 ms debounce
+  applied in the kernel. Each edge wakes the watcher (latest-wins, depth 1),
+  which re-reads the level, counts transitions into fault and records the
+  time of the most recent one.
+- It only reports and never switches port power. Ten failed reads in a row
+  trip the shared breaker.
+- `Start` builds the monitor and `startVLMFaultMonitor` joins it before
+  comms `Start` returns, so a restart can request the line again without
+  getting EBUSY.
+- Tests use the exported `Open` seam.
 
 ### RPC surface
 

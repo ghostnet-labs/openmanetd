@@ -27,6 +27,9 @@ type CommsSnapshot struct {
 	Announcer announce.Snapshot `json:"announcer"`
 	// GPIOSelector is the hardware selector section (zeros off-Raven).
 	GPIOSelector gpio.SelectorSnapshot `json:"gpio_selector"`
+	// VLMUSBFault is the OpenVLM host port fault section (zeros unless
+	// comms.vlmUsbFault.enable is set on a board that routes the line).
+	VLMUSBFault gpio.FaultSnapshot `json:"vlm_usb_fault"`
 	// ActiveTalkgroup is the 1-based active talk group (0 when nothing
 	// has been selected yet or comms is down).
 	ActiveTalkgroup int `json:"active_talkgroup"`
@@ -119,6 +122,7 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 		dst.TalkgroupEventsDropped = 0
 		dst.Announcer = announce.Snapshot{}
 		dst.GPIOSelector = gpio.SelectorSnapshot{}
+		dst.VLMUSBFault = gpio.FaultSnapshot{}
 		dst.DeviceBinding = device.BindingSnapshot{ALSACard: device.NoCard}
 
 		return
@@ -144,6 +148,7 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 		dst.TalkgroupEventsDropped = 0
 		dst.Announcer = announce.Snapshot{}
 		dst.GPIOSelector = gpio.SelectorSnapshot{}
+		dst.VLMUSBFault = gpio.FaultSnapshot{}
 
 		return
 	}
@@ -155,6 +160,7 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 	dst.TalkgroupEventsDropped = rt.Events.Dropped()
 	rt.Announcer.Snapshot(&dst.Announcer)
 	rt.GPIOSel.Snapshot(&dst.GPIOSelector)
+	rt.VLMFault.Load().Snapshot(&dst.VLMUSBFault)
 
 	// BroadcastStream is an interface. In production the live instance is
 	// always a *audio.BroadcastEncoder; test fakes may substitute a
