@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestOpenVLMSource_disconnectReleasesActivePTT pins that a HID loss while
+// PTT is held emits PTTUp before the binding is released, and that the
+// source then keeps running (rediscovery) instead of closing its channel.
 func TestOpenVLMSource_disconnectReleasesActivePTT(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -29,35 +32,54 @@ func TestOpenVLMSource_disconnectReleasesActivePTT(t *testing.T) {
 
 			close(reports)
 
-			src := NewOpenVLMSourceWithOpener(openerReturning(&fakeDisconnectHIDDevice{reports: reports}), zerolog.Nop())
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			// First open returns the device that disconnects; later opens
+			// (rediscovery) get a device that blocks until closed.
+			first := true
+			opener := func(string) (HIDDevice, error) {
+				if first {
+					first = false
+
+					return &fakeDisconnectHIDDevice{reports: reports}, nil
+				}
+
+				return newMockHIDDevice(), nil
+			}
+
+			binder := newFakeDeviceBinder("/dev/hidraw0", 1)
+			src := NewOpenVLMSourceWithOptions(zerolog.Nop(), OpenVLMOptions{
+				Opener: opener, Binder: binder, RetryMin: time.Millisecond, RetryMax: time.Millisecond,
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
 			events := src.Events(ctx)
 
 			var got []PTTEvent
 
+		collect:
 			for {
 				select {
 				case ev, ok := <-events:
-					if !ok {
-						require.Equal(t, tt.want, got)
-
-						return
-					}
+					require.True(t, ok, "source must not close its channel on device loss")
 
 					got = append(got, ev)
-				case <-ctx.Done():
-					// Cancel before joining; the event sender must always have
-					// a shutdown path even if a regression fills its buffer.
-					cancel()
-
-					for range events {
-					}
-
-					t.Fatal("source did not close after disconnect")
+				case <-binder.released:
+					break collect
+				case <-time.After(time.Second):
+					t.Fatal("binding was not released after disconnect")
 				}
 			}
+
+			cancel()
+
+			// Release happens after the balancing PTTUp was queued; drain
+			// anything still buffered until the source shuts down.
+			for ev := range events {
+				got = append(got, ev)
+			}
+
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

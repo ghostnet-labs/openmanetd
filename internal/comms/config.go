@@ -95,6 +95,12 @@ type CommsRuntime struct { //nolint:govet // fieldalignment: mu must sit directl
 	// Run executes synchronously on the Start goroutine, so all accesses
 	// are sequential and no lock is needed.
 	audioCleanup func()
+
+	// audioCard is the bound ALSA card the running hardware audio was
+	// opened on; meaningful only while audioCardSet. Owned by the
+	// Start/Run goroutine like audioCleanup.
+	audioCard    int
+	audioCardSet bool
 }
 
 // Broadcast returns the live capture stream, or nil when hardware audio is
@@ -142,6 +148,9 @@ type CommsConfig struct {
 	// detectALSACardFn overrides ALSA card auto-detection for tests. When
 	// nil, detectALSACard falls back to control.DetectAndSetALSACard(cfg.Log).
 	detectALSACardFn func()
+	// binder overrides the process-wide device.DefaultBinder that pairs
+	// the OpenVLM HID node with its ALSA card. Test seam; nil in production.
+	binder audioBinder
 	// readUDPDropsFn overrides the /proc/net/udp kernel-drop scan for
 	// tests. When nil, readUDPDrops falls back to readUDPSocketDrops.
 	readUDPDropsFn func(localPort int) (int64, error)

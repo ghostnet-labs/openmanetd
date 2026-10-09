@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/openmanet/openmanetd/internal/comms/control"
+	"github.com/openmanet/openmanetd/internal/comms/device"
 )
 
 // ─── mockStream ───────────────────────────────────────────────────────────────
@@ -292,4 +293,64 @@ func (m *mockRTPSender) Send(payload []byte) error {
 	m.mu.Unlock()
 
 	return nil
+}
+
+// ─── fakeAudioBinder ──────────────────────────────────────────────────────────
+
+// fakeAudioBinder satisfies audioBinder. Tests flip the binding with bind /
+// lose, which close the current Changed channel like the real Binder.
+type fakeAudioBinder struct {
+	mu       sync.Mutex
+	sel      device.Selection
+	bound    bool
+	override string
+	changed  chan struct{}
+}
+
+func newFakeAudioBinder(bound bool, card int) *fakeAudioBinder {
+	b := &fakeAudioBinder{changed: make(chan struct{}), bound: bound}
+	b.sel.Device.ALSACardIdx = card
+	b.sel.Device.SysPath = "bus/usb/devices/1-1.3"
+
+	return b
+}
+
+func (b *fakeAudioBinder) Changed() <-chan struct{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.changed
+}
+
+func (b *fakeAudioBinder) Current() (device.Selection, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.sel, b.bound
+}
+
+func (b *fakeAudioBinder) CardOverride() (string, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.override, b.override != ""
+}
+
+func (b *fakeAudioBinder) bind(card int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.sel.Device.ALSACardIdx = card
+	b.bound = true
+	close(b.changed)
+	b.changed = make(chan struct{})
+}
+
+func (b *fakeAudioBinder) lose() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.bound = false
+	close(b.changed)
+	b.changed = make(chan struct{})
 }

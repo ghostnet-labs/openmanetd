@@ -28,6 +28,7 @@ func TestInitAudioIO_HardwareFailureIsNonFatal(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:           zerolog.Nop(),
 		ControlSource: defaultCtrlSrc, // openvlm — the user-reported case
+		binder:        newFakeAudioBinder(true, 0),
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			return nil, errors.New("simulated: no ALSA card / dongle unplugged")
 		},
@@ -75,6 +76,7 @@ func TestInitAudioIO_HardwareSuccessReturnsCleanup(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:           zerolog.Nop(),
 		ControlSource: defaultCtrlSrc,
+		binder:        newFakeAudioBinder(true, 0),
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			return func() { called++ }, nil
 		},
@@ -121,6 +123,7 @@ func TestInitAudioIO_RetriesThenSucceeds(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:           zerolog.Nop(),
 		ControlSource: defaultCtrlSrc,
+		binder:        newFakeAudioBinder(true, 0),
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			calls++
 			if calls < 3 {
@@ -148,6 +151,7 @@ func TestInitAudioIO_AllAttemptsFail(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:           zerolog.Nop(),
 		ControlSource: defaultCtrlSrc,
+		binder:        newFakeAudioBinder(true, 0),
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			calls++
 
@@ -173,6 +177,7 @@ func TestInitAudioIO_ContextCanceledStopsRetry(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:                 zerolog.Nop(),
 		ControlSource:       defaultCtrlSrc,
+		binder:              newFakeAudioBinder(true, 0),
 		audioInitRetryDelay: time.Hour,
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			calls++
@@ -203,6 +208,7 @@ func TestInitAudioIO_FailureLogIncludesALSACard(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:           zerolog.New(&buf),
 		ControlSource: defaultCtrlSrc,
+		binder:        newFakeAudioBinder(true, 0),
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			return nil, errors.New("simulated: miniaudio: Broken pipe")
 		},

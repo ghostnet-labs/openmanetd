@@ -19,6 +19,34 @@ unreachable until the packages repo flips those. To re-open the wizard on a
 device that already completed it, see
 [setup-wizard-recovery.md](setup-wizard-recovery.md).
 
+### Already-configured detection
+
+`GetSetupStatus` also reports `already_configured`, a heuristic for "this
+node's state looks set up, by the wizard or by hand". It is true when any of
+these hold:
+
+- `setup.complete=true`
+- `luci.wizard.used=1` (written by the LuCI Morse wizard and by this wizard)
+- a `network.wizard` bookkeeping section exists (only the wizard writes it)
+- a `network.ahwlan` interface exists (the wizard's mesh network)
+- the hostname does not match the factory pattern
+
+`auth.enable` is deliberately **not** a signal: it defaults to `true`, so a
+factory node with a stock `config.yml` would otherwise always look configured.
+The factory `mesh11sd` `mesh_gate_announcements '0'` is ignored for the same
+reason.
+
+`already_configured` drives two things in the UI:
+
+- **The route gate does not trap.** While the wizard is enabled and
+  incomplete, `SetupGate` normally redirects every route to `/setup`. When
+  `already_configured` is true, `/` and every other route open normally and
+  `/setup` stays reachable, so a hand-configured node that receives a fresh
+  `config.yml` is never forced into a wizard that resets UCI.
+- **The identity step warns and asks for confirmation.** The first step shows
+  "This device looks like it has already been configured. Continuing will
+  reset…", and pressing Next asks the operator to confirm the reset.
+
 ## What the wizard writes
 
 The wizard snapshots and can roll back these UCI configs:
