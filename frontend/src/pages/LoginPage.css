@@ -97,6 +97,13 @@
   font-size: 12px;
   letter-spacing: 0.18em;
 }
+/* Deep link the operator returns to after sign-in. Long paths wrap
+   instead of widening the card on a 360px phone. */
+.login-return {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 
 /* ── Mobile ────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {

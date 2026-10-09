@@ -242,3 +242,64 @@ describe('TestAuthContext_ChangePassword', () => {
     await waitFor(() => expect(screen.getByTestId('change-err').textContent).toBe('Failed to change passphrase'));
   });
 });
+
+function EndReasonProbe() {
+  const auth = useAuth();
+  return (
+    <div>
+      <span data-testid="end-user">{auth.user ?? ''}</span>
+      <span data-testid="end-reason">{String(auth.endReason)}</span>
+      <button onClick={() => auth.login('root', 'pw')}>end-login</button>
+      <button onClick={() => auth.logout()}>end-logout</button>
+    </div>
+  );
+}
+
+describe('TestAuthContext_EndReason', () => {
+  it('marks a live session that gets a 401 as expired', async () => {
+    stubFetch(() => Promise.resolve(jsonRes({ authenticated: true, username: 'op1', authEnabled: true })));
+    render(<AuthProvider><EndReasonProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('end-user').textContent).toBe('op1'));
+    expect(screen.getByTestId('end-reason').textContent).toBe('null');
+
+    act(() => {
+      window.dispatchEvent(new Event('session-expired'));
+    });
+
+    expect(screen.getByTestId('end-reason').textContent).toBe('expired');
+  });
+
+  it('does not report expiry for a 401 while already signed out', async () => {
+    stubFetch(() => Promise.resolve(jsonRes({ authenticated: false, authEnabled: true })));
+    render(<AuthProvider><EndReasonProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('end-reason').textContent).toBe('null'));
+
+    act(() => {
+      window.dispatchEvent(new Event('session-expired'));
+    });
+
+    expect(screen.getByTestId('end-reason').textContent).toBe('null');
+  });
+
+  it('marks logout as signed-out and clears the reason on the next login', async () => {
+    stubFetch((url) => {
+      if (url.endsWith('/auth/check')) return Promise.resolve(jsonRes({ authenticated: true, username: 'op1', authEnabled: true }));
+      if (url.endsWith('/auth/login')) return Promise.resolve(jsonRes({ username: 'root', token: 't' }));
+      return Promise.resolve({ ok: true, status: 204, json: () => Promise.resolve({}) });
+    });
+    render(<AuthProvider><EndReasonProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('end-user').textContent).toBe('op1'));
+
+    await act(async () => {
+      screen.getByText('end-logout').click();
+    });
+    expect(screen.getByTestId('end-reason').textContent).toBe('signed-out');
+    expect(screen.getByTestId('end-user').textContent).toBe('');
+
+    await act(async () => {
+      screen.getByText('end-login').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('end-user').textContent).toBe('root'));
+    expect(screen.getByTestId('end-reason').textContent).toBe('null');
+  });
+});

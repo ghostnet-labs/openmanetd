@@ -6,8 +6,13 @@
 // existing session by calling GET /auth/check. /auth/* is proxied through the
 // frontend server to the upstream ConnectRPC API, so requests are same-origin
 // and the session cookie is delivered automatically.
+//
+// `endReason` records why the last OpenMANET session ended ('expired' after a
+// 401 from the API, 'signed-out' after logout, null otherwise) so the login
+// page can say so. It only describes the OpenMANET sign-in: LuCI (Advanced)
+// keeps its own, separate login and is not signed out here.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './useAuth.js';
 
 export function AuthProvider({ children }) {
@@ -17,6 +22,14 @@ export function AuthProvider({ children }) {
   // session-dependent UI (like the passphrase panel) is hidden because the
   // backend does not register the relevant endpoints.
   const [authEnabled, setAuthEnabled] = useState(true);
+  const [endReason, setEndReason] = useState(null);
+  // Mirrors `user` for the session-expired listener, which is registered
+  // once and must not re-subscribe on every sign-in.
+  const userRef = useRef(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Check existing session on mount.
   useEffect(() => {
@@ -32,7 +45,12 @@ export function AuthProvider({ children }) {
 
   // Clear session when any API call receives a 401 (session expired/invalid).
   useEffect(() => {
-    const handleExpired = () => setUser(null);
+    const handleExpired = () => {
+      // Only a session that was live can expire; a 401 while signed out
+      // (e.g. a stale poll racing the login page) is not news.
+      if (userRef.current) setEndReason('expired');
+      setUser(null);
+    };
     window.addEventListener('session-expired', handleExpired);
     return () => window.removeEventListener('session-expired', handleExpired);
   }, []);
@@ -45,11 +63,13 @@ export function AuthProvider({ children }) {
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Login failed');
+    setEndReason(null);
     setUser(username);
   }, []);
 
   const logout = useCallback(async () => {
     await fetch('/auth/logout', { method: 'POST' });
+    setEndReason('signed-out');
     setUser(null);
   }, []);
 
@@ -76,6 +96,7 @@ export function AuthProvider({ children }) {
       changePassword,
       isAuthenticated: !!user,
       authEnabled,
+      endReason,
       loading,
     }}>
       {children}
