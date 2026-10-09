@@ -382,14 +382,75 @@ func TestGetSetupStatus_AlreadyConfigured_NonFactoryHostname(t *testing.T) {
 	assert.True(t, resp.GetAlreadyConfigured(), "non-factory hostname must flag already_configured")
 }
 
-func TestGetSetupStatus_AlreadyConfigured_AuthEnabled(t *testing.T) {
-	cfg := setupBLOSTestConfig(t, "auth:\n  enable: true\n")
+// TestGetSetupStatus_FactoryDefaults_NotAlreadyConfigured pins the
+// GHO-75 regression: a stock config.yml leaves auth.enable at
+// DefaultAuthEnable (true), and that alone used to flag every factory
+// node as "already configured", so the wizard warned that continuing
+// would reset a device nobody had touched.
+func TestGetSetupStatus_FactoryDefaults_NotAlreadyConfigured(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{name: "empty config.yml (auth.enable defaults true)", yaml: ""},
+		{name: "auth.enable explicitly true", yaml: "auth:\n  enable: true\n"},
+		{name: "wizard enabled, incomplete", yaml: "setup:\n  enabled: true\n  complete: false\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := setupBLOSTestConfig(t, tc.yaml)
+			require.True(t, cfg.GetAuthEnable(), "precondition: auth.enable resolves true")
+
+			svc := newSetupService(t, cfg, newSetupReader(), &fakeInterfaceProvider{})
+
+			resp, err := svc.GetSetupStatus(context.Background(), &emptypb.Empty{})
+			require.NoError(t, err)
+
+			assert.False(t, resp.GetAlreadyConfigured(),
+				"auth.enable=true on a factory node must not flag already_configured")
+		})
+	}
+}
+
+func TestGetSetupStatus_AlreadyConfigured_SetupComplete(t *testing.T) {
+	cfg := setupBLOSTestConfig(t, "setup:\n  enabled: true\n  complete: true\n")
 	svc := newSetupService(t, cfg, newSetupReader(), &fakeInterfaceProvider{})
 
 	resp, err := svc.GetSetupStatus(context.Background(), &emptypb.Empty{})
 	require.NoError(t, err)
 
-	assert.True(t, resp.GetAlreadyConfigured(), "auth.enable=true must flag already_configured")
+	assert.True(t, resp.GetAlreadyConfigured(), "setup.complete=true must flag already_configured")
+}
+
+func TestGetSetupStatus_AlreadyConfigured_LuciWizardUsed(t *testing.T) {
+	cases := []struct {
+		used string
+		want bool
+	}{
+		{used: "1", want: true},
+		{used: "true", want: true},
+		{used: "0", want: false},
+		{used: "", want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run("used="+tc.used, func(t *testing.T) {
+			cfg := setupBLOSTestConfig(t, "setup:\n  enabled: true\n")
+
+			reader := newSetupReader()
+			reader.data["luci"] = map[string]map[string][]string{
+				"wizard": {"used": {tc.used}},
+			}
+
+			svc := newSetupService(t, cfg, reader, &fakeInterfaceProvider{})
+
+			resp, err := svc.GetSetupStatus(context.Background(), &emptypb.Empty{})
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, resp.GetAlreadyConfigured())
+		})
+	}
 }
 
 func TestGetSetupStatus_AlreadyConfigured_FactoryMeshGateAnnouncementsIgnored(t *testing.T) {
@@ -398,10 +459,7 @@ func TestGetSetupStatus_AlreadyConfigured_FactoryMeshGateAnnouncementsIgnored(t 
 	// already_configured heuristic — otherwise every fresh device sees
 	// the "looks already configured" warning on first boot.
 	//
-	// auth.enable is explicitly disabled here so the test isolates the
-	// mesh11sd heuristic from the auth-enable heuristic (which would
-	// otherwise dominate given DefaultAuthEnable=true).
-	cfg := setupBLOSTestConfig(t, "auth:\n  enable: false\n")
+	cfg := setupBLOSTestConfig(t, "")
 
 	reader := newSetupReader()
 	if reader.data["mesh11sd"] == nil {
