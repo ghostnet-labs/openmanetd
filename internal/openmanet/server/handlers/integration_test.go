@@ -23,6 +23,7 @@ import (
 	blosconnect "github.com/openmanet/openmanetd/internal/api/openmanet/blos/v1/blosv1connect"
 	commsv1 "github.com/openmanet/openmanetd/internal/api/openmanet/comms/v1"
 	commsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/comms/v1/commsv1connect"
+	"github.com/openmanet/openmanetd/internal/api/openmanet/hardware/v1/hardwarev1connect"
 	logsv1 "github.com/openmanet/openmanetd/internal/api/openmanet/logs/v1"
 	logsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/logs/v1/logsv1connect"
 	meshjoinconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_join/v1/mesh_joinv1connect"
@@ -41,6 +42,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/comms/webaudio"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/gpsd"
+	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/logs"
 	"github.com/openmanet/openmanetd/internal/meshjoin"
 	"github.com/openmanet/openmanetd/internal/network"
@@ -162,6 +164,23 @@ func newTestServer(t *testing.T) *httptest.Server {
 				},
 			},
 		},
+	}, handlerOpt))
+
+	// A real hardware manager in the production default: a V1 board with
+	// actuation disabled, so it is telemetry-only and drives nothing. No
+	// battery monitor and no line opener are wired.
+	hwManager := hardware.New(hardware.Options{
+		Log:     zerolog.Nop(),
+		Bus:     &hardware.SysfsBus{SysDir: t.TempDir(), DevDir: t.TempDir()},
+		BoardID: "ghostnet,v1",
+	})
+	hwManager.Step(context.Background()) // one pass samples the (absent) monitor
+	t.Cleanup(hwManager.Close)
+
+	mux.Handle(hardwarev1connect.NewHardwareServiceHandler(&handlers.HardwareService{
+		Log:            zerolog.Nop(),
+		Manager:        hwManager,
+		StreamInterval: time.Millisecond,
 	}, handlerOpt))
 
 	srv := httptest.NewServer(mux)
