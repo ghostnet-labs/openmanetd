@@ -90,8 +90,9 @@ internal/comms/
 │   ├── event.go              PTTEvent, EventSource interface
 │   ├── source.go             ControlDeps, Factory, Register, Lookup, Names
 │   ├── half_duplex_gate.go   HalfDuplexGate, DefaultHalfDuplexThreshold
-│   ├── openvlm.go            OpenVLMSource + HIDDevice/HIDOpener +
-│   │                         DetectAndSetALSACard / FromSys / FromRoot
+│   ├── openvlm.go            OpenVLMSource (bind → open by hidraw path →
+│   │                         read → release → rediscover) + HIDOpener /
+│   │                         HIDPathOpener + DetectAndSetALSACard(With)
 │   ├── roip.go               ROIPSource (COS + VOX bridge)
 │   ├── nanoptt.go            NanoPTTSource (evdev key press → PTTToggle)
 │   └── web_event_source.go   WebEventSource (RPC Push)
@@ -100,6 +101,9 @@ internal/comms/
 │   ├── stream.go             AudioStream interface, NewMalgoStream
 │   ├── alsa_silence.go       CGo: SilenceALSAProbeNoise / Restore
 │   ├── cm108.go              CM108 sysfs walk (DiscoverCM108)
+│   ├── binding.go            SelectCM108 ranking (paired hidraw + ALSA card)
+│   ├── binder.go             Binder: process-wide sticky pairing, ALSA_CARD,
+│   │                         loss/rebind signal, BindingSnapshot
 │   ├── evdev.go              FindEvdev
 │   ├── network.go            IfaceIPv4, JoinMulticastGroup
 │   └── malgo.go              ResolveAudio, LogAudioDevices
@@ -548,8 +552,8 @@ Start(ctx)
   │       expands BluetoothAudioDeviceHint, applies ROIP defaults
   │
   ├─ 3. control.DetectAndSetALSACard(cfg.Log)         (openvlm/roip only)
-  │       walks /sys via device.DiscoverCM108 → ALSA_CARD
-  │       falls back to /proc/asound/card*/usbid scan
+  │       device.DefaultBinder().Bind(): DiscoverCM108 + SelectCM108
+  │       pairs hidraw + ALSA card from one USB parent → ALSA_CARD
   │
   ├─ 4. Set log level (Trace → TraceLevel; Debug → DebugLevel)
   │       cfg.logInputDeviceList()                    (Debug, non-web)
