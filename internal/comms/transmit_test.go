@@ -3,6 +3,7 @@ package comms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -38,11 +39,45 @@ func newTestRuntime(stream BroadcastCapture) *CommsRuntime {
 	return rt
 }
 
+// beginTestTransmission drives the same settle timer that Run selects on.
+func beginTestTransmission(t *testing.T, cfg *CommsConfig, rt *CommsRuntime) {
+	t.Helper()
+
+	if timer := cfg.beginTransmission(t.Context(), rt); timer != nil {
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			cfg.openTXGate(t.Context(), rt)
+		case <-t.Context().Done():
+			t.Fatal("test canceled during PTT settle")
+		}
+	}
+}
+
+func TestBeginTransmission_CanceledContextDoesNotStart(t *testing.T) {
+	for _, delay := range []int{-1, 250} {
+		t.Run(fmt.Sprintf("delay_%d", delay), func(t *testing.T) {
+			stream := &mockStream{}
+			rt := newTestRuntime(stream)
+			cfg := newSilentComms()
+			cfg.PttStartDelayMs = delay
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			cfg.beginTransmission(ctx, rt)
+
+			assert.Zero(t, stream.txEnableCalls)
+			assert.False(t, rt.Broadcasting.Load())
+			assert.Empty(t, rt.Ports[0].PlaybackBuffer)
+		})
+	}
+}
+
 func TestBeginTransmission_StartsStream(t *testing.T) {
 	stream := &mockStream{}
 	rt := newTestRuntime(stream)
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1", stream.txEnableCalls)
@@ -52,7 +87,7 @@ func TestBeginTransmission_StartsStream(t *testing.T) {
 func TestBeginTransmission_SetsBroadcasting(t *testing.T) {
 	rt := newTestRuntime(&mockStream{})
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if !cfg.isBroadcasting(rt) {
 		t.Error("should be broadcasting after beginTransmission")
@@ -62,7 +97,7 @@ func TestBeginTransmission_SetsBroadcasting(t *testing.T) {
 func TestBeginTransmission_QueuesStartBeep(t *testing.T) {
 	rt := newTestRuntime(&mockStream{})
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	select {
 	case frame := <-rt.Ports[0].PlaybackBuffer:
@@ -78,13 +113,13 @@ func TestBeginTransmission_DoublePressIgnored(t *testing.T) {
 	stream := &mockStream{}
 	rt := newTestRuntime(stream)
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	for len(rt.Ports[0].PlaybackBuffer) > 0 {
 		<-rt.Ports[0].PlaybackBuffer
 	}
 
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1", stream.txEnableCalls)
@@ -95,7 +130,7 @@ func TestEndTransmission_StopsStream(t *testing.T) {
 	stream := &mockStream{}
 	rt := newTestRuntime(stream)
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	for len(rt.Ports[0].PlaybackBuffer) > 0 {
 		<-rt.Ports[0].PlaybackBuffer
@@ -111,7 +146,7 @@ func TestEndTransmission_StopsStream(t *testing.T) {
 func TestEndTransmission_ClearsBroadcasting(t *testing.T) {
 	rt := newTestRuntime(&mockStream{})
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	for len(rt.Ports[0].PlaybackBuffer) > 0 {
 		<-rt.Ports[0].PlaybackBuffer
@@ -171,7 +206,7 @@ func TestBeginTransmission_DefaultStartDelay(t *testing.T) {
 
 	start := time.Now()
 
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	elapsed := time.Since(start)
 
@@ -202,7 +237,7 @@ func TestBeginTransmission_SettleCoversPlaybackLatency(t *testing.T) {
 
 	start := time.Now()
 
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	elapsed := time.Since(start)
 
@@ -282,7 +317,7 @@ func TestBeginTransmission_ConfigurablePttStartDelay(t *testing.T) {
 
 		start := time.Now()
 
-		cfg.beginTransmission(rt)
+		beginTestTransmission(t, cfg, rt)
 
 		elapsed := time.Since(start)
 
@@ -303,7 +338,7 @@ func TestBeginTransmission_ConfigurablePttStartDelay(t *testing.T) {
 
 		start := time.Now()
 
-		cfg.beginTransmission(rt)
+		beginTestTransmission(t, cfg, rt)
 
 		elapsed := time.Since(start)
 
@@ -333,7 +368,7 @@ func newRunRuntime(stream BroadcastCapture) *CommsRuntime {
 func TestBeginTransmission_NilStreamClearsBroadcasting(t *testing.T) {
 	rt := newTestRuntime(nil)
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if cfg.isBroadcasting(rt) {
 		t.Error("should NOT be broadcasting when BroadcastStream is nil")
@@ -351,7 +386,7 @@ func TestBeginTransmission_BlockedWhenReceivingRemote(t *testing.T) {
 	rt.Ports[0].MarkRemoteRx(rt)
 
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if stream.txEnableCalls != 0 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 0 (channel busy)", stream.txEnableCalls)
@@ -369,7 +404,7 @@ func TestBeginTransmission_AllowedWhenRxStale(t *testing.T) {
 	rt.Ports[0].RxGate.MarkAt(time.Now().Add(-(rxActiveThreshold + time.Second)))
 
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1 (rx is stale)", stream.txEnableCalls)
@@ -386,7 +421,7 @@ func TestBeginTransmission_AllowedWhenNeverReceived(t *testing.T) {
 	// rxGate is zero — never received a packet.
 
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if stream.txEnableCalls != 1 {
 		t.Errorf("SetTxEnabled(true) called %d times, want 1 (never received)", stream.txEnableCalls)
@@ -446,7 +481,7 @@ func TestRun_ClosedEventChannelExits(t *testing.T) {
 func TestRun_PTTDownStartsTransmission(t *testing.T) {
 	stream := &mockStream{}
 	rt := newRunRuntime(stream)
-	cfg := &CommsConfig{Log: zerolog.Nop()}
+	cfg := &CommsConfig{Log: zerolog.Nop(), PttStartDelayMs: -1}
 
 	evCh := make(chan control.PTTEvent, 1)
 	evCh <- control.PTTDown
@@ -494,10 +529,138 @@ func TestRun_ExitClosesActiveTXGate(t *testing.T) {
 	}
 }
 
+func TestPendingPTTStart_DuplicatePressAfterExpiryKeepsDeadline(t *testing.T) {
+	stream := &mockStream{}
+	rt := newTestRuntime(stream)
+	rt.Broadcasting.Store(true)
+
+	cfg := newSilentComms()
+	timer := time.NewTimer(time.Hour)
+	pending := pendingPTTStart{timer: timer, ready: timer.C}
+	t.Cleanup(pending.cancel)
+
+	events := make(chan control.PTTEvent, 1)
+	events <- control.PTTDown
+
+	assert.True(t, pending.finish(t.Context(), cfg, rt, events))
+	assert.Zero(t, stream.txEnableCalls)
+	assert.Same(t, timer, pending.timer, "repeated press must reuse the expired timer")
+
+	select {
+	case <-pending.ready:
+	case <-time.After(time.Second):
+		t.Fatal("repeated press extended the settle deadline")
+	}
+
+	assert.True(t, pending.finish(t.Context(), cfg, rt, events))
+	assert.Equal(t, 1, stream.txEnableCalls)
+	assert.Nil(t, pending.ready)
+}
+
+func TestPendingPTTStart_FinishPrioritizesQueuedRelease(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("closed_%t", closed), func(t *testing.T) {
+			stream := &mockStream{}
+			rt := newTestRuntime(stream)
+			rt.Broadcasting.Store(true)
+
+			cfg := newSilentComms()
+			pending := pendingPTTStart{timer: time.NewTimer(time.Hour)}
+			t.Cleanup(pending.cancel)
+
+			events := make(chan control.PTTEvent, 1)
+			if closed {
+				close(events)
+			} else {
+				events <- control.PTTUp
+			}
+
+			// Call at the expiration boundary with loss/release already queued.
+			assert.Equal(t, !closed, pending.finish(t.Context(), cfg, rt, events))
+			assert.Zero(t, stream.txEnableCalls)
+		})
+	}
+}
+
+func TestRun_ReleaseDuringPTTSettleDoesNotOpenTX(t *testing.T) {
+	for _, event := range []control.PTTEvent{control.PTTUp, control.PTTToggle} {
+		t.Run(fmt.Sprintf("event_%d", event), func(t *testing.T) {
+			stream := &mockStream{}
+			rt := newTestRuntime(stream)
+			cfg := newSilentComms()
+			cfg.PttStartDelayMs = 250
+
+			events := make(chan control.PTTEvent, 2)
+			events <- control.PTTDown
+
+			events <- event
+
+			close(events)
+			cfg.Run(t.Context(), rt, &mockEventSource{ch: events})
+
+			assert.Zero(t, stream.txEnableCalls, "release before warmup must cancel pending TX")
+			assert.False(t, rt.Broadcasting.Load())
+		})
+	}
+}
+
+func TestRun_SourceClosedDuringPTTSettleDoesNotOpenTX(t *testing.T) {
+	stream := &mockStream{}
+	rt := newTestRuntime(stream)
+	cfg := newSilentComms()
+	cfg.PttStartDelayMs = 250
+
+	events := make(chan control.PTTEvent, 1)
+	events <- control.PTTDown
+
+	close(events)
+	cfg.Run(t.Context(), rt, &mockEventSource{ch: events})
+
+	assert.Zero(t, stream.txEnableCalls, "source loss before warmup must cancel pending TX")
+	assert.False(t, rt.Broadcasting.Load())
+}
+
+func TestRun_CancellationDuringPTTSettleDoesNotOpenTX(t *testing.T) {
+	stream := &mockStream{}
+	rt := newTestRuntime(stream)
+	cfg := newSilentComms()
+	cfg.PttStartDelayMs = 250
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	events := make(chan control.PTTEvent, 1)
+	events <- control.PTTDown
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		cfg.Run(ctx, rt, &mockEventSource{ch: events})
+	}()
+
+	// The start tone synchronizes cancellation with the settle window.
+	select {
+	case <-rt.Ports[0].PlaybackBuffer:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatal("PTT start tone was not queued")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("canceled PTT start did not finish")
+	}
+
+	assert.Zero(t, stream.txEnableCalls, "canceled warmup must never open TX")
+	assert.False(t, rt.Broadcasting.Load())
+}
+
 func TestRun_PTTUpStopsTransmission(t *testing.T) {
 	stream := &mockStream{}
 	rt := newRunRuntime(stream)
-	cfg := &CommsConfig{Log: zerolog.Nop()}
+	cfg := &CommsConfig{Log: zerolog.Nop(), PttStartDelayMs: -1}
 
 	evCh := make(chan control.PTTEvent, 2)
 	evCh <- control.PTTDown
@@ -522,7 +685,7 @@ func TestRun_PTTUpStopsTransmission(t *testing.T) {
 func TestRun_PTTToggleFlips(t *testing.T) {
 	stream := &mockStream{}
 	rt := newRunRuntime(stream)
-	cfg := &CommsConfig{Log: zerolog.Nop()}
+	cfg := &CommsConfig{Log: zerolog.Nop(), PttStartDelayMs: -1}
 
 	evCh := make(chan control.PTTEvent, 2)
 	evCh <- control.PTTToggle // → beginTransmission
@@ -693,7 +856,7 @@ func TestEndTransmission_QueuesStopBeepToOnePort(t *testing.T) {
 	cfg := newSilentComms()
 
 	// Begin so broadcasting=true, then drain the start beeps before asserting.
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	for len(pc0.PlaybackBuffer) > 0 {
 		<-pc0.PlaybackBuffer
@@ -728,7 +891,7 @@ func TestBeginTransmission_WebMode_SkipsBroadcastStream(t *testing.T) {
 	rt.WebBridge = &webaudio.Bridge{} // non-nil activates web mode
 
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if !cfg.isBroadcasting(rt) {
 		t.Error("should be broadcasting in web mode")
@@ -781,7 +944,7 @@ func TestBeginTransmission_WebMode_HalfDuplexStillWorks(t *testing.T) {
 	rt.Ports[0].MarkRemoteRx(rt)
 
 	cfg := newSilentComms()
-	cfg.beginTransmission(rt)
+	beginTestTransmission(t, cfg, rt)
 
 	if cfg.isBroadcasting(rt) {
 		t.Error("should not be broadcasting while receiving remote audio, even in web mode")
