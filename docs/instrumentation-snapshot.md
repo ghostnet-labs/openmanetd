@@ -43,7 +43,7 @@ Every snapshot is a single JSON object with this shape:
 
 ```json
 {
-  "schema_version": "1.6.0",
+  "schema_version": "1.8.0",
   "captured_at_start": "2026-04-09T12:34:56.789012345Z",
   "captured_at_end":   "2026-04-09T12:34:56.789013101Z",
   "daemon": { ... },
@@ -53,14 +53,15 @@ Every snapshot is a single JSON object with this shape:
     { "name": "blos",        "data": { ... } },
     { "name": "sysupgrade",  "data": { ... } },
     { "name": "audio_mixer", "data": { ... } },
-    { "name": "wireless",    "data": { ... } }
+    { "name": "wireless",    "data": { ... } },
+    { "name": "hardware",    "data": { ... } }
   ]
 }
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.6.0`. |
+| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.8.0`. |
 | `captured_at_start` | RFC3339 timestamp | Wall-clock time when the capture loop began reading counters. |
 | `captured_at_end` | RFC3339 timestamp | Wall-clock time when the capture loop finished. The difference `captured_at_end - captured_at_start` bounds the counter-read skew window; in practice this is microseconds, but it can stretch into milliseconds when the `wireless` section's cache is cold (the first `Refresh` after the 5 s TTL walks netlink under the registry mutex). |
 | `daemon.version` | string | openmanetd build version. Empty until the build system populates it. |
@@ -114,6 +115,7 @@ so reading them does not stall the TX or RX paths.
   "fec_adapter": { ... },
   "announcer": { ... },
   "gpio_selector": { ... },
+  "device_binding": { ... },
   "ports": [ ... ]
 }
 ```
@@ -131,6 +133,7 @@ so reading them does not stall the TX or RX paths.
 | `fec_adapter` | object | Adaptive Opus FEC control-loop state. See **comms.fec_adapter** below. |
 | `announcer` | object | Voice-announcement player counters. See **comms.talkgroup** below. |
 | `gpio_selector` | object | Hardware talk group selector counters. See **comms.talkgroup** below. |
+| `device_binding` | object | Which CM108/OpenVLM USB device the HID (PTT) and ALSA (audio, mixer) paths are paired to. See **comms.device_binding** below. |
 | `ports` | array | Per-talk-group counters. |
 
 #### `comms.broadcast_encoder`
@@ -204,6 +207,33 @@ wired in (web mode for the announcer, a non-Raven board or
 | `announcer.frame_drops` | count | Announcement frames refused by a full playback buffer. |
 | `gpio_selector.transitions` | count | Accepted hardware selector position changes. **Includes the one boot-time selection** — the selector emits the initial switch position at start, which counts as a transition, so a fresh daemon shows `transitions >= 1` even before the operator has touched the switch. |
 | `gpio_selector.held_glitches` | count | Selector edge wakeups where zero or multiple pins were active and the previous selection was held. |
+
+#### `comms.device_binding`
+
+The process-wide device binder picks one CM108-family USB device and takes
+both its hidraw node and its ALSA card from the same USB parent, so PTT and
+audio cannot end up on two different devices. Ranking: the card named by an
+operator `ALSA_CARD` override, then GPIO1-strapped OpenVLM devices, then a
+generic CM108 (only when every identity probe answered); ties go to the
+lowest USB path. The binding is sticky while that USB parent stays present,
+is released when the OpenVLM HID reader loses the device, and is redone on
+replug. Filled for the `openvlm` and `roip` control sources; for others
+every field is zero except `alsa_card`, which is -1.
+
+| Field | Unit | Meaning |
+|---|---|---|
+| `bound` | bool | `true` while a device is bound. |
+| `sys_path` | string | USB parent of the bound device under `/sys` (e.g. `bus/usb/devices/1-1.3`, the hub port). Empty when unbound. |
+| `hid_path` | string | hidraw node read for PTT/volume buttons (e.g. `/dev/hidraw2`). |
+| `serial` | string | USB serial of the bound device; may be empty on stock parts. |
+| `alsa_card` | int | ALSA card index used for capture, playback and mixer. -1 when unbound. |
+| `candidates` | count | CM108-family devices seen at the last bind. |
+| `openvlm` | bool | `true` when the bound device's GPIO1 strap read high (a real OpenVLM). `false` with `bound: true` means a generic CM108 fallback. |
+| `ambiguous` | bool | `true` when another device ranked equally (e.g. two OpenVLMs); the lowest USB path won. |
+| `card_override` | bool | `true` when `ALSA_CARD` was set by the operator before startup; the binder then never writes or clears it and local audio does not follow rebinds. |
+| `binds` | count | Binding changes since daemon start: first bind, rebind after replug, or hidraw/card renumbering on the same port. |
+| `losses` | count | Bound devices that disappeared (HID read failure or absent at rescan). |
+| `bind_failures` | count | Bind attempts that found no usable device (none present, children still enumerating, or an identity probe failed). |
 
 #### `comms.ports[*]`
 
@@ -372,6 +402,65 @@ section is registered only when the mesh management workers are running
 | `…stations[*].tx_failed` | int64 | count | Cumulative frames that exhausted retries to this peer (`NL80211_STA_INFO_TX_FAILED`). |
 | `…stations[*].inactive_ms` | int64 | milliseconds | Time since the driver last saw traffic from this peer. |
 
+### `hardware` — V1 radio power, recovery and battery
+
+The Ghostnet V1 hardware manager (`internal/hardware`): per-radio power
+state machine, bounded recovery ladder, fault input edges, supervisor
+watchdog and INA228 battery telemetry. `Refresh` copies the manager's last
+published status under its mutex; it does no I/O. The section is
+registered only when `hardware.enable` is true (the default). On a board
+that is not a V1, or while `hardware.actuationEnable` is false (the
+default until the pin map is verified on hardware), `control_mode` is
+`telemetry_only` and every radio reports `unmanaged`.
+
+```json
+{
+  "control_mode": "telemetry_only",
+  "radios": [
+    { "name": "halow", "state": "unmanaged", "state_since_ns": 1791547200000000000,
+      "recoveries_total": 0, "power_cycles_total": 0, "failed_total": 0 },
+    { "name": "wifi", "state": "unmanaged", "state_since_ns": 1791547200000000000,
+      "recoveries_total": 0, "power_cycles_total": 0, "failed_total": 0 }
+  ],
+  "fault_edges_total": {
+    "halow_fault_n": 0, "wifi_fault_n": 0, "power_good": 0, "efuse_fault": 0,
+    "halow_usb_fault_n": 0, "vlm_usb_fault_n": 0, "ina228_alert_n": 0, "supervisor_wdo": 0
+  },
+  "watchdog_pets_total": 0,
+  "wdo_edges_total": 0,
+  "battery_bus_mv": 11820,
+  "battery_current_ma": 940,
+  "recovery_boots_last_hour": 0,
+  "board_detected": true,
+  "battery_stale": false
+}
+```
+
+| Field | Type | Unit | Meaning |
+|---|---|---|---|
+| `control_mode` | string | — | `active` when the manager drives GPIO and bus controls, `telemetry_only` when it drives nothing. Telemetry-only causes: board not detected, `hardware.actuationEnable` false, a required GPIO line name missing, or the boot-loop guard (see `recovery_boots_last_hour`). |
+| `radios[*].name` | string | — | `halow` (USB, first) or `wifi` (PCIe). |
+| `radios[*].state` | string | — | Power state machine state: `unmanaged`, `off`, `powering`, `enumerating`, `up`, `fault`, `cooldown`, `failed`. `failed` means the recovery ladder is exhausted and the radio stays off until an operator runs `ExecuteRadioRecovery`. |
+| `radios[*].state_since_ns` | int64 | unix-nanoseconds | When the radio entered `state`; 0 when unknown. |
+| `radios[*].recoveries_total` | uint64 | count | Recovery ladder steps (device reset, hub reset, power cycle) run on this radio since the daemon started. |
+| `radios[*].power_cycles_total` | uint64 | count | Ladder power cycles of this radio since the daemon started (at most 3 per incident before `failed`). |
+| `radios[*].failed_total` | uint64 | count | Entries into `failed` since the daemon started. |
+| `fault_edges_total.halow_fault_n` | uint64 | count | Edges seen on HALOW_FAULT_N (HaLow load switch fault) since start. Stays 0 when the input is not listed in `hardware.faultInputs`. |
+| `fault_edges_total.wifi_fault_n` | uint64 | count | Edges on WIFI_FAULT_N (Wi-Fi load switch fault). |
+| `fault_edges_total.power_good` | uint64 | count | Edges on POWER_GOOD (system rail good). |
+| `fault_edges_total.efuse_fault` | uint64 | count | Edges on EFUSE_FAULT (input eFuse fault). |
+| `fault_edges_total.halow_usb_fault_n` | uint64 | count | Edges on the HaLow USB port over-current flag. |
+| `fault_edges_total.vlm_usb_fault_n` | uint64 | count | Edges on the OpenVLM USB port over-current flag. |
+| `fault_edges_total.ina228_alert_n` | uint64 | count | Edges on the INA228 ALERT output. |
+| `fault_edges_total.supervisor_wdo` | uint64 | count | Edges on the supervisor WDO output (watchdog timeout). Same value as `wdo_edges_total`. |
+| `watchdog_pets_total` | uint64 | count | Heartbeats written to the supervisor gpio-wdt since start. Stays 0 while `hardware.watchdogEnable` is false. |
+| `wdo_edges_total` | uint64 | count | Supervisor WDO edges since start; a rising value means the supervisor saw missed heartbeats. |
+| `battery_bus_mv` | int32 | millivolts | Last bus voltage read from the INA228 (`in1_input`). Last good value is kept while stale. |
+| `battery_current_ma` | int32 | milliamps | Last system current (`curr1_input`); positive is draw from the pack. |
+| `recovery_boots_last_hour` | uint32 | count | Software-requested host resets recorded in the persisted boot-loop guard during the last hour. 3 or more puts this boot in `telemetry_only`. |
+| `board_detected` | bool | — | True when board.json identifies a Ghostnet V1 carrier. |
+| `battery_stale` | bool | — | True when the newest battery reading is older than 5 s or there is none (monitor absent or unreachable). The two `battery_*` values are then not current. |
+
 ## Interpretation heuristics for LLM triage
 
 When a snapshot is provided for analysis, apply the following rules of
@@ -516,6 +605,40 @@ thumb in order and flag anything that fits.
    across snapshots is a peering that predates the threshold write;
    `inactive_ms` growing without bound means the peer is gone and the
    plink will time out on its own.
+
+22. **Hardware control is off.** `hardware.control_mode` of
+   `telemetry_only` with `board_detected` true is the shipped default
+   (`hardware.actuationEnable: false`), not a fault. With
+   `recovery_boots_last_hour` at 3 or more it is the boot-loop guard:
+   the node reset itself repeatedly and recovery is suspended for this
+   boot. Read the recovery events (`ListRecoveryEvents`) before
+   re-enabling anything.
+23. **Radio flapping.** `radios[*].recoveries_total` or
+   `power_cycles_total` rising between snapshots while `state` keeps
+   returning to `up` means the radio keeps dropping off its bus. Check
+   the matching `fault_edges_total` input (`halow_fault_n`,
+   `halow_usb_fault_n`, `wifi_fault_n`) and `battery_bus_mv`: a sag
+   below about 10500 mV with large `battery_current_ma` points at the
+   pack or wiring, not the radio. A radio in `failed` stays off until an
+   operator recovers it.
+24. **Watchdog not holding.** `wdo_edges_total` rising while
+   `watchdog_pets_total` also rises means the heartbeat interval is too
+   slow for the supervisor; `wdo_edges_total` rising with
+   `watchdog_pets_total` flat means nothing is petting it (watchdog
+   disabled or the daemon stalled). `battery_stale` true makes every
+   battery inference unreliable.
+25. **OpenVLM pairing and replug.** `comms.device_binding.bound: false`
+   with `bind_failures` rising means no usable CM108 is attached; local
+   mic/speaker stay off on purpose (the daemon never falls back to the
+   ALSA default card in `openvlm` mode) while RTP relay keeps running.
+   `losses` advancing in step with `binds` is an unplug/replug or USB
+   reset cycle; if it keeps climbing with nobody touching the cable,
+   suspect the hub port or cable. `bound: true` with `openvlm: false`
+   means a generic CM108 headset was chosen because no strapped OpenVLM
+   was found. `ambiguous: true` means several equal candidates were
+   attached; detach the extra one rather than relying on USB path order.
+   With `card_override: true`, `alsa_card` shows the HID device's own
+   card, which can differ from the operator's `ALSA_CARD`.
 
 ## Skew note
 

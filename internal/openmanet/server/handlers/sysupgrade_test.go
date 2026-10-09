@@ -413,6 +413,45 @@ func TestSysupgradeService_CancelUpgrade_Errors(t *testing.T) {
 	}
 }
 
+func TestSysupgradeService_OnlineCheckDisabled(t *testing.T) {
+	t.Run("list available updates returns empty response", func(t *testing.T) {
+		mgr := newFakeSysupgradeManager() // disabled manager returns nil, zero time, nil
+		svc := &handlers.SysupgradeService{Log: zerolog.Nop(), Manager: mgr}
+
+		resp, err := svc.ListAvailableUpdates(context.Background(), &supbv1.ListAvailableUpdatesRequest{ForceRefresh: true})
+		require.NoError(t, err)
+		assert.Empty(t, resp.GetUpdates())
+		assert.Nil(t, resp.GetFetchedAt())
+	})
+
+	t.Run("get release detail maps to failed precondition", func(t *testing.T) {
+		mgr := newFakeSysupgradeManager()
+		mgr.releaseErr = sysupgrade.ErrOnlineCheckDisabled
+		svc := &handlers.SysupgradeService{Log: zerolog.Nop(), Manager: mgr}
+
+		_, err := svc.GetReleaseDetail(context.Background(), &supbv1.GetReleaseDetailRequest{Tag: "v1.8.0"})
+		require.Error(t, err)
+
+		var connectErr *connect.Error
+		require.ErrorAs(t, err, &connectErr)
+		assert.Equal(t, connect.CodeFailedPrecondition, connectErr.Code())
+		assert.Contains(t, connectErr.Message(), "online release check is disabled")
+	})
+
+	t.Run("start upgrade maps to failed precondition", func(t *testing.T) {
+		mgr := newFakeSysupgradeManager()
+		mgr.startErr = sysupgrade.ErrOnlineCheckDisabled
+		svc := &handlers.SysupgradeService{Log: zerolog.Nop(), Manager: mgr}
+
+		_, err := svc.StartUpgrade(context.Background(), &supbv1.StartUpgradeRequest{ReleaseTag: "v1.8.0", AssetName: "x"})
+		require.Error(t, err)
+
+		var connectErr *connect.Error
+		require.ErrorAs(t, err, &connectErr)
+		assert.Equal(t, connect.CodeFailedPrecondition, connectErr.Code())
+	})
+}
+
 // ─── factory reset handler tests ───────────────────────────────────────
 
 func TestSysupgradeService_GetFactoryResetCapability_Capable(t *testing.T) {

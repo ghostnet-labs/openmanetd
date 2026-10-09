@@ -349,7 +349,29 @@ func (c *Config) PersistGNSSConfig(enable, sendAsNMEA, sendAsCoT bool, cotUID, s
 // step. Splitting the writes opens a window where a crash between them leaves
 // auth on without the user ever finishing setup, locking them out — which is
 // why this is a single combined helper rather than two independent setters.
+// setup.enabled is operator-managed and left untouched.
 func (c *Config) PersistSetupAndAuth(setupComplete, authEnable bool) error {
+	return c.persistSetupState(nil, setupComplete, authEnable)
+}
+
+// PersistSetupReset reopens the first-boot setup wizard in a single yaml
+// read-modify-write: setup.enabled=true, setup.complete=false and
+// auth.enable=false. `openmanetd setup-reset` calls it. setup.enabled must be
+// written too because DefaultSetupEnabled is false: on a stock config.yml
+// that never mentions setup.enabled, flipping only setup.complete would leave
+// the wizard behind its kill switch and the reset would do nothing. All three
+// keys land in one write for the same crash-safety reason as
+// PersistSetupAndAuth.
+func (c *Config) PersistSetupReset() error {
+	enabled := true
+
+	return c.persistSetupState(&enabled, false, false)
+}
+
+// persistSetupState is the shared read-modify-write behind
+// PersistSetupAndAuth and PersistSetupReset. A nil setupEnabled leaves
+// setup.enabled untouched.
+func (c *Config) persistSetupState(setupEnabled *bool, setupComplete, authEnable bool) error {
 	c.persistMu.Lock()
 	defer c.persistMu.Unlock()
 
@@ -370,7 +392,7 @@ func (c *Config) PersistSetupAndAuth(setupComplete, authEnable bool) error {
 		return fmt.Errorf("parsing config file: %w", err)
 	}
 
-	if err = setSetupAndAuth(&doc, setupComplete, authEnable); err != nil {
+	if err = setSetupAndAuth(&doc, setupEnabled, setupComplete, authEnable); err != nil {
 		return fmt.Errorf("updating setup/auth config: %w", err)
 	}
 
@@ -385,6 +407,10 @@ func (c *Config) PersistSetupAndAuth(setupComplete, authEnable bool) error {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
+	if setupEnabled != nil {
+		c.v.Set("setup.enabled", *setupEnabled)
+	}
+
 	c.v.Set("setup.complete", setupComplete)
 	c.v.Set("auth.enable", authEnable)
 	c.reload()
@@ -393,8 +419,9 @@ func (c *Config) PersistSetupAndAuth(setupComplete, authEnable bool) error {
 }
 
 // setSetupAndAuth finds or creates the setup and auth sections in the YAML
-// document and sets setup.complete and auth.enable in a single pass.
-func setSetupAndAuth(doc *yaml.Node, setupComplete, authEnable bool) error {
+// document and sets setup.complete and auth.enable (and setup.enabled when
+// setupEnabled is non-nil) in a single pass.
+func setSetupAndAuth(doc *yaml.Node, setupEnabled *bool, setupComplete, authEnable bool) error {
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
 		return fmt.Errorf("unexpected YAML structure: expected document node")
 	}
@@ -405,6 +432,10 @@ func setSetupAndAuth(doc *yaml.Node, setupComplete, authEnable bool) error {
 	}
 
 	setupMapping := findOrCreateMapping(root, "setup")
+	if setupEnabled != nil {
+		setScalarValue(setupMapping, "enabled", strconv.FormatBool(*setupEnabled))
+	}
+
 	setScalarValue(setupMapping, "complete", strconv.FormatBool(setupComplete))
 
 	authMapping := findOrCreateMapping(root, "auth")

@@ -109,6 +109,13 @@ export const ICONS = Object.assign(Object.create(null), {
     </svg>
   ),
 
+  // Arrow leaving a frame — a full-page handoff to another interface (LuCI).
+  advanced: (
+    <svg {...SVG_PROPS} data-icon="advanced">
+      <path d="M9 2h5v5M14 2L7 9M12 10v4H2V4h4" />
+    </svg>
+  ),
+
   // Arrow leaving an open door.
   signout: (
     <svg {...SVG_PROPS} data-icon="signout">

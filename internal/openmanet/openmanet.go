@@ -23,6 +23,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/frontend"
 	"github.com/openmanet/openmanetd/internal/gpsd"
+	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/instrumentation"
 	"github.com/openmanet/openmanetd/internal/logs"
 	"github.com/openmanet/openmanetd/internal/mgmt"
@@ -136,21 +137,7 @@ func Start(staticFS fs.FS) {
 	// manager spawns no background goroutines on construction; the
 	// only goroutine it owns is the per-upgrade one created on
 	// StartUpgrade.
-	sysupgradeMgr := sysupgrade.NewManager(sysupgrade.Options{
-		Log:                 logger.GetLogger("sysupgrade"),
-		Repo:                "OpenMANET/firmware",
-		Board:               handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{}),
-		Firmware:            handlers.NewCachedFirmwareProvider(&system.OpenWrtFirmwareProvider{}),
-		SysInfo:             &system.LinuxSysInfo{},
-		Capable:             &system.LinuxSysupgradeCapabilityProvider{},
-		Cache:               sysupgrade.NewDiskCache("/var/lib/openmanetd/sysupgrade-releases.json"),
-		Releases:            &sysupgrade.GitHubReleasesClient{Repo: "OpenMANET/firmware", Log: logger.GetLogger("sysupgrade-github")},
-		Runner:              &sysupgrade.ExecSysupgradeRunner{},
-		FactoryReset:        &sysupgrade.ExecFactoryResetRunner{},
-		FactoryResetCapable: &system.LinuxFactoryResetCapabilityProvider{},
-		DownloadDir:         "/tmp/openmanetd/sysupgrade",
-		PersistentLogDir:    "/etc/openmanetd/sysupgrade",
-	})
+	sysupgradeMgr := newSysupgradeManager(cfg, log)
 
 	// One TTL-bounded wireless cache serves both the API handlers and
 	// the instrumentation snapshotter, so the snapshot adds no netlink
@@ -161,7 +148,11 @@ func Start(staticFS fs.FS) {
 	// the periodic worker. The registry is always constructed (cheap) but
 	// the worker goroutine is only started when the config flag is true,
 	// so a disabled deployment pays nothing beyond the adapter structs.
-	startInstrumentationWorker(ctx, cfg, blosManager, sysupgradeMgr, mixerVol, wifiProvider, log)
+	// The hardware manager owns one step goroutine bound to ctx. It is nil
+	// when hardware.enable is false.
+	hwManager := startHardwareManager(ctx, cfg)
+
+	startInstrumentationWorker(ctx, cfg, blosManager, sysupgradeMgr, mixerVol, wifiProvider, hwManager, log)
 
 	// BatctlSnapshotter owns one background goroutine that refreshes the
 	// outputs of batctl oj / nj / mj / gwj plus /tmp/bat-hosts every 5s.
@@ -292,6 +283,8 @@ func Start(staticFS fs.FS) {
 	// instead of dereferencing a nil WirelessConfig. Reading the
 	// classifier through the cache also folds its Interfaces() walk
 	// into the one the handlers already share.
+	apiServer.Hardware = hardwareAPI(hwManager)
+
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider
 		interfaceProvider.WifiInterfaces = wifiProvider.Interfaces
@@ -344,6 +337,8 @@ func Start(staticFS fs.FS) {
 	commsManager.Disable()
 	blosManager.Disable()
 
+	waitHardwareManager(hwManager, log)
+
 	if cfg.GetEnableGNSS() {
 		gps.Close()
 	}
@@ -352,14 +347,49 @@ func Start(staticFS fs.FS) {
 	os.Exit(0)
 }
 
+// newSysupgradeManager builds the firmware-update manager from config.
+// The GitHub releases repository and the online-check switch are read
+// once here; changing them requires a daemon restart.
+func newSysupgradeManager(cfg *config.Config, log zerolog.Logger) *sysupgrade.Manager {
+	releasesRepo := cfg.GetSysupgradeReleasesRepo()
+	if rejected := cfg.GetSysupgradeReleasesRepoRejected(); rejected != "" {
+		log.Warn().
+			Str("configured", rejected).
+			Str("fallback", releasesRepo).
+			Msg("sysupgrade.releasesRepo is not a valid GitHub owner/name slug; using default")
+	}
+
+	onlineCheck := cfg.GetSysupgradeOnlineCheck()
+	if !onlineCheck {
+		log.Info().Msg("sysupgrade online release check disabled; manual image upload only")
+	}
+
+	return sysupgrade.NewManager(sysupgrade.Options{
+		Log:                 logger.GetLogger("sysupgrade"),
+		Repo:                releasesRepo,
+		Board:               handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{}),
+		Firmware:            handlers.NewCachedFirmwareProvider(&system.OpenWrtFirmwareProvider{}),
+		SysInfo:             &system.LinuxSysInfo{},
+		Capable:             &system.LinuxSysupgradeCapabilityProvider{},
+		Cache:               sysupgrade.NewDiskCache("/var/lib/openmanetd/sysupgrade-releases.json"),
+		Releases:            &sysupgrade.GitHubReleasesClient{Repo: releasesRepo, Log: logger.GetLogger("sysupgrade-github")},
+		Runner:              &sysupgrade.ExecSysupgradeRunner{},
+		FactoryReset:        &sysupgrade.ExecFactoryResetRunner{},
+		FactoryResetCapable: &system.LinuxFactoryResetCapabilityProvider{},
+		DownloadDir:         "/tmp/openmanetd/sysupgrade",
+		PersistentLogDir:    "/etc/openmanetd/sysupgrade",
+		DisableOnlineCheck:  !onlineCheck,
+	})
+}
+
 // startInstrumentationWorker constructs the instrumentation snapshot
-// registry, registers the comms, BLOS, sysupgrade and wireless
+// registry, registers the comms, BLOS, sysupgrade, wireless and hardware
 // adapters, and starts the periodic worker goroutine when the config
 // flag is enabled. The registry itself is cheap; only the worker has
 // runtime cost. Errors during setup are logged but never fatal — a
 // misconfigured snapshot subsystem must not prevent the daemon from
 // serving traffic.
-func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosManager *blos.BLOSManager, sysupgradeMgr *sysupgrade.Manager, mixerVol *alsa.Volume, wifiProvider *handlers.CachedWirelessProvider, log zerolog.Logger) {
+func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosManager *blos.BLOSManager, sysupgradeMgr *sysupgrade.Manager, mixerVol *alsa.Volume, wifiProvider *handlers.CachedWirelessProvider, hwManager *hardware.Manager, log zerolog.Logger) {
 	if !cfg.GetInstrumentationEnable() {
 		return
 	}
@@ -410,6 +440,14 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	if wifiProvider != nil {
 		if err = reg.Register("wireless", &wireless.Snapshotter{Provider: wifiProvider}); err != nil {
 			log.Error().Err(err).Msg("instrumentation: failed to register wireless snapshotter")
+
+			return
+		}
+	}
+
+	if hwManager != nil {
+		if err = reg.Register("hardware", &hardware.Snapshotter{Manager: hwManager}); err != nil {
+			log.Error().Err(err).Msg("instrumentation: failed to register hardware snapshotter")
 
 			return
 		}
