@@ -98,7 +98,7 @@ sysupgrade:
 # hardware:
 #   enable: true                 # start the manager (telemetry is read-only)
 #   actuationEnable: false       # allow GPIO, USB reset and PCIe remove/rescan
-#   watchdogEnable: false        # open and pet the supervisor gpio-wdt
+#   watchdogEnable: false        # pet the supervisor gpio-wdt, then raise SUPERVISOR_ARM
 #   batteryShutdownEnable: false # power off at the shutdown battery level
 #   faultInputs: []              # fault line names to watch, e.g. HALOW_FAULT_N
 #   recoveryStateFile: /etc/openmanetd/hwrecovery.json  # boot-loop guard

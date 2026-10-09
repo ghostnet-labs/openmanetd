@@ -73,7 +73,8 @@ type Options struct {
 	SeriesCells uint32
 	// ActuationEnable allows driving GPIO and bus controls on a detected V1.
 	ActuationEnable bool
-	// WatchdogEnable allows opening and petting the supervisor watchdog.
+	// WatchdogEnable allows opening and petting the supervisor watchdog
+	// and driving SUPERVISOR_ARM once the heartbeat runs.
 	WatchdogEnable bool
 	// BatteryShutdownEnable allows the low-battery graceful poweroff.
 	BatteryShutdownEnable bool
@@ -138,6 +139,7 @@ type Manager struct { //nolint:govet // Keep mu directly above the fields it gua
 	shutdownAt         time.Time
 	wdDevice           string
 	petsTotal          uint64
+	armTransitions     uint64
 	nextWake           time.Duration
 	controlMode        ControlMode
 	controlReason      ControlModeReason
@@ -146,6 +148,8 @@ type Manager struct { //nolint:govet // Keep mu directly above the fields it gua
 	boardDetected      bool
 	storeHealthy       bool
 	powerFault         bool
+	armRequested       bool
+	supervisorArmed    bool
 	hostResetRequested bool
 	hostResetBlocked   bool
 	shutdownPending    bool
@@ -257,15 +261,15 @@ func (m *Manager) selectMode() {
 	}
 }
 
-// openLines requests the outputs (active mode only) and the configured
-// fault inputs (detected board only). Lines are never requested on any
-// other board.
+// openLines requests the outputs (active mode only), SUPERVISOR_ARM
+// (watchdog enabled only, requested low) and the configured fault inputs
+// (detected board only). Lines are never requested on any other board.
 func (m *Manager) openLines() {
 	if !m.boardDetected || m.lineOpener == nil {
 		return
 	}
 
-	specs := make([]LineSpec, 0, len(outputSpecs())+faultLineCount)
+	specs := make([]LineSpec, 0, len(outputSpecs())+faultLineCount+1)
 
 	if m.controlMode == ControlModeActive {
 		for _, s := range outputSpecs() {
@@ -308,6 +312,16 @@ func (m *Manager) openLines() {
 		m.log.Warn().Str("line", n).Msg("hardware: unknown fault input name in hardware.faultInputs; ignored")
 	}
 
+	if m.opts.WatchdogEnable && m.wdOpener != nil {
+		arm := supervisorArmSpec()
+		if m.lineOpener.Resolve(arm.Name) {
+			specs = append(specs, arm)
+			m.armRequested = true
+		} else {
+			m.log.Error().Str("line", arm.Name).Msg("hardware: supervisor arm line not found; external watchdog stays disarmed")
+		}
+	}
+
 	if len(specs) == 0 {
 		return
 	}
@@ -323,6 +337,8 @@ func (m *Manager) openLines() {
 		for i := range m.inputs {
 			m.inputs[i].requested = false
 		}
+
+		m.armRequested = false
 
 		return
 	}
@@ -438,9 +454,11 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
-// Close releases every GPIO line and closes the watchdog. The watchdog is
-// closed cleanly (magic close) unless a host reset was requested. Close is
-// idempotent.
+// Close disarms the supervisor, closes the watchdog and releases every
+// GPIO line, in that order, so SUPERVISOR_ARM is low before the heartbeat
+// can stop. The watchdog is closed cleanly (magic close) and the arm is
+// dropped unless a host reset was requested: that request relies on the
+// armed supervisor timing out. Close is idempotent.
 func (m *Manager) Close() {
 	m.closeOnce.Do(func() {
 		m.stepMu.Lock()
@@ -448,10 +466,8 @@ func (m *Manager) Close() {
 
 		m.closed = true
 
-		if m.lines != nil {
-			if err := m.lines.Close(); err != nil {
-				m.log.Warn().Err(err).Msg("hardware: releasing GPIO lines")
-			}
+		if !m.hostResetRequested {
+			m.disarmSupervisor("daemon stopping")
 		}
 
 		if m.watchdog != nil {
@@ -459,6 +475,14 @@ func (m *Manager) Close() {
 				m.log.Warn().Err(err).Msg("hardware: closing watchdog")
 			}
 		}
+
+		if m.lines != nil {
+			if err := m.lines.Close(); err != nil {
+				m.log.Warn().Err(err).Msg("hardware: releasing GPIO lines")
+			}
+		}
+
+		m.publish(m.clock.Now())
 	})
 }
 
@@ -622,13 +646,14 @@ func (m *Manager) publish(now time.Time) {
 		PowerFault:            m.powerFault,
 		ShutdownPending:       m.shutdownPending,
 		Watchdog: WatchdogStatus{
-			LastPetAt:          m.lastPet,
-			Device:             m.wdDevice,
-			PetsTotal:          m.petsTotal,
-			WDOEdgesTotal:      m.inputs[FaultLineSupervisorWDO-1].edges,
-			Enabled:            m.opts.WatchdogEnable,
-			Armed:              m.watchdog != nil && !m.hostResetRequested,
-			HostResetRequested: m.hostResetRequested,
+			LastPetAt:                m.lastPet,
+			Device:                   m.wdDevice,
+			PetsTotal:                m.petsTotal,
+			SupervisorArmTransitions: m.armTransitions,
+			Enabled:                  m.opts.WatchdogEnable,
+			Armed:                    m.watchdog != nil && !m.hostResetRequested,
+			SupervisorArmed:          m.supervisorArmed,
+			HostResetRequested:       m.hostResetRequested,
 		},
 	}
 

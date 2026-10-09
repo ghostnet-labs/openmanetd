@@ -110,7 +110,12 @@ func TestHardwareService_GetHardwareStatus(t *testing.T) {
 	assert.Equal(t, uint64(2), wifi.GetRecoveriesTotal())
 	assert.NotNil(t, wifi.GetNextActionAt())
 
-	require.Len(t, st.GetFaultLines(), 8)
+	require.Len(t, st.GetFaultLines(), 7)
+
+	for _, fl := range st.GetFaultLines() {
+		assert.NotEqual(t, hardwarev1.FaultLine_FAULT_LINE_SUPERVISOR_WDO, fl.GetLine(), "retired by D-044")
+	}
+
 	assert.Equal(t, hardwarev1.FaultLine_FAULT_LINE_POWER_GOOD, st.GetFaultLines()[2].GetLine())
 	assert.Equal(t, "POWER_GOOD", st.GetFaultLines()[2].GetName())
 	assert.Equal(t, hardwarev1.LineState_LINE_STATE_ASSERTED, st.GetFaultLines()[2].GetState())
@@ -348,7 +353,9 @@ func TestHardwareEnumNumbering(t *testing.T) {
 	assert.Equal(t, int32(hardwarev1.FaultLine_FAULT_LINE_HALOW_USB_FAULT), int32(hardware.FaultLineHaLowUSBFault))
 	assert.Equal(t, int32(hardwarev1.FaultLine_FAULT_LINE_VLM_USB_FAULT), int32(hardware.FaultLineVLMUSBFault))
 	assert.Equal(t, int32(hardwarev1.FaultLine_FAULT_LINE_INA228_ALERT), int32(hardware.FaultLineINA228Alert))
-	assert.Equal(t, int32(hardwarev1.FaultLine_FAULT_LINE_SUPERVISOR_WDO), int32(hardware.FaultLineSupervisorWDO))
+	// FAULT_LINE_SUPERVISOR_WDO (8) is retired in the daemon (D-044:
+	// GPIO11 is the SUPERVISOR_ARM output) and is never emitted.
+	assert.Len(t, hardware.FaultInputNames(), 7)
 	assert.Len(t, hardwarev1.FaultLine_name, 9)
 
 	assert.Equal(t, int32(hardwarev1.LineState_LINE_STATE_UNAVAILABLE), int32(hardware.LineStateUnavailable))

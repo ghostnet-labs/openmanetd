@@ -3,6 +3,7 @@ package hardware_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,6 +45,43 @@ func (c *fakeClock) Advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
+// callLog records cross-fake calls in order, so a test can check that one
+// hardware action happened before another (for example SUPERVISOR_ARM low
+// before the watchdog closes). A nil *callLog records nothing.
+type callLog struct {
+	mu    sync.Mutex // protects calls
+	calls []string
+}
+
+func (c *callLog) add(call string) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.calls = append(c.calls, call)
+}
+
+func (c *callLog) get() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]string(nil), c.calls...)
+}
+
+// index returns the position of the first call equal to want, or -1.
+func (c *callLog) index(want string) int {
+	for i, call := range c.get() {
+		if call == want {
+			return i
+		}
+	}
+
+	return -1
+}
+
 // setCall is one recorded Lines.Set.
 type setCall struct {
 	name     string
@@ -58,6 +96,7 @@ type fakeLines struct {
 	requested map[string]hardware.LineSpec
 	sets      []setCall
 	setErr    map[string]error
+	log       *callLog
 	closed    bool
 }
 
@@ -75,6 +114,7 @@ func (l *fakeLines) Set(name string, asserted bool) error {
 
 	l.sets = append(l.sets, setCall{name: name, asserted: asserted})
 	l.values[name] = asserted
+	l.log.add("set " + name + "=" + strconv.FormatBool(asserted))
 
 	return nil
 }
@@ -102,8 +142,33 @@ func (l *fakeLines) Close() error {
 	defer l.mu.Unlock()
 
 	l.closed = true
+	l.log.add("lines close")
 
 	return nil
+}
+
+// setSetErr makes Set fail for one line (nil clears it).
+func (l *fakeLines) setSetErr(name string, err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.setErr[name] = err
+}
+
+// setsOf returns the recorded Set calls for one line.
+func (l *fakeLines) setsOf(name string) []bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	out := make([]bool, 0, len(l.sets))
+
+	for _, c := range l.sets {
+		if c.name == name {
+			out = append(out, c.asserted)
+		}
+	}
+
+	return out
 }
 
 // setValue changes a line level as the hardware would (input edge).
@@ -147,6 +212,7 @@ type fakeLineOpener struct {
 	openErr    error
 	opened     []hardware.LineSpec
 	lines      *fakeLines
+	log        *callLog
 	openCalls  int
 }
 
@@ -156,7 +222,7 @@ func newFakeLineOpener() *fakeLineOpener {
 	for _, n := range []string{
 		hardware.LineHaLowPwrEn, hardware.LineWiFiPwrEn, hardware.LineGNSSResetN,
 		hardware.LineHaLowResetN, hardware.LineHaLowWakeN, hardware.LineWiFiWDis1N,
-		hardware.LineUSBHubResetN,
+		hardware.LineUSBHubResetN, hardware.LineSupervisorARM,
 	} {
 		o.resolvable[n] = true
 	}
@@ -190,11 +256,14 @@ func (o *fakeLineOpener) Open(specs []hardware.LineSpec) (hardware.Lines, error)
 		edges:     make(map[string]uint64, len(specs)),
 		requested: make(map[string]hardware.LineSpec, len(specs)),
 		setErr:    map[string]error{},
+		log:       o.log,
 	}
 
 	for _, s := range specs {
 		l.requested[s.Name] = s
-		l.values[s.Name] = o.initial[s.Name]
+		// An output requested StartDeasserted is driven inactive at
+		// request time, whatever level it had before.
+		l.values[s.Name] = o.initial[s.Name] && !s.StartDeasserted
 	}
 
 	o.opened = append(o.opened, specs...)
@@ -406,6 +475,8 @@ func (s *fakeStore) getSaves() (int, hardware.RecoveryRecord) {
 // fakeWatchdog counts pets and records how it was closed.
 type fakeWatchdog struct {
 	mu         sync.Mutex // protects the fields below
+	petErr     error
+	log        *callLog
 	pets       int
 	closed     bool
 	cleanClose bool
@@ -415,7 +486,12 @@ func (w *fakeWatchdog) Pet() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	if w.petErr != nil {
+		return w.petErr
+	}
+
 	w.pets++
+	w.log.add("pet")
 
 	return nil
 }
@@ -425,8 +501,16 @@ func (w *fakeWatchdog) Close(clean bool) error {
 	defer w.mu.Unlock()
 
 	w.closed, w.cleanClose = true, clean
+	w.log.add("watchdog close")
 
 	return nil
+}
+
+func (w *fakeWatchdog) setPetErr(err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.petErr = err
 }
 
 func (w *fakeWatchdog) getPets() int {
@@ -473,7 +557,8 @@ func (o *fakeWatchdogOpener) getOpens() int {
 }
 
 type fakeShutdowner struct {
-	mu    sync.Mutex // protects calls
+	mu    sync.Mutex // protects the fields below
+	log   *callLog
 	calls int
 }
 
@@ -482,6 +567,7 @@ func (s *fakeShutdowner) Poweroff(context.Context) error {
 	defer s.mu.Unlock()
 
 	s.calls++
+	s.log.add("poweroff")
 
 	return nil
 }
