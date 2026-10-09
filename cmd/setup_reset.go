@@ -10,6 +10,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/openmanet/openmanetd/internal/config"
@@ -20,8 +21,10 @@ import (
 // setupResetCmd unbricks a device whose setup wizard ran but ended
 // up in an unreachable state. Flipping setup.complete back to false
 // lets the wizard re-run from a console / serial / recovery shell,
-// and flipping auth.enable to false makes the wizard reachable
-// without a session.
+// flipping auth.enable to false makes the wizard reachable without a
+// session, and setting setup.enabled to true lifts the wizard's kill
+// switch (which defaults to off, so a stock config.yml would otherwise
+// keep the wizard hidden).
 //
 // This is the recovery path documented in
 // docs/setup-wizard-recovery.md: when a device is reachable via
@@ -35,8 +38,9 @@ var setupResetCmd = &cobra.Command{ //nolint:gochecknoglobals
 
 This is a recovery command for devices whose first wizard run left them in an
 unreachable state (e.g. a reload failed and the device cannot be reached on
-its new SSID/IP). It flips two flags in /etc/openmanetd/config.yml and one UCI flag:
+its new SSID/IP). It sets three flags in /etc/openmanetd/config.yml and one UCI flag:
 
+  setup.enabled    = true    # lift the wizard's kill switch (off by default)
   setup.complete   = false   # the wizard becomes reachable again
   auth.enable      = false   # session auth is disabled so the wizard can run
                              #   without a login
@@ -56,27 +60,46 @@ func init() {
 	rootCmd.AddCommand(setupResetCmd)
 }
 
+// setupResetConfig is the slice of *config.Config that setup-reset
+// needs. Defined at the consumer so tests can substitute a fake.
+type setupResetConfig interface {
+	PersistSetupReset() error
+}
+
 func runSetupReset(cmd *cobra.Command, _ []string) {
 	cfg := config.New(nil)
 
-	// Flip both flags atomically in a single yaml read-modify-write,
-	// matching the wizard's PersistSetupAndAuth path. Both go to
-	// false here; the wizard's completion path flips them both to
-	// true.
-	if err := cfg.PersistSetupAndAuth(false, false); err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "setup-reset failed: %v\n", err)
-		os.Exit(1)
+	clearLuci := func() error {
+		return network.ClearLuciWizardUsedWithReader(network.NewUCINetworkConfigReader()) //nolint:wrapcheck // resetSetup wraps it
 	}
 
-	if err := network.ClearLuciWizardUsedWithReader(network.NewUCINetworkConfigReader()); err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "setup-reset: cleared config.yml flags but failed to clear luci.wizard.used: %v\n", err)
+	if err := resetSetup(cfg, clearLuci, cmd.OutOrStdout()); err != nil {
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		os.Exit(1)
 	}
+}
 
-	fmt.Fprintln(cmd.OutOrStdout(),
-		"setup-reset: setup.complete=false, auth.enable=false, luci.wizard.used=0")
-	fmt.Fprintln(cmd.OutOrStdout(),
+// resetSetup reopens the wizard: it persists setup.enabled=true,
+// setup.complete=false and auth.enable=false in one config.yml write
+// (matching the atomicity of the wizard's PersistSetupAndAuth path),
+// then clears luci.wizard.used through clearLuci. The config write
+// happens first so a UCI failure still leaves config.yml reset and
+// the error message says so.
+func resetSetup(cfg setupResetConfig, clearLuci func() error, out io.Writer) error {
+	if err := cfg.PersistSetupReset(); err != nil {
+		return fmt.Errorf("setup-reset failed: %w", err)
+	}
+
+	if err := clearLuci(); err != nil {
+		return fmt.Errorf("setup-reset: cleared config.yml flags but failed to clear luci.wizard.used: %w", err)
+	}
+
+	fmt.Fprintln(out,
+		"setup-reset: setup.enabled=true, setup.complete=false, auth.enable=false, luci.wizard.used=0")
+	fmt.Fprintln(out,
 		"Restart openmanetd to reload the configuration:")
-	fmt.Fprintln(cmd.OutOrStdout(),
+	fmt.Fprintln(out,
 		"  /etc/init.d/openmanetd restart")
+
+	return nil
 }
