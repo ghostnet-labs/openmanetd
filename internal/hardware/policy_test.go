@@ -410,11 +410,10 @@ func TestBootLoopGuard_CountsResets(t *testing.T) {
 func TestSnapshotter(t *testing.T) {
 	rig := newRig(t, func(o *hardware.Options, _ *testRig) {
 		o.WatchdogEnable = true
-		o.FaultInputs = []string{hardware.LineSupervisorWDO, hardware.LineVLMUSBFaultN}
+		o.FaultInputs = []string{hardware.LineVLMUSBFaultN}
 	})
 	rig.step()
 	rig.lines().setValue(hardware.LineVLMUSBFaultN, true)
-	rig.lines().setValue(hardware.LineSupervisorWDO, true)
 	rig.step()
 
 	s := &hardware.Snapshotter{Manager: rig.m}
@@ -431,9 +430,9 @@ func TestSnapshotter(t *testing.T) {
 	assert.Equal(t, int32(500), d.BatteryCurrentMA)
 	assert.False(t, d.BatteryStale)
 	assert.Equal(t, uint64(1), d.FaultEdgesTotal.VLMUSBFaultN)
-	assert.Equal(t, uint64(1), d.FaultEdgesTotal.SupervisorWDO)
-	assert.Equal(t, uint64(1), d.WDOEdgesTotal)
 	assert.Equal(t, uint64(1), d.WatchdogPetsTotal)
+	assert.True(t, d.SupervisorArmed)
+	assert.Equal(t, uint64(1), d.SupervisorArmTransitionsTotal)
 
 	raw, err := json.Marshal(d)
 	require.NoError(t, err)
@@ -443,11 +442,17 @@ func TestSnapshotter(t *testing.T) {
 
 	for _, k := range []string{
 		"board_detected", "control_mode", "radios", "fault_edges_total", "battery_bus_mv",
-		"battery_current_ma", "battery_stale", "watchdog_pets_total", "wdo_edges_total",
-		"recovery_boots_last_hour",
+		"battery_current_ma", "battery_stale", "watchdog_pets_total", "supervisor_armed",
+		"supervisor_arm_transitions_total", "recovery_boots_last_hour",
 	} {
 		assert.Contains(t, keys, k)
 	}
+
+	assert.NotContains(t, keys, "wdo_edges_total", "retired by D-044")
+
+	edges, ok := keys["fault_edges_total"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, edges, "supervisor_wdo", "retired by D-044")
 
 	allocs := testing.AllocsPerRun(100, s.Refresh)
 	assert.Zero(t, allocs, "Refresh must not allocate")

@@ -365,6 +365,9 @@ func (m *Manager) runShutdown(ctx context.Context, now time.Time) {
 	}
 
 	m.shutdownDone = true
+	// The node is meant to stay off: disarm before anything else, or the
+	// supervisor would power-cycle it once the heartbeat stops.
+	m.disarmSupervisor("graceful poweroff")
 
 	for _, rm := range m.radios {
 		if rm.managed && rm.state != StateOff {
@@ -473,4 +476,44 @@ func (m *Manager) petWatchdog(now time.Time) {
 
 	m.lastPet = now
 	m.petsTotal++
+	m.armSupervisor()
+}
+
+// armSupervisor drives SUPERVISOR_ARM high. petWatchdog calls it only after
+// a heartbeat was written, so the supervisor never arms without WDI
+// service. It is a no-op once armed, after a host reset request, and once
+// a graceful shutdown is pending. A failed write is retried on the next
+// heartbeat.
+func (m *Manager) armSupervisor() {
+	if !m.armRequested || m.supervisorArmed || m.hostResetRequested || m.shutdownPending {
+		return
+	}
+
+	if err := m.lines.Set(LineSupervisorARM, true); err != nil {
+		m.log.Warn().Err(err).Msg("hardware: arming supervisor watchdog failed; retrying on next heartbeat")
+
+		return
+	}
+
+	m.supervisorArmed = true
+	m.armTransitions++
+	m.log.Info().Msg("hardware: supervisor watchdog armed (SUPERVISOR_ARM high)")
+}
+
+// disarmSupervisor drives SUPERVISOR_ARM low. Callers run it before the
+// heartbeat stops (daemon stop) or before a deliberate poweroff.
+func (m *Manager) disarmSupervisor(cause string) {
+	if !m.supervisorArmed {
+		return
+	}
+
+	if err := m.lines.Set(LineSupervisorARM, false); err != nil {
+		m.log.Error().Err(err).Str("cause", cause).Msg("hardware: disarming supervisor watchdog failed")
+
+		return
+	}
+
+	m.supervisorArmed = false
+	m.armTransitions++
+	m.log.Info().Str("cause", cause).Msg("hardware: supervisor watchdog disarmed (SUPERVISOR_ARM low)")
 }

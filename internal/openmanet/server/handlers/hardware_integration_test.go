@@ -39,7 +39,7 @@ func TestIntegration_GetHardwareStatus_telemetryOnlyByDefault(t *testing.T) {
 		assert.Equal(t, hardwarev1.RadioState_RADIO_STATE_UNMANAGED, r.GetState(), r.GetRadio().String())
 	}
 
-	require.Len(t, st.GetFaultLines(), 8)
+	require.Len(t, st.GetFaultLines(), 7)
 
 	for _, fl := range st.GetFaultLines() {
 		assert.Equal(t, hardwarev1.LineState_LINE_STATE_UNAVAILABLE, fl.GetState(), fl.GetName())

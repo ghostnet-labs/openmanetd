@@ -18,7 +18,7 @@ const (
 	LineHaLowFaultN    = "HALOW_FAULT_N"
 	LineWiFiFaultN     = "WIFI_FAULT_N"
 	LineGNSSResetN     = "GNSS_RESET_N"
-	LineSupervisorWDO  = "SUPERVISOR_WDO"
+	LineSupervisorARM  = "SUPERVISOR_ARM"
 	LinePowerGood      = "POWER_GOOD"
 	LineEFuseFault     = "EFUSE_FAULT"
 	LineHaLowResetN    = "HALOW_RESET_N"
@@ -34,17 +34,35 @@ const (
 
 // hwmgr never requests GNSS_PPS (owned by the pps-gpio overlay),
 // SUPERVISOR_WDI (owned by the kernel gpio-wdt driver), the reserved GPIO17,
-// the I2C pins or the GNSS UART pins. TestLineSpecs pins that list.
+// the I2C pins or the GNSS UART pins. TestLineSpecs pins that list. The
+// supervisor's WDO pin is not a CM5 input on V1 (D-044): it pulls the
+// TPS386000 SENSE4L tap, so a watchdog trip cycles PMIC_Enable directly.
 
 // LineSpec describes how one GPIO line is requested. Asserted always means
 // the line's active level: for an ActiveLow line, asserted is electrically
 // low. An OpenDrain output is only ever driven low or released (high-Z), so
-// the software has no path that drives it high.
+// the software has no path that drives it high. An output normally keeps
+// its present level when requested; StartDeasserted requests it deasserted
+// instead, for a line whose safe state must not depend on what a previous
+// owner left behind.
 type LineSpec struct {
-	Name      string
-	ActiveLow bool
-	OpenDrain bool
-	Output    bool
+	Name            string
+	ActiveLow       bool
+	OpenDrain       bool
+	Output          bool
+	StartDeasserted bool
+}
+
+// supervisorArmSpec is SUPERVISOR_ARM (GPIO11), the active-high TPS386000
+// MR watchdog arm (D-044). A 10 kOhm pull-down holds it low, so the
+// external watchdog is disarmed while the CM5 is off, in reset, or before
+// hwmgr runs. hwmgr requests it low, drives it high only after the WDI
+// heartbeat has been written at least once, and drops it again before an
+// orderly poweroff or daemon stop. It is requested only when the watchdog
+// service is enabled, independent of the radio control mode, because the
+// arm follows the heartbeat rather than radio actuation.
+func supervisorArmSpec() LineSpec {
+	return LineSpec{Name: LineSupervisorARM, Output: true, StartDeasserted: true}
 }
 
 // outputSpecs are the lines hwmgr drives in active control mode. GPIO8,
@@ -82,7 +100,6 @@ func faultInputs() [faultLineCount]faultInput {
 		{spec: LineSpec{Name: LineHaLowUSBFaultN, ActiveLow: true}, line: FaultLineHaLowUSBFault, faultWhenAsserted: true},
 		{spec: LineSpec{Name: LineVLMUSBFaultN, ActiveLow: true}, line: FaultLineVLMUSBFault, faultWhenAsserted: true},
 		{spec: LineSpec{Name: LineINA228AlertN, ActiveLow: true}, line: FaultLineINA228Alert, faultWhenAsserted: true},
-		{spec: LineSpec{Name: LineSupervisorWDO, ActiveLow: true}, line: FaultLineSupervisorWDO, faultWhenAsserted: true},
 	}
 }
 
@@ -171,6 +188,10 @@ func (c *cdevLines) request(s LineSpec) error {
 		return c.requestInput(chip, offset, s)
 	}
 
+	if s.StartDeasserted {
+		return c.requestDeasserted(chip, offset, s)
+	}
+
 	// Request without changing direction, read the present level, then
 	// reconfigure as an output at that same level.
 	l, err := gpiocdev.RequestLine(chip, offset, gpiocdev.AsIs, gpiocdev.WithConsumer(lineConsumer))
@@ -203,6 +224,32 @@ func (c *cdevLines) request(s LineSpec) error {
 		_ = l.Close() // best effort; the reconfigure error is the one to report
 
 		return fmt.Errorf("configure gpio line %s: %w", s.Name, err)
+	}
+
+	c.lines[s.Name] = l
+
+	return nil
+}
+
+// requestDeasserted requests an output at its inactive level in one step,
+// without first reading or adopting the present level.
+func (c *cdevLines) requestDeasserted(chip string, offset int, s LineSpec) error {
+	opts := make([]gpiocdev.LineReqOption, 0, 4)
+	opts = append(opts, gpiocdev.WithConsumer(lineConsumer))
+
+	if s.ActiveLow {
+		opts = append(opts, gpiocdev.AsActiveLow)
+	}
+
+	if s.OpenDrain {
+		opts = append(opts, gpiocdev.AsOpenDrain)
+	}
+
+	opts = append(opts, gpiocdev.AsOutput(0))
+
+	l, err := gpiocdev.RequestLine(chip, offset, opts...)
+	if err != nil {
+		return fmt.Errorf("request gpio output %s: %w", s.Name, err)
 	}
 
 	c.lines[s.Name] = l
