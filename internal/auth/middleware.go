@@ -14,13 +14,50 @@ const (
 	ctxKeyUsername ctxKey = iota
 )
 
-// SessionCookieName is the name of the HTTP session cookie.
-const SessionCookieName = "session"
+// Session cookie names. The daemon serves the same UI over plain HTTP
+// (:8080) and HTTPS (:8081) on one host, so the scheme picks the name:
+//
+//   - SessionCookieName is issued over plain HTTP. It cannot carry Secure,
+//     or the browser would refuse to send it back.
+//   - SecureSessionCookieName is issued over HTTPS. The __Host- prefix makes
+//     the browser insist on Secure, Path=/ and no Domain, so a plain-HTTP
+//     response or a sibling host can neither set nor overwrite it.
+//
+// Two names rather than one with a per-scheme Secure flag: browsers refuse
+// to let a plain-HTTP response overwrite a Secure cookie of the same name,
+// which would lock an operator out of HTTP sign-in after an HTTPS one.
+const (
+	SessionCookieName       = "session"
+	SecureSessionCookieName = "__Host-session"
+)
+
+// IsSessionCookieName reports whether name is one of the OpenMANET session
+// cookie names. The match ignores case so a proxy filter built on it cannot
+// be sidestepped by a differently cased name.
+func IsSessionCookieName(name string) bool {
+	return strings.EqualFold(name, SessionCookieName) || strings.EqualFold(name, SecureSessionCookieName)
+}
+
+// RequestIsTLS reports whether the browser reached the daemon over HTTPS:
+// either this server terminated TLS itself, or the frontend server did and
+// said so in X-Forwarded-Proto. The frontend proxy discards any inbound
+// X-Forwarded-* headers before stamping its own, so the browser cannot
+// forge the value through it. A client talking to the API port directly
+// can, but the only effect is a Secure cookie on its own response.
+func RequestIsTLS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+
+	proto, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+
+	return strings.EqualFold(strings.TrimSpace(proto), "https")
+}
 
 // NewAPIAuthMiddleware returns HTTP middleware that enforces session
 // authentication for the ConnectRPC API server. When enabled is false the
-// middleware is a no-op. The session token may be supplied as the "session"
-// cookie (browser clients) or an "Authorization: Bearer <token>" header
+// middleware is a no-op. The session token may be supplied as a session
+// cookie (browser clients, see SessionCookieName) or an "Authorization: Bearer <token>" header
 // (curl, scripts, ConnectRPC clients in other languages). When both are
 // present the Authorization header wins. The following paths are always
 // allowed without a valid session:
@@ -36,14 +73,7 @@ func NewAPIAuthMiddleware(store *SessionStore, enabled bool) func(http.Handler) 
 				return
 			}
 
-			token := extractSessionToken(r)
-			if token == "" {
-				writeUnauthorized(w)
-
-				return
-			}
-
-			sess, ok := store.Validate(token)
+			sess, ok := lookupSession(store, r)
 			if !ok {
 				writeUnauthorized(w)
 
@@ -71,14 +101,7 @@ func NewFrontendAuthMiddleware(store *SessionStore, enabled bool) func(http.Hand
 				return
 			}
 
-			token := extractSessionToken(r)
-			if token == "" {
-				writeUnauthorized(w)
-
-				return
-			}
-
-			sess, ok := store.Validate(token)
+			sess, ok := lookupSession(store, r)
 			if !ok {
 				writeUnauthorized(w)
 
@@ -91,27 +114,46 @@ func NewFrontendAuthMiddleware(store *SessionStore, enabled bool) func(http.Hand
 	}
 }
 
-// extractSessionToken pulls the session token from the request. Precedence:
-//  1. Authorization: Bearer <token> header — wins when present so a stale
-//     browser cookie cannot mask an explicit header.
-//  2. "session" cookie.
+// sessionTokens returns the session tokens the request carries, in the
+// order they are tried:
+//  1. Authorization: Bearer <token> header. When present it is the only
+//     candidate, so a stale browser cookie cannot mask an explicit header.
+//  2. The __Host-session cookie (HTTPS sign-in).
+//  3. The session cookie (plain-HTTP sign-in).
 //
-// Returns "" when neither is present or the header is malformed.
-func extractSessionToken(r *http.Request) string {
+// Returns nil when the request carries none, or the header is malformed.
+func sessionTokens(r *http.Request) []string {
 	if h := r.Header.Get("Authorization"); h != "" {
 		const prefix = "Bearer "
 		if len(h) > len(prefix) && strings.EqualFold(h[:len(prefix)], prefix) {
 			if token := strings.TrimSpace(h[len(prefix):]); token != "" {
-				return token
+				return []string{token}
 			}
 		}
 	}
 
-	if cookie, err := r.Cookie(SessionCookieName); err == nil {
-		return cookie.Value
+	tokens := make([]string, 0, 2)
+
+	for _, name := range [...]string{SecureSessionCookieName, SessionCookieName} {
+		if cookie, err := r.Cookie(name); err == nil && cookie.Value != "" {
+			tokens = append(tokens, cookie.Value)
+		}
 	}
 
-	return ""
+	return tokens
+}
+
+// lookupSession returns the first valid session among the request's
+// tokens. Trying each one means an expired HTTPS cookie does not hide a
+// live plain-HTTP one on the same host, or the other way round.
+func lookupSession(store *SessionStore, r *http.Request) (*Session, bool) {
+	for _, token := range sessionTokens(r) {
+		if sess, ok := store.Validate(token); ok {
+			return sess, true
+		}
+	}
+
+	return nil, false
 }
 
 // UsernameFromContext returns the authenticated username stored in ctx, or an
