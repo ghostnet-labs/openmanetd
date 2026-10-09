@@ -106,7 +106,13 @@ type Combination struct {
 
 // PHY is one independently tunable radio.
 type PHY struct {
-	Name           string        `json:"name"`
+	// Name identifies the radio: the wiphy name ("phy0"), or
+	// "<wiphy>/radio<N>" for one radio of a multi-radio wiphy.
+	Name string `json:"name"`
+	// Wiphy is the kernel wiphy the radio belongs to.
+	Wiphy string `json:"wiphy,omitempty"`
+	// Radio is the radio index inside a multi-radio wiphy, "" otherwise.
+	Radio          string        `json:"radio,omitempty"`
 	Bands          []Band        `json:"bands"`
 	SupportedTypes []IfType      `json:"supported_types,omitempty"`
 	SoftwareTypes  []IfType      `json:"software_types,omitempty"`

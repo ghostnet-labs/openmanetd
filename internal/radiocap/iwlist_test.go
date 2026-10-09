@@ -66,6 +66,54 @@ func TestParseIWList_mt7916DBDC(t *testing.T) {
 	}
 }
 
+func TestParseIWList_openWrtWiphyRadios(t *testing.T) {
+	phys := parseFixture(t, "multiradio_owrt_iw.txt")
+	require.Len(t, phys, 3, "each wiphy radio is its own PHY")
+
+	perRadio := []radiocap.Combination{{
+		Limits: []radiocap.Limit{
+			{Types: []radiocap.IfType{radiocap.IfTypeManaged}, Max: 1},
+			{Types: []radiocap.IfType{radiocap.IfTypeAP, radiocap.IfTypeMesh}, Max: 16},
+		},
+		MaxInterfaces: 17,
+		MaxChannels:   1,
+	}}
+
+	want := []struct {
+		name, radio string
+		band        radiocap.Band
+	}{
+		{name: "phy0/radio0", radio: "0", band: radiocap.Band2G4},
+		{name: "phy0/radio1", radio: "1", band: radiocap.Band5G},
+		{name: "phy0/radio2", radio: "2", band: radiocap.Band6G},
+	}
+
+	for i, w := range want {
+		assert.Equal(t, w.name, phys[i].Name)
+		assert.Equal(t, "phy0", phys[i].Wiphy)
+		assert.Equal(t, w.radio, phys[i].Radio)
+		assert.Equal(t, []radiocap.Band{w.band}, phys[i].Bands)
+		assert.Equal(t, perRadio, phys[i].Combinations, "wiphy-wide #channels <= 3 must not leak into a radio")
+		assert.Contains(t, phys[i].SupportedTypes, radiocap.IfTypeMesh)
+	}
+
+	phys[0].SupportedTypes[0] = "changed"
+	assert.Equal(t, radiocap.IfTypeManaged, phys[1].SupportedTypes[0], "radios must not share slices")
+}
+
+func TestParseIWList_stockFormatHasNoRadio(t *testing.T) {
+	for _, p := range parseFixture(t, "mt7916_dbdc.txt") {
+		assert.Equal(t, p.Name, p.Wiphy)
+		assert.Empty(t, p.Radio)
+	}
+}
+
+func TestParseIWList_badRadioRange(t *testing.T) {
+	in := "Wiphy phy0\n\twiphy radio 0:\n\t\tfreq range: 2500.0 MHz - 2400.0 MHz\n"
+	_, err := radiocap.ParseIWList(strings.NewReader(in))
+	assert.Error(t, err)
+}
+
 func TestParseIWList_morseHaLow(t *testing.T) {
 	phys := parseFixture(t, "morse_halow.txt")
 	require.Len(t, phys, 1)

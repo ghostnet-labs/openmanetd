@@ -361,6 +361,28 @@ func TestAdmit_migrationOnMT7916(t *testing.T) {
 	}
 }
 
+// TestAdmit_multiRadioWiphy shows that the per-radio limits of an OpenWrt
+// multi-radio wiphy, not its wiphy-wide #channels, bound admission.
+func TestAdmit_multiRadioWiphy(t *testing.T) {
+	m := newModel(t, qualify(parseFixture(t, "multiradio_owrt_iw.txt"))...)
+
+	d, err := m.Admit([]radiocap.Demand{oldMesh(5180), eudAP(2437)}, []radiocap.Demand{newMesh(5975)},
+		radiocap.DefaultPolicy())
+	require.NoError(t, err)
+	assert.Equal(t, radiocap.OutcomeAdmit, d.Outcome, d.Explanation)
+	assert.Equal(t, []radiocap.Placement{
+		{PHY: "phy0/radio0", Demands: []string{"eud-ap"}},
+		{PHY: "phy0/radio1", Demands: []string{"mesh-old"}},
+		{PHY: "phy0/radio2", Demands: []string{"mesh-new"}},
+	}, d.Placements)
+
+	d, err = m.Admit([]radiocap.Demand{oldMesh(5180), eudAP(2437)}, []radiocap.Demand{newMesh(5200)},
+		radiocap.DefaultPolicy())
+	require.NoError(t, err)
+	assert.Equal(t, radiocap.OutcomeReject, d.Outcome, "two 5 GHz channels need two 5 GHz radios")
+	assert.Equal(t, radiocap.ReasonCapacityShort, d.Reason)
+}
+
 // TestAdmit_haLowFailureAndFallback covers a failed/stale HaLow PHY and the
 // fallback of mesh to a Wi-Fi PHY.
 func TestAdmit_haLowFailureAndFallback(t *testing.T) {
