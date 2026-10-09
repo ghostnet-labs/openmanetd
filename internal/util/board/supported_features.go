@@ -182,6 +182,24 @@ func GPIOSelectorSupported() bool {
 	}
 }
 
+// HardwareControlSupported returns true if the current board is the
+// Ghostnet V1 carrier, the only board whose radio power switches, fault
+// inputs and supervisor watchdog the hardware manager knows how to drive.
+// It reports board identity only: the hardware manager additionally
+// requires every GPIO line name to resolve and hardware.actuationEnable
+// before it drives anything.
+//
+// Returns false if the board configuration cannot be retrieved or for
+// every other board model.
+func HardwareControlSupported() bool {
+	boardConfigInfo, err := newBoardConfigInfoFn()
+	if err != nil {
+		return false
+	}
+
+	return boardConfigInfo.Model.ID == GhostnetV1
+}
+
 // VLMUSBFaultSupported returns true if the current board routes the
 // OpenVLM host port's power/overcurrent fault (VLM_USB_FAULT_N) to a host
 // GPIO line.

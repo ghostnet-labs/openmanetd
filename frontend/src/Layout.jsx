@@ -7,6 +7,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from './contexts/useAuth.js';
 import SetupDismissBanner from './components/SetupDismissBanner.jsx';
 import NavIcon from './components/NavIcon.jsx';
+import useLuciProxy, { LUCI_PATH } from './hooks/useLuciProxy.js';
 import { MOBILE_BREAKPOINT } from './constants.js';
 import './Layout.css';
 
@@ -37,6 +38,13 @@ const PRIMARY_TABS = [
   { to: '/topology', short: 'Topo',  icon: 'topology' },
   { to: '/gps',      short: 'GPS',   icon: 'gps' },
 ];
+// The Advanced entry is a plain link, not a NavLink: LuCI is served by the
+// frontend daemon's reverse proxy, so this is a full-page handoff that leaves
+// the SPA. Shown only when the daemon reports the proxy is enabled.
+const ADVANCED_LABEL = 'Advanced';
+const ADVANCED_DESC = 'Full router settings (LuCI)';
+const ADVANCED_TITLE = `${ADVANCED_LABEL}: ${ADVANCED_DESC}`;
+
 const OVERFLOW_TABS = [
   { to: '/blos',     label: 'BLOS',     icon: 'blos' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
@@ -53,6 +61,7 @@ export default function Layout() {
     () => typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT
   );
   const [sheetOpen, setSheetOpen] = useState(false);
+  const luciEnabled = useLuciProxy();
 
   useEffect(() => {
     let timeoutId = null;
@@ -102,6 +111,15 @@ export default function Layout() {
                   <span>{item.label}</span>
                 </NavLink>
               ))}
+              {luciEnabled ? (
+                <a className="tab-sheet-item" href={LUCI_PATH} title={ADVANCED_TITLE}>
+                  <span className="nav-icon"><NavIcon name="advanced" /></span>
+                  <span className="nav-text">
+                    <span>{ADVANCED_LABEL}</span>
+                    <span className="nav-desc">{ADVANCED_DESC}</span>
+                  </span>
+                </a>
+              ) : null}
               <button
                 className="tab-sheet-item danger"
                 onClick={() => { setSheetOpen(false); logout(); }}
@@ -177,6 +195,17 @@ export default function Layout() {
               ))}
             </React.Fragment>
           ))}
+          {luciEnabled ? (
+            <a className="nav-item nav-item-handoff" href={LUCI_PATH} title={ADVANCED_TITLE}>
+              <span className="nav-icon"><NavIcon name="advanced" /></span>
+              {!collapsed && (
+                <span className="nav-label nav-text">
+                  <span>{ADVANCED_LABEL}</span>
+                  <span className="nav-desc">{ADVANCED_DESC}</span>
+                </span>
+              )}
+            </a>
+          ) : null}
         </div>
         <div className="sidebar-footer">
           {!collapsed && <div className="operator">Operator</div>}

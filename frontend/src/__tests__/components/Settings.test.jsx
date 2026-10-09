@@ -15,7 +15,10 @@ const { mockExecuteQuickAction, mockGetCommsConfig, mockUpdateCommsConfig, mockC
   mockChangePassword: vi.fn().mockResolvedValue(undefined),
   authEnabledRef: { current: true },
 }));
-vi.mock('@connectrpc/connect', () => ({
+// Keep the real ConnectError / Code exports: useDeviceReboot classifies
+// reboot failures with them.
+vi.mock('@connectrpc/connect', async (importOriginal) => ({
+  ...(await importOriginal()),
   createClient: () => ({
     executeQuickAction: mockExecuteQuickAction,
     getCommsConfig: mockGetCommsConfig,
@@ -33,6 +36,8 @@ vi.mock('../../contexts/useAuth.js', () => ({
   }),
 }));
 
+import { Code, ConnectError } from '@connectrpc/connect';
+import { QuickAction } from '../../gen/openmanet/dashboard/v1/dashboard_pb.js';
 import SettingsPage from '../../pages/Settings.jsx';
 
 afterEach(() => {
@@ -302,6 +307,97 @@ describe('TestSettingsRestart', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to restart/)).toBeTruthy();
     });
+  });
+});
+
+describe('TestSettingsReboot', () => {
+  beforeEach(() => mockFetchSuccess());
+
+  async function openConfirm() {
+    render(<SettingsPage />);
+    await waitFor(() => screen.getByText('Reboot device'));
+    fireEvent.click(screen.getByText('Reboot device'));
+    return screen.getByRole('alertdialog');
+  }
+
+  it('renders the reboot button next to restart with a 44px touch class', async () => {
+    const { container } = render(<SettingsPage />);
+    await waitFor(() => screen.getByText('Reboot device'));
+    const actions = container.querySelector('.settings-service-actions');
+    const buttons = actions.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].textContent).toBe('Restart openmanetd');
+    expect(buttons[1].textContent).toBe('Reboot device');
+    expect(buttons[1].className).toContain('lat-btn danger solid settings-touch-btn');
+  });
+
+  it('asks for confirmation naming the hostname before rebooting', async () => {
+    const dialog = await openConfirm();
+    expect(dialog.textContent).toContain('Reboot my-device?');
+    expect(dialog.textContent).toMatch(/about a minute/);
+    expect(screen.getByRole('button', { name: 'Reboot my-device' }).className)
+      .toContain('lat-btn danger filled');
+    expect(mockExecuteQuickAction).not.toHaveBeenCalled();
+  });
+
+  it('cancel closes the confirmation without calling the backend', async () => {
+    await openConfirm();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(mockExecuteQuickAction).not.toHaveBeenCalled();
+  });
+
+  it('sends REBOOT_DEVICE and shows the disconnect message on confirm', async () => {
+    await openConfirm();
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot my-device' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Reboot accepted.')).toBeTruthy();
+    });
+    expect(mockExecuteQuickAction).toHaveBeenCalledWith({ action: QuickAction.REBOOT_DEVICE });
+    expect(screen.getByRole('status').textContent).toMatch(/my-device is shutting down/);
+    // Restart and reboot are locked while the reboot is in flight.
+    expect(screen.getByText('Restart openmanetd').closest('button').disabled).toBe(true);
+    expect(screen.getByText('Reboot device').closest('button').disabled).toBe(true);
+  });
+
+  it('shows reconnecting state once the device stops answering', async () => {
+    await openConfirm();
+    // From here on the device is down: every probe fails.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot my-device' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Reconnecting…')).toBeTruthy();
+    });
+    expect(screen.getByRole('status').textContent).toMatch(/UI is disconnected/);
+  });
+
+  it('shows a crit alert with the cause when the reboot request fails', async () => {
+    mockExecuteQuickAction.mockRejectedValueOnce(
+      new ConnectError('action QUICK_ACTION_REBOOT_DEVICE failed: exit status 1', Code.Internal),
+    );
+    await openConfirm();
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot my-device' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.className).toContain('lat-alert crit');
+    expect(alert.textContent).toContain('Reboot failed.');
+    expect(alert.textContent).toContain('exit status 1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Reboot device').closest('button').disabled).toBe(false);
+  });
+
+  it('shows a crit alert when the backend reports success=false', async () => {
+    mockExecuteQuickAction.mockResolvedValueOnce({ success: false, message: 'reboot blocked' });
+    await openConfirm();
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot my-device' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.className).toContain('lat-alert crit');
+    expect(alert.textContent).toContain('reboot blocked');
   });
 });
 

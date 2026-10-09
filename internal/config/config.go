@@ -210,6 +210,71 @@ const (
 	DefaultInstrumentationSnapshotDir string = "/tmp"
 	DefaultTerminalEnable             bool   = true
 	DefaultTerminalShell              string = "/bin/login"
+
+	// DefaultHardwareEnable starts the V1 hardware manager. On boards
+	// other than Ghostnet V1 it runs telemetry-only and drives nothing.
+	DefaultHardwareEnable bool = true
+	// DefaultHardwareActuationEnable gates every GPIO write, bus reset and
+	// sysfs remove/rescan. Off until the V1 pin map is verified on
+	// hardware (GHO-9, GHO-21).
+	DefaultHardwareActuationEnable bool = false
+	// DefaultHardwareWatchdogEnable gates opening and petting the
+	// supervisor's gpio-wdt device (GHO-10 must define arming first).
+	DefaultHardwareWatchdogEnable bool = false
+	// DefaultHardwareBatteryShutdownEnable gates the low-battery poweroff.
+	DefaultHardwareBatteryShutdownEnable bool = false
+	// DefaultHardwareRecoveryStateFile persists the boot-loop guard.
+	DefaultHardwareRecoveryStateFile string = "/etc/openmanetd/hwrecovery.json"
+	// DefaultHardwareWatchdogIdentity is the watchdog identity string the
+	// supervisor's gpio-wdt driver reports in sysfs.
+	DefaultHardwareWatchdogIdentity string = "GPIO Watchdog"
+	// DefaultHardwarePackResistanceOhm is the pack plus wiring resistance
+	// used to compensate bus voltage for load sag.
+	DefaultHardwarePackResistanceOhm float64 = 0.06
+)
+
+// HardwareConfig holds the V1 hardware manager settings. It is returned by
+// value from GetHardware; FaultInputs is copied so callers may keep it.
+type HardwareConfig struct {
+	// RecoveryStateFile is where the boot-loop guard record lives.
+	RecoveryStateFile string
+	// HaLowUSBDevice is the sysfs USB device name (for example "1-1.2").
+	HaLowUSBDevice string
+	// HaLowNetdev is the HaLow network interface name.
+	HaLowNetdev string
+	// WiFiPCIAddress is the PCIe function address (for example
+	// "0001:01:00.0").
+	WiFiPCIAddress string
+	// WiFiNetdev is the Wi-Fi network interface name.
+	WiFiNetdev string
+	// WatchdogIdentity selects the watchdog device by sysfs identity.
+	WatchdogIdentity string
+	// FaultInputs lists the fault input line names to request. Empty
+	// means none are requested and all report unavailable.
+	FaultInputs []string
+	// PackResistanceOhm compensates bus voltage for load sag.
+	PackResistanceOhm float64
+	// Enable starts the hardware manager.
+	Enable bool
+	// ActuationEnable allows GPIO and bus actuation.
+	ActuationEnable bool
+	// WatchdogEnable allows opening and petting the watchdog.
+	WatchdogEnable bool
+	// BatteryShutdownEnable allows the low-battery poweroff.
+	BatteryShutdownEnable bool
+}
+
+// LuCI reverse-proxy defaults (Unified UI, GHO-69 / GHO-70).
+const (
+	// DefaultFrontendLuCIProxyEnable is the default for
+	// frontend.luciProxy.enable. Off by default: the frontend server only
+	// reverse-proxies LuCI's paths once an operator opts in, so a node
+	// that does not set the key behaves exactly as before.
+	DefaultFrontendLuCIProxyEnable bool = false
+	// DefaultFrontendLuCIProxyUpstream is the default for
+	// frontend.luciProxy.upstream: uhttpd serving LuCI on the loopback
+	// interface of the same node.
+	DefaultFrontendLuCIProxyUpstream string = "http://127.0.0.1:80"
 )
 
 // Config holds the application configuration values with automatic reloading support.
@@ -232,6 +297,7 @@ type Config struct {
 	OpenMANETFrontendHostPort                 string
 	AlfredSocketPath                          string
 	OpenMANETFrontendTLSKeyFile               string
+	FrontendLuCIProxyUpstream                 string
 	OpenMANETAPIAddress                       string
 	OpenMANETCommsAPIAddress                  string
 	RuntimeMemLimit                           string
@@ -246,6 +312,7 @@ type Config struct {
 	CommsAudioMicControl                      string
 	CommsAudioAGCControl                      string
 	onChangeCallbacks                         []func(*Config)
+	Hardware                                  HardwareConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
 	MeshTopologyDeltaSampleInterval           int
@@ -295,6 +362,7 @@ type Config struct {
 	SetupComplete                             bool
 	InstrumentationEnable                     bool
 	TerminalEnable                            bool
+	FrontendLuCIProxyEnable                   bool
 }
 
 // New creates a new Config instance with the given viper instance.
@@ -631,6 +699,21 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 		c.OpenMANETFrontendTLSKeyFile = DefaultOpenMANETFrontendTLSKeyFile
 	}
 
+	// LuCI reverse proxy (Unified UI, GHO-69/GHO-70). The upstream is
+	// stored as configured; internal/frontend validates it when it builds
+	// the proxy and refuses to proxy an unusable value.
+	if c.v.IsSet("frontend.luciProxy.enable") {
+		c.FrontendLuCIProxyEnable = c.v.GetBool("frontend.luciProxy.enable")
+	} else {
+		c.FrontendLuCIProxyEnable = DefaultFrontendLuCIProxyEnable
+	}
+
+	if val := strings.TrimSpace(c.v.GetString("frontend.luciProxy.upstream")); val != "" {
+		c.FrontendLuCIProxyUpstream = val
+	} else {
+		c.FrontendLuCIProxyUpstream = DefaultFrontendLuCIProxyUpstream
+	}
+
 	if val := c.v.GetString("openmanetAPIAddress"); val != "" {
 		c.OpenMANETAPIAddress = val
 	} else {
@@ -860,6 +943,57 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	} else {
 		c.TerminalEnable = DefaultTerminalEnable
 	}
+
+	c.Hardware = c.loadHardware()
+}
+
+// loadHardware reads the hardware section, applying defaults. The caller
+// holds c.mu.
+func (c *Config) loadHardware() HardwareConfig {
+	h := HardwareConfig{
+		Enable:                DefaultHardwareEnable,
+		ActuationEnable:       DefaultHardwareActuationEnable,
+		WatchdogEnable:        DefaultHardwareWatchdogEnable,
+		BatteryShutdownEnable: DefaultHardwareBatteryShutdownEnable,
+		RecoveryStateFile:     DefaultHardwareRecoveryStateFile,
+		WatchdogIdentity:      DefaultHardwareWatchdogIdentity,
+		PackResistanceOhm:     DefaultHardwarePackResistanceOhm,
+		HaLowUSBDevice:        c.v.GetString("hardware.halow.usbDevice"),
+		HaLowNetdev:           c.v.GetString("hardware.halow.netdev"),
+		WiFiPCIAddress:        c.v.GetString("hardware.wifi.pciAddress"),
+		WiFiNetdev:            c.v.GetString("hardware.wifi.netdev"),
+		FaultInputs:           c.v.GetStringSlice("hardware.faultInputs"),
+	}
+
+	if c.v.IsSet("hardware.enable") {
+		h.Enable = c.v.GetBool("hardware.enable")
+	}
+
+	if c.v.IsSet("hardware.actuationEnable") {
+		h.ActuationEnable = c.v.GetBool("hardware.actuationEnable")
+	}
+
+	if c.v.IsSet("hardware.watchdogEnable") {
+		h.WatchdogEnable = c.v.GetBool("hardware.watchdogEnable")
+	}
+
+	if c.v.IsSet("hardware.batteryShutdownEnable") {
+		h.BatteryShutdownEnable = c.v.GetBool("hardware.batteryShutdownEnable")
+	}
+
+	if val := c.v.GetString("hardware.recoveryStateFile"); val != "" {
+		h.RecoveryStateFile = val
+	}
+
+	if val := c.v.GetString("hardware.watchdogIdentity"); val != "" {
+		h.WatchdogIdentity = val
+	}
+
+	if val := c.v.GetFloat64("hardware.packResistanceOhm"); val > 0 {
+		h.PackResistanceOhm = val
+	}
+
+	return h
 }
 
 // clampPct clamps v into the [0, 100] percent range.
@@ -1283,6 +1417,25 @@ func (c *Config) GetOpenMANETFrontendTLSKeyFile() string {
 	return c.OpenMANETFrontendTLSKeyFile
 }
 
+// GetFrontendLuCIProxyEnable reports whether the frontend server
+// reverse-proxies LuCI's paths (/cgi-bin/luci, /luci-static, /ubus, ...)
+// to the configured upstream.
+func (c *Config) GetFrontendLuCIProxyEnable() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.FrontendLuCIProxyEnable
+}
+
+// GetFrontendLuCIProxyUpstream returns the base URL of the LuCI web server
+// the frontend proxies to (default http://127.0.0.1:80).
+func (c *Config) GetFrontendLuCIProxyUpstream() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.FrontendLuCIProxyUpstream
+}
+
 // GetOpenMANETAPIAddress returns the OpenMANET API listen address.
 func (c *Config) GetOpenMANETAPIAddress() string {
 	c.mu.RLock()
@@ -1606,6 +1759,17 @@ func (c *Config) GetTerminalShell() string {
 	defer c.mu.RUnlock()
 
 	return c.TerminalShell
+}
+
+// GetHardware returns a copy of the hardware manager settings.
+func (c *Config) GetHardware() HardwareConfig {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	h := c.Hardware
+	h.FaultInputs = append([]string(nil), c.Hardware.FaultInputs...)
+
+	return h
 }
 
 // parseDurationOrDefault parses a Go duration string, returning def when
