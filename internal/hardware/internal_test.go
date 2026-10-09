@@ -17,17 +17,37 @@ func TestOutputSpecs_OpenDrainAndForbiddenLines(t *testing.T) {
 		assert.Equal(t, openDrain[s.Name], s.OpenDrain, "%s open-drain", s.Name)
 	}
 
-	forbidden := []string{"GNSS_PPS", "SUPERVISOR_WDI", "SYS_I2C_SDA", "SYS_I2C_SCL", "GNSS_UART_TX", "GNSS_UART_RX", ""}
+	forbidden := []string{
+		"GNSS_PPS", "SUPERVISOR_WDI", "SUPERVISOR_WDO", "SYS_I2C_SDA", "SYS_I2C_SCL",
+		"GNSS_UART_TX", "GNSS_UART_RX", "",
+	}
 
 	names := make([]string, 0, 16)
 	for _, s := range outputSpecs() {
 		names = append(names, s.Name)
 	}
 
+	names = append(names, supervisorArmSpec().Name)
+
 	names = append(names, FaultInputNames()...)
 
 	for _, f := range forbidden {
 		assert.NotContains(t, names, f)
+	}
+}
+
+func TestSupervisorArmSpec(t *testing.T) {
+	s := supervisorArmSpec()
+
+	assert.Equal(t, LineSupervisorARM, s.Name)
+	assert.True(t, s.Output)
+	assert.False(t, s.ActiveLow, "asserted (armed) is electrically high")
+	assert.False(t, s.OpenDrain, "push-pull against the 10 kOhm pull-down")
+	assert.True(t, s.StartDeasserted, "requested low, never adopted high")
+	assert.NotContains(t, FaultInputNames(), s.Name)
+
+	for _, o := range outputSpecs() {
+		assert.NotEqual(t, s.Name, o.Name, "the arm follows the watchdog, not radio actuation")
 	}
 }
 

@@ -80,8 +80,9 @@ func hardwareAPI(m *hardware.Manager) handlers.HardwareManager {
 }
 
 // waitHardwareManager waits, bounded, for the manager's step loop to exit
-// after ctx is canceled: it releases its lines and closes the watchdog
-// (cleanly, unless a host reset was requested).
+// after ctx is canceled: it drops SUPERVISOR_ARM, closes the watchdog and
+// releases its lines (the arm stays up and the close is not clean when a
+// host reset was requested).
 func waitHardwareManager(m *hardware.Manager, log zerolog.Logger) {
 	if m == nil {
 		return
