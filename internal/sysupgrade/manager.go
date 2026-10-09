@@ -40,6 +40,11 @@ var (
 	// ErrReleaseNotFound is returned when GetReleaseDetail or
 	// StartUpgrade reference a tag that does not exist in the cache.
 	ErrReleaseNotFound = errors.New("sysupgrade: release not found")
+
+	// ErrOnlineCheckDisabled is returned by GetReleaseDetail and
+	// StartUpgrade when the online release check is disabled by config.
+	// Manual image upload is unaffected.
+	ErrOnlineCheckDisabled = errors.New("sysupgrade: online release check is disabled")
 )
 
 // BoardProvider returns the parsed /etc/board.json contents. The handler
@@ -111,6 +116,13 @@ type Options struct {
 	// reboots; the daemon writes a single small last-failure.log here
 	// when watchSysupgradeChild detects an early exit.
 	PersistentLogDir string
+
+	// DisableOnlineCheck turns off every GitHub release lookup:
+	// ListAvailableUpdates returns an empty list and GetReleaseDetail /
+	// StartUpgrade return ErrOnlineCheckDisabled. Neither the network
+	// nor the on-disk release cache is consulted, so stale cached offers
+	// are not surfaced. The zero value keeps the online check enabled.
+	DisableOnlineCheck bool
 }
 
 // Manager is the central orchestrator for sysupgrade workflows.
@@ -140,6 +152,7 @@ type Manager struct {
 	wg                 sync.WaitGroup // tracks runUpgrade / runLocalUpgrade goroutines (each runs its watcher inline)
 	upgradeStarted     bool
 	uploadInFlight     bool
+	onlineDisabled     bool // immutable after NewManager
 }
 
 // subscriberQueue is the capacity used for each Subscribe channel.
@@ -204,6 +217,7 @@ func NewManager(opts Options) *Manager {
 		persistentLogDir:   persistentDir,
 		progress:           Progress{Phase: PhaseIdle, UpdatedAt: time.Now()},
 		subs:               make(map[uint64]chan Progress, 4),
+		onlineDisabled:     opts.DisableOnlineCheck,
 	}
 }
 
@@ -267,7 +281,14 @@ func (m *Manager) GetSystemInfo(_ context.Context) (*SystemInfo, error) {
 // a matching asset for the local hardware that are also newer than the
 // running OpenMANET version. Pre-releases are dropped unless
 // includePrerelease is set.
+//
+// When the online check is disabled it returns an empty list, a zero
+// fetch time and no error, without touching the network or the cache.
 func (m *Manager) ListAvailableUpdates(ctx context.Context, forceRefresh, includePrerelease bool) ([]Update, time.Time, error) {
+	if m.onlineDisabled {
+		return nil, time.Time{}, nil
+	}
+
 	releases, fetchedAt, err := m.loadReleases(ctx, forceRefresh)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -376,6 +397,10 @@ func (m *Manager) loadReleases(ctx context.Context, forceRefresh bool) ([]Releas
 // GetReleaseDetail returns one release by tag. Reads from the in-memory
 // cache; if the cache is empty it triggers a load.
 func (m *Manager) GetReleaseDetail(ctx context.Context, tag string) (Release, error) {
+	if m.onlineDisabled {
+		return Release{}, ErrOnlineCheckDisabled
+	}
+
 	releases, _, err := m.cache.Load(ctx)
 	if err != nil {
 		return Release{}, err
