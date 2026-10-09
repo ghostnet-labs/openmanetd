@@ -1,8 +1,8 @@
 name: "Frontend E2E"
 # Browser end-to-end suite (frontend/e2e): Playwright + axe against the real
 # frontend server (tools/e2e-frontend) and the ui-lab sample backend, plus
-# the bundle-size budget. Informational: failing steps are reported as
-# warnings and in the uploaded report, and do not fail the check.
+# the bundle-size budget. A failing budget or suite fails the check, and the
+# Manet merge gate requires it on these paths. The report is uploaded either way.
 on:
   workflow_dispatch:
   pull_request:
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   e2e:
-    name: "Browser e2e (informational)"
+    name: "Browser e2e"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -60,12 +60,10 @@ jobs:
 
       - name: Bundle size budget
         id: size
-        continue-on-error: true
         run: cd frontend && node scripts/check-bundle-size.mjs e2e/.dist
 
       - name: Browser e2e suite
         id: e2e
-        continue-on-error: true
         env:
           CI: "true"
         run: pnpm -C frontend exec playwright test
@@ -80,13 +78,3 @@ jobs:
             frontend/e2e/.results
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Summarize
-        if: always()
-        run: |
-          if [ "${{ steps.size.outcome }}" = "failure" ]; then
-            echo "::warning title=Bundle size::JS/CSS gzip size is over frontend/scripts/bundle-budget.json"
-          fi
-          if [ "${{ steps.e2e.outcome }}" = "failure" ]; then
-            echo "::warning title=Browser e2e::Playwright suite failed; see the e2e-report artifact"
-          fi
