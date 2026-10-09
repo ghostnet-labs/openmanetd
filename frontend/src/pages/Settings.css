@@ -49,7 +49,9 @@
 .settings-banner.crit { border-left-color: var(--crit); color: var(--crit); }
 
 .settings-grid {
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* min() keeps a single column inside a 360px phone viewport (336px of
+     content after the 12px mobile gutter) instead of overflowing it. */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
 }
 .settings-grid .lat-panel.col-span-all { grid-column: 1 / -1; }
 
@@ -121,6 +123,49 @@
   white-space: pre-wrap;
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* Service control -------------------------------------------------------- */
+
+.settings-service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 44px touch target for the service actions and reboot confirm; the
+   primitive's 32px default stays untouched. */
+.settings-touch-btn {
+  min-height: 44px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.settings-reboot-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-reboot-status {
+  margin-top: 12px;
+  line-height: 1.55;
+}
+
+.settings-reboot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .settings-service-actions,
+  .settings-reboot-actions { flex-direction: column; }
+  .settings-service-actions .settings-touch-btn,
+  .settings-reboot-actions .settings-touch-btn { width: 100%; }
 }
 
 /* Whisper card ---------------------------------------------------------- */
