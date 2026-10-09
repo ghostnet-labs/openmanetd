@@ -23,6 +23,37 @@ The two interfaces use separate backends. Changing dashboard sample settings doe
 
 Only the LuCI half needs QEMU and the VM disk. The dashboard and sample backend run with Python and Node alone.
 
+Node.js: use the major version in openmanetd's `.nvmrc` (currently 24). pnpm is pinned by `packageManager` in `frontend/package.json`; `corepack enable` picks up that exact version, or install pnpm from Homebrew.
+
+### Set up on an Apple Silicon Mac (M-series)
+
+This is the tested setup.
+
+```sh
+brew install qemu node@24 pnpm
+export PATH="$(brew --prefix node@24)/bin:$PATH"   # node@24 is keg-only; or use nvm: nvm install && nvm use
+
+git clone https://github.com/ghostnet-labs/openmanetd.git
+git clone -b mm-23.05 https://github.com/ghostnet-labs/luci.git
+git clone -b 24.10 https://github.com/ghostnet-labs/packages.git
+cd openmanetd
+pnpm -C frontend install
+cd tools/ui-lab
+python3 lab.py build-vm   # once: downloads OpenWrt, checks it, prepares the VM disk
+python3 lab.py up
+python3 lab.py sync       # deploy the luci and packages checkouts into the VM
+```
+
+The three checkouts must sit side by side (see Paths below). The VM is an ARM64 guest that QEMU currently runs with software emulation (`-accel tcg`) on every host, so a first boot takes a minute or two. Hardware acceleration (`hvf` on Apple Silicon) is a possible later speed-up and is not wired in yet.
+
+### Set up on an Intel Mac
+
+Use the same Homebrew packages and the same commands. An Intel CPU cannot accelerate an ARM64 guest, so the VM also runs under TCG emulation, a little slower than on Apple Silicon. Give `lab.py up` a couple of minutes before LuCI answers; `lab.py status` shows when it does.
+
+### Set up on Linux
+
+Install QEMU from your distribution (Debian/Ubuntu: `sudo apt-get install qemu-system-arm`, which provides `qemu-system-aarch64`), Node 24 (nvm or your package manager) and pnpm (`corepack enable`). Then run the same clone and `tools/ui-lab` commands. The VM runs under TCG emulation here too.
+
 ### Paths
 
 | Variable | Default |
