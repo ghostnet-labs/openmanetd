@@ -1,0 +1,92 @@
+name: "Frontend E2E"
+# Browser end-to-end suite (frontend/e2e): Playwright + axe against the real
+# frontend server (tools/e2e-frontend) and the ui-lab sample backend, plus
+# the bundle-size budget. Informational: failing steps are reported as
+# warnings and in the uploaded report, and do not fail the check.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "internal/frontend/**"
+      - "internal/config/**"
+      - "tools/e2e-frontend/**"
+      - "tools/ui-lab/tools/sample-api.py"
+      - ".github/workflows/e2e-frontend.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: "Browser e2e (informational)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install native dependencies
+        # internal/auth links libpam; nothing else in internal/frontend is CGO.
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
+
+      - name: Install frontend dependencies
+        run: pnpm -C frontend install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: pnpm -C frontend exec playwright install --with-deps chromium
+
+      - name: Build the bundle under test
+        run: pnpm -C frontend run e2e:build
+
+      - name: Bundle size budget
+        id: size
+        continue-on-error: true
+        run: cd frontend && node scripts/check-bundle-size.mjs e2e/.dist
+
+      - name: Browser e2e suite
+        id: e2e
+        continue-on-error: true
+        env:
+          CI: "true"
+        run: pnpm -C frontend exec playwright test
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            frontend/e2e/.report
+            frontend/e2e/.results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Summarize
+        if: always()
+        run: |
+          if [ "${{ steps.size.outcome }}" = "failure" ]; then
+            echo "::warning title=Bundle size::JS/CSS gzip size is over frontend/scripts/bundle-budget.json"
+          fi
+          if [ "${{ steps.e2e.outcome }}" = "failure" ]; then
+            echo "::warning title=Browser e2e::Playwright suite failed; see the e2e-report artifact"
+          fi
