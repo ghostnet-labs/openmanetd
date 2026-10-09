@@ -93,3 +93,14 @@ instrumentation:
 #   wifi:
 #     pciAddress: ""             # PCIe function, e.g. 0001:01:00.0
 #     netdev: ""
+frontend:
+  # Unified UI (GHO-69/GHO-70): reverse-proxy LuCI through the OpenMANET web
+  # server so https://<node>:8081/cgi-bin/luci/ reaches LuCI on the same
+  # origin, and show the "Advanced" entry in the OpenMANET navigation. The
+  # proxy forwards /cgi-bin/, /luci-static/ and /ubus/ unchanged to upstream.
+  # LuCI keeps its own login. uhttpd stays on :80 as the direct recovery
+  # route. Listen addresses are not changed. Default: disabled.
+  luciProxy:
+    enable: false
+    # http(s) base URL of uhttpd, with no path. Default http://127.0.0.1:80.
+    upstream: http://127.0.0.1:80
