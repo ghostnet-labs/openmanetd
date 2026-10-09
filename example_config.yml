@@ -28,6 +28,13 @@ comms:
   enable: false
   debug: false
   controlSource: openvlm
+  # OpenVLM host USB port fault telemetry (ghostnet,v1 only). Watches the
+  # active-low VLM_USB_FAULT_N line and reports it as
+  # comms.vlm_usb_fault in instrumentation snapshots. Off by default
+  # because the GPIO25 mapping is not hardware-verified yet.
+  # vlmUsbFault:
+  #   enable: false
+  #   line: GPIO25
   # DSCP marking for outgoing voice (RTP/RTCP). 46 = EF (default): voice
   # rides the elevated WMM video class end-to-end on the mesh. 48 = CS6:
   # full WMM voice class (validate the radio's EDCA behavior on-air

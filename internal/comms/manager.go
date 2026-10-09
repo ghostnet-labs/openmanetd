@@ -61,6 +61,8 @@ func (m *CommsManager) buildCommsConfig() *CommsConfig {
 		Iface:                    m.cfg.GetMeshNetInterface(),
 		Debug:                    m.cfg.GetCommsDebug(),
 		GPIOSelectorEnable:       m.cfg.GetCommsGPIOSelectorEnable(),
+		VLMUSBFaultEnable:        m.cfg.GetCommsVLMUSBFaultEnable(),
+		VLMUSBFaultLine:          m.cfg.GetCommsVLMUSBFaultLine(),
 		Loopback:                 m.cfg.GetCommsLoopback(),
 		Trace:                    m.cfg.GetCommsTrace(),
 		ControlSource:            m.cfg.GetCommsControlSource(),
