@@ -388,6 +388,49 @@ func (cfg *CommsConfig) startAnnouncer(ctx context.Context, rt *CommsRuntime) {
 	})
 }
 
+// startVLMFaultMonitor starts the OpenVLM host port fault monitor when the
+// board routes VLM_USB_FAULT_N and the operator opted in. Best-effort: an
+// open failure logs and leaves comms running without fault telemetry. The
+// returned func cancels the monitor and waits for its goroutine; nil when
+// nothing was started.
+func (cfg *CommsConfig) startVLMFaultMonitor(ctx context.Context, svc *Service) func() {
+	supported := cfg.vlmFaultSupportedFn
+	if supported == nil {
+		supported = board.VLMUSBFaultSupported
+	}
+
+	if !cfg.VLMUSBFaultEnable || !supported() {
+		return nil
+	}
+
+	var mon *gpio.FaultMonitor
+	if cfg.newVLMFaultMonitorFn != nil {
+		mon = cfg.newVLMFaultMonitorFn(cfg.VLMUSBFaultLine)
+	} else {
+		mon = &gpio.FaultMonitor{Log: cfg.Log, Line: cfg.VLMUSBFaultLine}
+	}
+
+	monCtx, cancel := context.WithCancel(ctx)
+
+	done, err := mon.Start(monCtx)
+	if err != nil {
+		cancel()
+		cfg.Log.Warn().Err(err).Msg("comms: VLM USB fault monitor unavailable")
+
+		return nil
+	}
+
+	svc.Rt.VLMFault.Store(mon)
+
+	cfg.Log.Info().Str("line", mon.LineName()).
+		Msg("comms: VLM USB fault monitor started (pin mapping not hardware-verified)")
+
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
 // startGPIOSelector launches the hardware talk group selector when the
 // board wires one (Raven) and the operator has not disabled it.
 // Best-effort: an open failure (driver quirk, permissions) logs and
@@ -585,6 +628,14 @@ func (cfg *CommsConfig) Start(ctx context.Context) error {
 	// doesn't wire one or the operator disabled it. Best-effort: an open
 	// failure degrades gracefully, leaving RPC/web selection working.
 	cfg.startGPIOSelector(ctx, svc)
+
+	// ── VLM USB fault monitor ─────────────────────────────────────────────
+	// ghostnet,v1 port-3 fault telemetry; opt-in until the pin mapping is
+	// hardware-verified. Joined before Start returns so a quick restart
+	// can re-request the line without EBUSY.
+	if stopFault := cfg.startVLMFaultMonitor(ctx, svc); stopFault != nil {
+		defer stopFault()
+	}
 
 	// ── run loop ───────────────────────────────────────────────────────────
 	cfg.Run(ctx, rt, src)

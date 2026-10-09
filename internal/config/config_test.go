@@ -560,6 +560,61 @@ func TestGetCommsGPIOSelectorEnable(t *testing.T) {
 	}
 }
 
+func TestGetCommsVLMUSBFaultEnable(t *testing.T) {
+	tests := []struct {
+		setValue *bool
+		name     string
+		want     bool
+	}{
+		{name: "returns true when enabled", setValue: boolPtr(true), want: true},
+		{name: "returns false when disabled", setValue: boolPtr(false), want: false},
+		{name: "defaults to disabled when not set", setValue: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := viper.New()
+			if tt.setValue != nil {
+				v.Set("comms.vlmUsbFault.enable", *tt.setValue)
+			}
+
+			cfg := New(v)
+
+			if got := cfg.GetCommsVLMUSBFaultEnable(); got != tt.want {
+				t.Errorf("GetCommsVLMUSBFaultEnable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetCommsVLMUSBFaultLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		setValue string
+		want     string
+	}{
+		{name: "custom line", setValue: "GPIO26", want: "GPIO26"},
+		{name: "trims whitespace", setValue: "  GPIO26 ", want: "GPIO26"},
+		{name: "default when empty", setValue: "", want: DefaultCommsVLMUSBFaultLine},
+		{name: "default when blank", setValue: "   ", want: DefaultCommsVLMUSBFaultLine},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := viper.New()
+			if tt.setValue != "" {
+				v.Set("comms.vlmUsbFault.line", tt.setValue)
+			}
+
+			cfg := New(v)
+
+			if got := cfg.GetCommsVLMUSBFaultLine(); got != tt.want {
+				t.Errorf("GetCommsVLMUSBFaultLine() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetCommsLoopback(t *testing.T) {
 	tests := []struct {
 		setValue *bool

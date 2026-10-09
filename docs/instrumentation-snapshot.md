@@ -43,7 +43,7 @@ Every snapshot is a single JSON object with this shape:
 
 ```json
 {
-  "schema_version": "1.7.0",
+  "schema_version": "1.8.0",
   "captured_at_start": "2026-04-09T12:34:56.789012345Z",
   "captured_at_end":   "2026-04-09T12:34:56.789013101Z",
   "daemon": { ... },
@@ -60,7 +60,7 @@ Every snapshot is a single JSON object with this shape:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.7.0`. |
+| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.8.0`. |
 | `captured_at_start` | RFC3339 timestamp | Wall-clock time when the capture loop began reading counters. |
 | `captured_at_end` | RFC3339 timestamp | Wall-clock time when the capture loop finished. The difference `captured_at_end - captured_at_start` bounds the counter-read skew window; in practice this is microseconds, but it can stretch into milliseconds when the `wireless` section's cache is cold (the first `Refresh` after the 5 s TTL walks netlink under the registry mutex). |
 | `daemon.version` | string | openmanetd build version. Empty until the build system populates it. |
@@ -115,6 +115,7 @@ so reading them does not stall the TX or RX paths.
   "announcer": { ... },
   "gpio_selector": { ... },
   "device_binding": { ... },
+  "vlm_usb_fault": { ... },
   "ports": [ ... ]
 }
 ```
@@ -133,6 +134,7 @@ so reading them does not stall the TX or RX paths.
 | `announcer` | object | Voice-announcement player counters. See **comms.talkgroup** below. |
 | `gpio_selector` | object | Hardware talk group selector counters. See **comms.talkgroup** below. |
 | `device_binding` | object | Which CM108/OpenVLM USB device the HID (PTT) and ALSA (audio, mixer) paths are paired to. See **comms.device_binding** below. |
+| `vlm_usb_fault` | object | OpenVLM host USB port power/overcurrent fault line state. All zero unless enabled. See **comms.vlm_usb_fault** below. |
 | `ports` | array | Per-talk-group counters. |
 
 #### `comms.broadcast_encoder`
@@ -233,6 +235,26 @@ every field is zero except `alsa_card`, which is -1.
 | `binds` | count | Binding changes since daemon start: first bind, rebind after replug, or hidraw/card renumbering on the same port. |
 | `losses` | count | Bound devices that disappeared (HID read failure or absent at rescan). |
 | `bind_failures` | count | Bind attempts that found no usable device (none present, children still enumerating, or an identity probe failed). |
+
+#### `comms.vlm_usb_fault`
+
+Watches the board's `VLM_USB_FAULT_N` line, which is active low and
+reports a power or overcurrent fault on the USB host port feeding the
+OpenVLM (port 3 on `ghostnet,v1`). The monitor reads the line at start and
+again on every debounced edge (10 ms, applied in the kernel). It only
+reports; it never switches port power. It runs only on boards that route
+the line (`ghostnet,v1`), and only when `comms.vlmUsbFault.enable: true` is
+set. That key **defaults to false** because the `GPIO25` mapping
+(`comms.vlmUsbFault.line`) is not yet verified on hardware. While the
+monitor is off, every field is zero.
+
+| Field | Unit | Meaning |
+|---|---|---|
+| `monitored` | bool | `true` while the watch goroutine holds the line. `false` when disabled, on an unsupported board, after the line request failed (logged at warn), after 10 consecutive read failures, or after comms stopped. |
+| `asserted` | bool | `true` while the line reads low, meaning the fault is present now. After the monitor stops, this keeps the last level it read. |
+| `assertions` | count | Transitions into fault. A fault already present when monitoring started counts once. |
+| `last_assert_unix_nano` | ns since Unix epoch | Wall-clock time of the most recent assertion. 0 = never. |
+| `read_errors` | count | Line reads that failed. 10 in a row stop the monitor. |
 
 #### `comms.ports[*]`
 
@@ -558,6 +580,21 @@ thumb in order and flag anything that fits.
    attached; detach the extra one rather than relying on USB path order.
    With `card_override: true`, `alsa_card` shows the HID device's own
    card, which can differ from the operator's `ALSA_CARD`.
+
+23. **OpenVLM port power fault.** Check whether
+   `comms.vlm_usb_fault.assertions` advanced around the time
+   `comms.device_binding.losses` advanced (compare
+   `last_assert_unix_nano` with the snapshot time).
+   - If both moved together, the device dropped because the port's
+     power switch tripped (overcurrent, short, or a bad cable or device).
+     Software did not lose it.
+   - `asserted: true` that stays set means the port is still faulted, so
+     the device will not re-enumerate until the cause is removed.
+   - `losses` rising with flat `assertions` and `monitored: true` points
+     to a data-path problem (USB reset, cable, hub), not to power.
+   - With `monitored: false` and the key enabled, the line request failed.
+     The pin mapping is unverified, so check the startup warning before
+     you trust a zero count.
 
 ## Skew note
 

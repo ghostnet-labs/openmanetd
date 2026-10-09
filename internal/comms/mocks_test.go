@@ -354,3 +354,47 @@ func (b *fakeAudioBinder) lose() {
 	close(b.changed)
 	b.changed = make(chan struct{})
 }
+
+// fakeFaultLines is a hand-rolled gpio.FaultLines: level is the line
+// value (0 = fault), reads signals one token per Values call so tests can
+// serialize against the monitor's watch goroutine without sleeping.
+type fakeFaultLines struct {
+	reads chan struct{}
+
+	mu     sync.Mutex // protects the fields below
+	level  int
+	closed bool
+}
+
+func newFakeFaultLines(level int) *fakeFaultLines {
+	return &fakeFaultLines{level: level, reads: make(chan struct{}, 8)}
+}
+
+func (f *fakeFaultLines) Values(out []int) error {
+	f.mu.Lock()
+	out[0] = f.level
+	f.mu.Unlock()
+
+	select {
+	case f.reads <- struct{}{}:
+	default:
+	}
+
+	return nil
+}
+
+func (f *fakeFaultLines) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.closed = true
+
+	return nil
+}
+
+func (f *fakeFaultLines) isClosed() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.closed
+}

@@ -81,6 +81,8 @@ const (
 	DefaultCommsBluetoothPttBluetoothInputDevice     string = ""
 	DefaultCommsBluetoothPttBluetoothOutputDevice    string = ""
 	DefaultCommsGPIOSelectorEnable                   bool   = true
+	DefaultCommsVLMUSBFaultEnable                    bool   = false
+	DefaultCommsVLMUSBFaultLine                      string = "GPIO25"
 	DefaultResetDBOnStart                            bool   = false
 	DefaultEnableGNSS                                bool   = false
 	DefaultGNSSSendAsNMEA                            bool   = false
@@ -220,6 +222,7 @@ type Config struct {
 	OpenMANETFrontendTLSCertFile              string
 	MeshNetInterface                          string
 	CommsNanoPTTDevicePath                    string
+	CommsVLMUSBFaultLine                      string
 	CommsBluetoothPttBluetoothOutputDevice    string
 	DBFile                                    string
 	CommsControlSource                        string
@@ -269,6 +272,7 @@ type Config struct {
 	BatmanMulticastForceflood                 bool
 	CommsDebug                                bool
 	CommsGPIOSelectorEnable                   bool
+	CommsVLMUSBFaultEnable                    bool
 	CommsEnable                               bool
 	CommsTrace                                bool
 	CommsNanoPTTEnable                        bool
@@ -477,6 +481,20 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 		c.CommsGPIOSelectorEnable = c.v.GetBool("comms.gpioSelector.enable")
 	} else {
 		c.CommsGPIOSelectorEnable = DefaultCommsGPIOSelectorEnable
+	}
+
+	// The VLM_USB_FAULT_N pin mapping is not hardware-verified (GHO-9), so
+	// the monitor stays off unless an operator opts in.
+	if c.v.IsSet("comms.vlmUsbFault.enable") {
+		c.CommsVLMUSBFaultEnable = c.v.GetBool("comms.vlmUsbFault.enable")
+	} else {
+		c.CommsVLMUSBFaultEnable = DefaultCommsVLMUSBFaultEnable
+	}
+
+	if val := strings.TrimSpace(c.v.GetString("comms.vlmUsbFault.line")); val != "" {
+		c.CommsVLMUSBFaultLine = val
+	} else {
+		c.CommsVLMUSBFaultLine = DefaultCommsVLMUSBFaultLine
 	}
 
 	if c.v.IsSet("comms.loopback") {
@@ -1034,6 +1052,25 @@ func (c *Config) GetCommsGPIOSelectorEnable() bool {
 	defer c.mu.RUnlock()
 
 	return c.CommsGPIOSelectorEnable
+}
+
+// GetCommsVLMUSBFaultEnable returns whether the OpenVLM host port fault
+// monitor (VLM_USB_FAULT_N) is enabled. Honored only on boards that route
+// the line; defaults to false until the pin mapping is hardware-verified.
+func (c *Config) GetCommsVLMUSBFaultEnable() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.CommsVLMUSBFaultEnable
+}
+
+// GetCommsVLMUSBFaultLine returns the GPIO line name the fault monitor
+// watches (default "GPIO25").
+func (c *Config) GetCommsVLMUSBFaultLine() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.CommsVLMUSBFaultLine
 }
 
 // GetCommsLoopback returns whether comms loopback mode is enabled.

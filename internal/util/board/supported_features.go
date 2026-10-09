@@ -181,3 +181,28 @@ func GPIOSelectorSupported() bool {
 		return false
 	}
 }
+
+// VLMUSBFaultSupported returns true if the current board routes the
+// OpenVLM host port's power/overcurrent fault (VLM_USB_FAULT_N) to a host
+// GPIO line.
+//
+// The following board models route the fault line:
+//   - GhostnetV1
+//
+// The line mapping itself is not yet hardware-verified, so the fault
+// monitor also requires comms.vlmUsbFault.enable, which defaults to false.
+// Returns false if the board configuration cannot be retrieved or for
+// every other board model.
+func VLMUSBFaultSupported() bool {
+	boardConfigInfo, err := newBoardConfigInfoFn()
+	if err != nil {
+		return false
+	}
+
+	switch boardConfigInfo.Model.ID {
+	case GhostnetV1:
+		return true
+	default:
+		return false
+	}
+}

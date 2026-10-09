@@ -5,6 +5,7 @@ import (
 
 	"github.com/openmanet/openmanetd/internal/comms/audio"
 	"github.com/openmanet/openmanetd/internal/comms/control"
+	"github.com/openmanet/openmanetd/internal/comms/gpio"
 	"github.com/openmanet/openmanetd/internal/comms/rtp"
 	"github.com/openmanet/openmanetd/internal/comms/talkgroup"
 	"github.com/openmanet/openmanetd/internal/comms/webaudio"
@@ -171,6 +172,8 @@ func TestService_Snapshot_ZeroAllocSteadyState(t *testing.T) {
 			{cfg: McastPortConfig{Address: "b", Port: 2}, Jitter: rtp.NewJitterBuffer(rtp.PrebufferPackets, rtp.MaxDepth)},
 		},
 	}
+
+	rt.VLMFault.Store(&gpio.FaultMonitor{Log: zerolog.Nop()})
 
 	svc := &Service{Cfg: &CommsConfig{ControlSource: "web"}, Rt: rt}
 
