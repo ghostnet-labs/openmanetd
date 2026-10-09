@@ -13,6 +13,7 @@ import (
 	commsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/comms/v1/commsv1connect"
 	dashboardconnect "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1/dashboardv1connect"
 	gnssconnect "github.com/openmanet/openmanetd/internal/api/openmanet/gnss/v1/gnssv1connect"
+	hardwareconnect "github.com/openmanet/openmanetd/internal/api/openmanet/hardware/v1/hardwarev1connect"
 	logsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/logs/v1/logsv1connect"
 	meshjoinconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_join/v1/mesh_joinv1connect"
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
@@ -65,6 +66,10 @@ type APIServer struct {
 	SessionStore          *auth.SessionStore
 	Authenticator         auth.Authenticator
 	Sysupgrade            *sysupgrade.Manager
+	// Hardware is the V1 hardware manager; nil when hardware.enable is
+	// false. Keep it an interface value that is nil, not a typed nil
+	// pointer, so the handler can detect the disabled case.
+	Hardware handlers.HardwareManager
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -202,6 +207,15 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Cfg: cfg.Cfg,
 		Log: cfg.Log,
 		GPS: cfg.GPS,
+	}, connect.WithInterceptors(validateInterceptor)))
+
+	// HardwareService exposes V1 battery telemetry, radio state and the
+	// recovery controls. Control RPCs record the session username; with
+	// auth enabled they refuse calls that carry none.
+	api.Handle(hardwareconnect.NewHardwareServiceHandler(&handlers.HardwareService{
+		Log:            cfg.Log.With().Str("service", "hardware").Logger(),
+		Manager:        cfg.Hardware,
+		RequireSession: cfg.AuthEnabled,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	// SetupService runs the first-boot wizard. The middleware exempts
