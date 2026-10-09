@@ -43,7 +43,7 @@ Every snapshot is a single JSON object with this shape:
 
 ```json
 {
-  "schema_version": "1.8.0",
+  "schema_version": "2.0.0",
   "captured_at_start": "2026-04-09T12:34:56.789012345Z",
   "captured_at_end":   "2026-04-09T12:34:56.789013101Z",
   "daemon": { ... },
@@ -61,7 +61,7 @@ Every snapshot is a single JSON object with this shape:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.8.0`. |
+| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `2.0.0`. |
 | `captured_at_start` | RFC3339 timestamp | Wall-clock time when the capture loop began reading counters. |
 | `captured_at_end` | RFC3339 timestamp | Wall-clock time when the capture loop finished. The difference `captured_at_end - captured_at_start` bounds the counter-read skew window; in practice this is microseconds, but it can stretch into milliseconds when the `wireless` section's cache is cold (the first `Refresh` after the 5 s TTL walks netlink under the registry mutex). |
 | `daemon.version` | string | openmanetd build version. Empty until the build system populates it. |
@@ -406,7 +406,7 @@ section is registered only when the mesh management workers are running
 
 The Ghostnet V1 hardware manager (`internal/hardware`): per-radio power
 state machine, bounded recovery ladder, fault input edges, supervisor
-watchdog and INA228 battery telemetry. `Refresh` copies the manager's last
+watchdog and its SUPERVISOR_ARM output, and INA228 battery telemetry. `Refresh` copies the manager's last
 published status under its mutex; it does no I/O. The section is
 registered only when `hardware.enable` is true (the default). On a board
 that is not a V1, or while `hardware.actuationEnable` is false (the
@@ -424,10 +424,11 @@ default until the pin map is verified on hardware), `control_mode` is
   ],
   "fault_edges_total": {
     "halow_fault_n": 0, "wifi_fault_n": 0, "power_good": 0, "efuse_fault": 0,
-    "halow_usb_fault_n": 0, "vlm_usb_fault_n": 0, "ina228_alert_n": 0, "supervisor_wdo": 0
+    "halow_usb_fault_n": 0, "vlm_usb_fault_n": 0, "ina228_alert_n": 0
   },
   "watchdog_pets_total": 0,
-  "wdo_edges_total": 0,
+  "supervisor_armed": false,
+  "supervisor_arm_transitions_total": 0,
   "battery_bus_mv": 11820,
   "battery_current_ma": 940,
   "recovery_boots_last_hour": 0,
@@ -438,7 +439,7 @@ default until the pin map is verified on hardware), `control_mode` is
 
 | Field | Type | Unit | Meaning |
 |---|---|---|---|
-| `control_mode` | string | — | `active` when the manager drives GPIO and bus controls, `telemetry_only` when it drives nothing. Telemetry-only causes: board not detected, `hardware.actuationEnable` false, a required GPIO line name missing, or the boot-loop guard (see `recovery_boots_last_hour`). |
+| `control_mode` | string | — | `active` when the manager drives GPIO and bus controls, `telemetry_only` when it drives nothing except SUPERVISOR_ARM (see `supervisor_armed`). Telemetry-only causes: board not detected, `hardware.actuationEnable` false, a required GPIO line name missing, or the boot-loop guard (see `recovery_boots_last_hour`). |
 | `radios[*].name` | string | — | `halow` (USB, first) or `wifi` (PCIe). |
 | `radios[*].state` | string | — | Power state machine state: `unmanaged`, `off`, `powering`, `enumerating`, `up`, `fault`, `cooldown`, `failed`. `failed` means the recovery ladder is exhausted and the radio stays off until an operator runs `ExecuteRadioRecovery`. |
 | `radios[*].state_since_ns` | int64 | unix-nanoseconds | When the radio entered `state`; 0 when unknown. |
@@ -452,9 +453,9 @@ default until the pin map is verified on hardware), `control_mode` is
 | `fault_edges_total.halow_usb_fault_n` | uint64 | count | Edges on the HaLow USB port over-current flag. |
 | `fault_edges_total.vlm_usb_fault_n` | uint64 | count | Edges on the OpenVLM USB port over-current flag. |
 | `fault_edges_total.ina228_alert_n` | uint64 | count | Edges on the INA228 ALERT output. |
-| `fault_edges_total.supervisor_wdo` | uint64 | count | Edges on the supervisor WDO output (watchdog timeout). Same value as `wdo_edges_total`. |
 | `watchdog_pets_total` | uint64 | count | Heartbeats written to the supervisor gpio-wdt since start. Stays 0 while `hardware.watchdogEnable` is false. |
-| `wdo_edges_total` | uint64 | count | Supervisor WDO edges since start; a rising value means the supervisor saw missed heartbeats. |
+| `supervisor_armed` | bool | — | Level the daemon last drove on SUPERVISOR_ARM, the TPS386000 MR watchdog arm. `true` means the external watchdog is armed and a missed WDI heartbeat cycles PMIC_Enable. The line is requested low and goes high only after the first heartbeat was written; it drops before a graceful poweroff and before the daemon stops. It stays `true` after a host reset request (ladder step 4), because the supervisor must time out. Always `false` while `hardware.watchdogEnable` is false or the board is not a V1. Unlike `control_mode`, it does not depend on `hardware.actuationEnable`. |
+| `supervisor_arm_transitions_total` | uint64 | count | Successful SUPERVISOR_ARM writes (arm plus disarm) since start. A healthy run reads 1 while armed. The daemon arms at most once per start, so 2 means it disarmed for a graceful poweroff. Failed writes are not counted. |
 | `battery_bus_mv` | int32 | millivolts | Last bus voltage read from the INA228 (`in1_input`). Last good value is kept while stale. |
 | `battery_current_ma` | int32 | milliamps | Last system current (`curr1_input`); positive is draw from the pack. |
 | `recovery_boots_last_hour` | uint32 | count | Software-requested host resets recorded in the persisted boot-loop guard during the last hour. 3 or more puts this boot in `telemetry_only`. |
@@ -621,12 +622,27 @@ thumb in order and flag anything that fits.
    below about 10500 mV with large `battery_current_ma` points at the
    pack or wiring, not the radio. A radio in `failed` stays off until an
    operator recovers it.
-24. **Watchdog not holding.** `wdo_edges_total` rising while
-   `watchdog_pets_total` also rises means the heartbeat interval is too
-   slow for the supervisor; `wdo_edges_total` rising with
-   `watchdog_pets_total` flat means nothing is petting it (watchdog
-   disabled or the daemon stalled). `battery_stale` true makes every
-   battery inference unreliable.
+24. **Watchdog not holding.** The CM5 no longer sees the supervisor's
+   WDO output (D-044): a watchdog trip cycles PMIC_Enable and the node
+   reboots disarmed, so a trip shows up only as a reset (daemon uptime
+   restarts, `watchdog_pets_total` back near 0). Read the arm state
+   instead.
+   - `hardware.watchdogEnable` true (so `watchdog_pets_total` rises) but
+     `supervisor_armed` false means the external watchdog is NOT
+     protecting the node. Look for an "arm line not found" or "arming
+     supervisor watchdog failed" log line.
+   - `supervisor_armed` true with `watchdog_pets_total` flat across
+     snapshots means the heartbeat stopped while armed. Expect a reset
+     within about 0.75 s unless a host reset is pending, in which case
+     the reset is intended.
+   - `supervisor_arm_transitions_total` at 2 with the node still running
+     means a low-battery poweroff disarmed the supervisor and the
+     poweroff then failed. The node is running without the external
+     watchdog until the daemon restarts.
+   - Unexpected resets with `recovery_boots_last_hour` at 0 and the
+     watchdog enabled point at missed heartbeats (daemon stall, CPU
+     starvation) rather than a software host-reset request.
+   `battery_stale` true makes every battery inference unreliable.
 25. **OpenVLM pairing and replug.** `comms.device_binding.bound: false`
    with `bind_failures` rising means no usable CM108 is attached; local
    mic/speaker stay off on purpose (the daemon never falls back to the

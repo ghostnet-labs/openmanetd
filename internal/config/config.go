@@ -224,7 +224,9 @@ const (
 	// hardware (GHO-9, GHO-21).
 	DefaultHardwareActuationEnable bool = false
 	// DefaultHardwareWatchdogEnable gates opening and petting the
-	// supervisor's gpio-wdt device (GHO-10 must define arming first).
+	// supervisor's gpio-wdt device and driving SUPERVISOR_ARM high once
+	// the heartbeat runs (GHO-10, D-044). Off until the arm is validated
+	// on hardware, including shutdown and daemon restart.
 	DefaultHardwareWatchdogEnable bool = false
 	// DefaultHardwareBatteryShutdownEnable gates the low-battery poweroff.
 	DefaultHardwareBatteryShutdownEnable bool = false

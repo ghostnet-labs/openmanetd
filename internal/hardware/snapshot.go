@@ -22,21 +22,21 @@ type FaultEdgeCounts struct {
 	HaLowUSBFaultN uint64 `json:"halow_usb_fault_n"`
 	VLMUSBFaultN   uint64 `json:"vlm_usb_fault_n"`
 	INA228AlertN   uint64 `json:"ina228_alert_n"`
-	SupervisorWDO  uint64 `json:"supervisor_wdo"`
 }
 
 // HardwareSnapshot is the "hardware" instrumentation section.
 type HardwareSnapshot struct {
-	ControlMode           string                    `json:"control_mode"`
-	Radios                [radioCount]RadioSnapshot `json:"radios"`
-	FaultEdgesTotal       FaultEdgeCounts           `json:"fault_edges_total"`
-	WatchdogPetsTotal     uint64                    `json:"watchdog_pets_total"`
-	WDOEdgesTotal         uint64                    `json:"wdo_edges_total"`
-	BatteryBusMV          int32                     `json:"battery_bus_mv"`
-	BatteryCurrentMA      int32                     `json:"battery_current_ma"`
-	RecoveryBootsLastHour uint32                    `json:"recovery_boots_last_hour"`
-	BoardDetected         bool                      `json:"board_detected"`
-	BatteryStale          bool                      `json:"battery_stale"`
+	ControlMode                   string                    `json:"control_mode"`
+	Radios                        [radioCount]RadioSnapshot `json:"radios"`
+	FaultEdgesTotal               FaultEdgeCounts           `json:"fault_edges_total"`
+	WatchdogPetsTotal             uint64                    `json:"watchdog_pets_total"`
+	SupervisorArmTransitionsTotal uint64                    `json:"supervisor_arm_transitions_total"`
+	BatteryBusMV                  int32                     `json:"battery_bus_mv"`
+	BatteryCurrentMA              int32                     `json:"battery_current_ma"`
+	RecoveryBootsLastHour         uint32                    `json:"recovery_boots_last_hour"`
+	BoardDetected                 bool                      `json:"board_detected"`
+	BatteryStale                  bool                      `json:"battery_stale"`
+	SupervisorArmed               bool                      `json:"supervisor_armed"`
 }
 
 // Snapshotter adapts a Manager to the instrumentation registry. Refresh
@@ -64,7 +64,8 @@ func (s *Snapshotter) Refresh() {
 	d.BoardDetected = st.BoardDetected
 	d.ControlMode = st.ControlMode.String()
 	d.WatchdogPetsTotal = st.Watchdog.PetsTotal
-	d.WDOEdgesTotal = st.Watchdog.WDOEdgesTotal
+	d.SupervisorArmed = st.Watchdog.SupervisorArmed
+	d.SupervisorArmTransitionsTotal = st.Watchdog.SupervisorArmTransitions
 	d.BatteryBusMV = st.Battery.BusMV
 	d.BatteryCurrentMA = st.Battery.CurrentMA
 	d.BatteryStale = st.Battery.Stale || !st.Battery.Present
@@ -93,7 +94,6 @@ func (s *Snapshotter) Refresh() {
 	e.HaLowUSBFaultN = st.FaultLines[FaultLineHaLowUSBFault-1].EdgesTotal
 	e.VLMUSBFaultN = st.FaultLines[FaultLineVLMUSBFault-1].EdgesTotal
 	e.INA228AlertN = st.FaultLines[FaultLineINA228Alert-1].EdgesTotal
-	e.SupervisorWDO = st.FaultLines[FaultLineSupervisorWDO-1].EdgesTotal
 }
 
 // Data implements instrumentation.Snapshotter.

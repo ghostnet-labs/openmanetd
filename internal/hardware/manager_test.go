@@ -26,6 +26,7 @@ type testRig struct {
 	wdOpener *fakeWatchdogOpener
 	shut     *fakeShutdowner
 	comms    *fakeCommsGuard
+	calls    *callLog
 }
 
 // healthyReading is a 3S pack at 12.0 V drawing 0.5 A.
@@ -49,18 +50,21 @@ func healthyReading() system.MonitorReading {
 func newRig(t *testing.T, mutate func(*hardware.Options, *testRig)) *testRig {
 	t.Helper()
 
+	calls := &callLog{}
 	rig := &testRig{
+		calls:    calls,
 		clock:    newFakeClock(),
 		opener:   newFakeLineOpener(),
 		bus:      newFakeBus(),
 		mon:      &fakeMonitor{reading: healthyReading()},
 		store:    &fakeStore{},
-		wd:       &fakeWatchdog{},
-		shut:     &fakeShutdowner{},
+		wd:       &fakeWatchdog{log: calls},
+		shut:     &fakeShutdowner{log: calls},
 		comms:    &fakeCommsGuard{},
 		wdOpener: nil,
 	}
 	rig.wdOpener = &fakeWatchdogOpener{wd: rig.wd}
+	rig.opener.log = calls
 	rig.opener.initial[hardware.LineHaLowPwrEn] = true
 	rig.opener.initial[hardware.LineWiFiPwrEn] = true
 

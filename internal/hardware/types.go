@@ -316,11 +316,12 @@ const (
 	FaultLineHaLowUSBFault
 	FaultLineVLMUSBFault
 	FaultLineINA228Alert
-	FaultLineSupervisorWDO
 )
 
-// faultLineCount is the number of hardware status inputs.
-const faultLineCount = 8
+// faultLineCount is the number of hardware status inputs. hardwarev1
+// value 8 (FAULT_LINE_SUPERVISOR_WDO) is retired: GPIO11 is the
+// SUPERVISOR_ARM output since D-044, so the daemon never reports it.
+const faultLineCount = 7
 
 // LineState is the observed state of a fault input.
 type LineState uint8
@@ -445,15 +446,21 @@ type BatteryStatus struct {
 	HasTemp       bool
 }
 
-// WatchdogStatus is the published supervisor watchdog state.
+// WatchdogStatus is the published supervisor watchdog state. Armed means
+// the daemon holds the gpio-wdt device open and pets it. SupervisorArmed
+// is the level hwmgr last drove on SUPERVISOR_ARM (the TPS386000 MR arm);
+// it stays true after a host reset request, because the supervisor must
+// stay armed to time out. SupervisorArmTransitions counts every arm and
+// disarm write that succeeded.
 type WatchdogStatus struct {
-	LastPetAt          time.Time
-	Device             string
-	PetsTotal          uint64
-	WDOEdgesTotal      uint64
-	Enabled            bool
-	Armed              bool
-	HostResetRequested bool
+	LastPetAt                time.Time
+	Device                   string
+	PetsTotal                uint64
+	SupervisorArmTransitions uint64
+	Enabled                  bool
+	Armed                    bool
+	SupervisorArmed          bool
+	HostResetRequested       bool
 }
 
 // Status is the full published hardware manager view. It is a plain value
