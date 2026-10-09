@@ -16,6 +16,7 @@ import { ControlSource } from "../gen/openmanet/comms/v1/config_pb.js";
 import WhisperManager from "../components/WhisperManager.jsx";
 import LatSelect from "../components/LatSelect.jsx";
 import { useAuth } from '../contexts/useAuth.js';
+import { useDeviceReboot, RebootPhase } from '../hooks/useDeviceReboot.js';
 import './Settings.css';
 
 const dashboardClient = createClient(DashboardService, transport);
@@ -57,6 +58,48 @@ function formatYaml(obj, indent) {
   return out;
 }
 
+function requestDeviceReboot() {
+  return dashboardClient.executeQuickAction({ action: QuickAction.REBOOT_DEVICE });
+}
+
+// Phases in which the reboot flow owns the device: other service actions
+// are disabled so the operator cannot stack a restart onto a reboot.
+const REBOOT_BUSY_PHASES = new Set([
+  RebootPhase.REQUESTING,
+  RebootPhase.GOING_DOWN,
+  RebootPhase.RECONNECTING,
+]);
+
+// rebootStatus maps the reboot phase to the one-line Lattice callout shown
+// under the Service Control buttons. Returns null when nothing is shown.
+function rebootStatus(phase, error, name, address) {
+  switch (phase) {
+    case RebootPhase.REQUESTING:
+      return { cls: 'lat-alert', role: 'status', title: 'Requesting reboot…',
+        text: `Asking ${name} to reboot.` };
+    case RebootPhase.GOING_DOWN:
+      return { cls: 'lat-alert', role: 'status', title: 'Reboot accepted.',
+        text: `${name} is shutting down. This page will lose its connection in a few seconds.` };
+    case RebootPhase.RECONNECTING:
+      return { cls: 'lat-alert', role: 'status', title: 'Reconnecting…',
+        text: `${name} is rebooting and the UI is disconnected. It usually answers again at ${address} in about a minute; this page keeps checking.` };
+    case RebootPhase.ONLINE:
+      return { cls: 'lat-alert ok', role: 'status', title: 'Back online.',
+        text: `${name} answered at ${address}. Reload the page to reconnect live data.`, reload: true };
+    case RebootPhase.STILL_UP:
+      return { cls: 'lat-alert warn', role: 'alert', title: 'Still running.',
+        text: `${name} is still answering a minute after the reboot request, so the reboot may not have started. Check the device and try again.` };
+    case RebootPhase.TIMEOUT:
+      return { cls: 'lat-alert warn', role: 'alert', title: 'No answer yet.',
+        text: `${name} has not answered for 3 minutes. Check power and the link, then reconnect at ${address} manually.` };
+    case RebootPhase.FAILED:
+      return { cls: 'lat-alert crit', role: 'alert', title: 'Reboot failed.',
+        text: error || 'Unknown error.' };
+    default:
+      return null;
+  }
+}
+
 function LatToggle({ checked, onChange, labelOn = 'On', labelOff = 'Off' }) {
   return (
     <button
@@ -95,6 +138,8 @@ export default function SettingsPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState(null);
   const [pwSuccess, setPwSuccess] = useState(null);
+
+  const reboot = useDeviceReboot({ requestReboot: requestDeviceReboot });
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -282,6 +327,14 @@ export default function SettingsPage() {
   }
 
   const hostnameChanged = hostname !== originalHostname;
+  const deviceName = originalHostname || 'this device';
+  const deviceAddress = window.location.host || deviceName;
+  const rebootBusy = REBOOT_BUSY_PHASES.has(reboot.phase);
+  const rebootConfirming = reboot.phase === RebootPhase.CONFIRM;
+  const rebootNotice = rebootStatus(reboot.phase, reboot.error, deviceName, deviceAddress);
+  const rebootDismissable = reboot.phase === RebootPhase.FAILED ||
+    reboot.phase === RebootPhase.STILL_UP ||
+    reboot.phase === RebootPhase.TIMEOUT;
   const configChanged = originalConfig && (
     config.comms_enabled !== originalConfig.comms_enabled ||
     config.control_source !== originalConfig.control_source ||
@@ -304,7 +357,7 @@ export default function SettingsPage() {
       <div className="lat-view-header">
         <div>
           <h2>◇ Settings</h2>
-          <div className="crumb">Hostname · Service · Configuration · Raw YAML</div>
+          <div className="crumb">Hostname · Service · Reboot · Configuration · Raw YAML</div>
         </div>
       </div>
 
@@ -338,14 +391,86 @@ export default function SettingsPage() {
         {/* Service Control */}
         <div className="lat-panel">
           <div className="panel-head"><h3>Service Control</h3></div>
-          <button
-            className="lat-btn danger solid"
-            onClick={handleRestart}
-            disabled={restarting}
-            type="button"
-          >
-            {restarting ? 'Restarting...' : 'Restart openmanetd'}
-          </button>
+          <div className="settings-service-actions">
+            <button
+              className="lat-btn danger solid settings-touch-btn"
+              onClick={handleRestart}
+              disabled={restarting || rebootBusy}
+              type="button"
+            >
+              {restarting ? 'Restarting...' : 'Restart openmanetd'}
+            </button>
+            <button
+              className="lat-btn danger solid settings-touch-btn"
+              onClick={reboot.begin}
+              disabled={restarting || rebootBusy || rebootConfirming}
+              type="button"
+            >
+              Reboot device
+            </button>
+          </div>
+
+          {rebootConfirming ? (
+            <div
+              className="settings-reboot-confirm"
+              role="alertdialog"
+              aria-labelledby="reboot-confirm-title"
+              aria-describedby="reboot-confirm-body"
+            >
+              <div className="lat-alert warn">
+                <strong id="reboot-confirm-title">Reboot {deviceName}?</strong>
+                <div id="reboot-confirm-body">
+                  Every service on {deviceName} stops, including comms and mesh
+                  routing through this node. This page disconnects; the device
+                  usually answers again at {deviceAddress} in about a minute.
+                </div>
+              </div>
+              <div className="settings-reboot-actions">
+                <button
+                  className="lat-btn ghost settings-touch-btn"
+                  onClick={reboot.reset}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="lat-btn danger filled settings-touch-btn"
+                  onClick={reboot.confirm}
+                  type="button"
+                >
+                  Reboot {deviceName}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {rebootNotice ? (
+            <div className={`${rebootNotice.cls} settings-reboot-status`} role={rebootNotice.role}>
+              <strong>{rebootNotice.title}</strong> {rebootNotice.text}
+              {rebootNotice.reload ? (
+                <div className="settings-reboot-actions">
+                  <button
+                    className="lat-btn primary settings-touch-btn"
+                    onClick={() => window.location.reload()}
+                    type="button"
+                  >
+                    Reload page
+                  </button>
+                </div>
+              ) : null}
+              {rebootDismissable ? (
+                <div className="settings-reboot-actions">
+                  <button
+                    className="lat-btn ghost settings-touch-btn"
+                    onClick={reboot.reset}
+                    type="button"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Passphrase (operator account) */}
