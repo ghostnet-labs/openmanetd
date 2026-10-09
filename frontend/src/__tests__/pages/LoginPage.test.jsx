@@ -5,7 +5,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 // Stub the Connect-RPC dashboard client used for the corner readouts so the
 // real network never opens.
@@ -40,6 +40,11 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
 });
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <div data-testid="location">{loc.pathname + loc.search}</div>;
+}
 
 function renderLogin() {
   return render(
@@ -84,5 +89,40 @@ describe('TestLoginPageValidation', () => {
     await waitFor(() => {
       expect(authState.login).toHaveBeenCalledWith('admin', 'pw');
     });
+  });
+});
+
+describe('TestLoginPageReturnPath', () => {
+  function renderAt(entry) {
+    return render(
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it('returns to the page ProtectedRoute bounced from after login', async () => {
+    authState.login.mockResolvedValue();
+    renderAt({ pathname: '/login', state: { from: { pathname: '/settings/wireless', search: '', hash: '' } } });
+    fireEvent.change(screen.getByLabelText('Operator'), { target: { value: 'admin' } });
+    fireEvent.submit(screen.getByRole('button', { name: /authenticate/i }).closest('form'));
+    expect(await screen.findByTestId('location')).toHaveTextContent('/settings/wireless');
+  });
+
+  it('falls back to the dashboard without a return location', async () => {
+    authState.login.mockResolvedValue();
+    renderAt('/login');
+    fireEvent.change(screen.getByLabelText('Operator'), { target: { value: 'admin' } });
+    fireEvent.submit(screen.getByRole('button', { name: /authenticate/i }).closest('form'));
+    expect(await screen.findByTestId('location')).toHaveTextContent(/^\/$/);
+  });
+
+  it('sends an already authenticated operator to the return location', async () => {
+    authState.isAuthenticated = true;
+    renderAt({ pathname: '/login', state: { from: { pathname: '/gps', search: '?x=1', hash: '' } } });
+    expect(await screen.findByTestId('location')).toHaveTextContent('/gps?x=1');
   });
 });

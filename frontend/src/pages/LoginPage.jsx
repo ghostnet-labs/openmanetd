@@ -3,11 +3,12 @@
 // =============================================================================
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createClient } from '@connectrpc/connect';
 import { DashboardService } from '../gen/openmanet/dashboard/v1/dashboard_service_pb.js';
 import { transport } from '../services/connectClient.js';
 import { useAuth } from '../contexts/useAuth.js';
+import { returnPathFrom } from '../utils/returnPath.js';
 import openmanetMark from '../assets/openmanet-mark.svg';
 import './LoginPage.css';
 
@@ -32,6 +33,7 @@ function formatDate(d) {
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -39,11 +41,13 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState(null);
   const now = useUtcClock();
+  // Where ProtectedRoute was sending the operator before it bounced them here.
+  const returnTo = returnPathFrom(location.state);
 
   // Redirect if already authenticated.
   useEffect(() => {
-    if (isAuthenticated) navigate('/', { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated) navigate(returnTo, { replace: true });
+  }, [isAuthenticated, navigate, returnTo]);
 
   // Best-effort unauthenticated device-info fetch for the corner readouts.
   useEffect(() => {
@@ -65,7 +69,7 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err) {
       setError(err.message || 'Authentication failed');
     } finally {
