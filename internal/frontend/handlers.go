@@ -35,6 +35,9 @@ type systemInfo struct {
 	MemFree     int64   `json:"mem_free"`
 	MemBuffered int64   `json:"mem_buffered"`
 	CPUUsage    float64 `json:"cpu_usage"`
+	// LuCIProxyEnabled tells the SPA to show the Advanced (LuCI) entry:
+	// frontend.luciProxy.enable is on and the upstream is usable.
+	LuCIProxyEnabled bool `json:"luci_proxy_enabled"`
 }
 
 type processInfo struct {
@@ -202,6 +205,8 @@ func (s *Server) handleSystemInfo(w http.ResponseWriter, _ *http.Request) {
 
 	// Version from /etc/openwrt_release
 	info.Version = readDistribRelease()
+
+	info.LuCIProxyEnabled = s.luciProxyActive()
 
 	s.writeJSON(w, info)
 }

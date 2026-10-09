@@ -63,6 +63,11 @@ export default defineConfig({
       '/auth': { target: apiTarget },
       '/rpc': { target: apiTarget },
       '/whisper': { target: apiTarget },
+      // LuCI, reverse-proxied by the frontend daemon when
+      // frontend.luciProxy.enable is set (the Advanced nav entry).
+      '/cgi-bin': { target: apiTarget },
+      '/luci-static': { target: apiTarget },
+      '/ubus': { target: apiTarget },
     },
   },
 });

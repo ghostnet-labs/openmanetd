@@ -21,6 +21,7 @@ describe('TestNavIcon', () => {
       'blos',
       'settings',
       'more',
+      'advanced',
       'signout',
     ]);
   });
