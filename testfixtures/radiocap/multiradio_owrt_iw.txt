@@ -1,0 +1,61 @@
+Wiphy phy0
+	wiphy index: 0
+	max # scan SSIDs: 4
+	max scan IEs length: 482 bytes
+	Retry short limit: 7
+	Retry long limit: 4
+	Coverage class: 0 (up to 0m)
+	Available Antennas: TX 0xff RX 0xff
+	Configured Antennas: TX 0xff RX 0xff
+	Supported interface modes:
+		 * managed
+		 * AP
+		 * AP/VLAN
+		 * monitor
+		 * mesh point
+	Band 1:
+		Capabilities: 0x19ef
+			HT20/HT40
+		Frequencies:
+			* 2412.0 MHz [1] (20.0 dBm)
+			* 2437.0 MHz [6] (20.0 dBm)
+			* 2462.0 MHz [11] (20.0 dBm)
+			* 2472.0 MHz [13] (disabled)
+	Band 2:
+		Capabilities: 0x19ef
+			HT20/HT40
+		Frequencies:
+			* 5180.0 MHz [36] (23.0 dBm)
+			* 5200.0 MHz [40] (23.0 dBm)
+			* 5745.0 MHz [149] (30.0 dBm)
+	Band 4:
+		Frequencies:
+			* 5955.0 MHz [1] (12.0 dBm) (no IR)
+			* 5975.0 MHz [5] (12.0 dBm) (no IR)
+	software interface modes (can always be added):
+		 * AP/VLAN
+		 * monitor
+	valid interface combinations:
+		 * #{ managed } <= 3, #{ AP, mesh point } <= 48,
+		   total <= 51, #channels <= 3, STA/AP BI must match, radar detect widths: { 20 MHz (no HT), 20 MHz, 40 MHz, 80 MHz, 160 MHz }
+
+	wiphy radio 0:
+		freq range: 2400.0 MHz - 2500.0 MHz
+		valid interface combinations:
+			 * #{ managed } <= 1, #{ AP, mesh point } <= 16,
+			   total <= 17, #channels <= 1, STA/AP BI must match
+
+	wiphy radio 1:
+		freq range: 5150.0 MHz - 5925.0 MHz
+		valid interface combinations:
+			 * #{ managed } <= 1, #{ AP, mesh point } <= 16,
+			   total <= 17, #channels <= 1, STA/AP BI must match, radar detect widths: { 20 MHz (no HT), 20 MHz, 40 MHz, 80 MHz, 160 MHz }
+
+	wiphy radio 2:
+		freq range: 5925.0 MHz - 7125.0 MHz
+		valid interface combinations:
+			 * #{ managed } <= 1, #{ AP, mesh point } <= 16,
+			   total <= 17, #channels <= 1, STA/AP BI must match
+	HT Capability overrides:
+		 * MCS: ff ff ff ff ff ff ff ff ff ff
+	Device supports TX status socket option.
