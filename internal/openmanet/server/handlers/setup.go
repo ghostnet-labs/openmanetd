@@ -574,21 +574,26 @@ func anyHalow(radios []*setupv1.SetupRadio) bool {
 	return false
 }
 
-// detectAlreadyConfigured returns true when the device's UCI state
-// looks like the wizard (or an operator) has already configured it.
+// detectAlreadyConfigured returns true when the device's state looks
+// like the wizard (or an operator) has already configured it.
 // Heuristics, in order of confidence:
+//   - setup.complete is true (only a finished wizard run sets it)
+//   - luci.wizard.used is set (the LuCI Morse wizard and this wizard
+//     both write it on completion)
 //   - the wizard's own bookkeeping section `network.wizard` exists
 //     (only the wizard ever writes that)
-//   - auth.enable is true (auth is wizard-owned, factory image has it off)
 //   - `network.ahwlan` interface exists (wizard's mesh network)
 //   - the system hostname does NOT match the factory pattern
 //
-// Notably we do NOT inspect `mesh11sd.mesh_params.mesh_gate_announcements`
-// because the factory image ships that section with `option
-// mesh_gate_announcements '0'` already set, which would otherwise flag
-// every fresh device as configured.
+// Notably we do NOT inspect auth.enable: DefaultAuthEnable is true, so
+// a factory node with a stock config.yml reports auth on before anyone
+// has touched it, and the wizard only ever turns auth on together with
+// setup.complete (already checked above). Nor do we inspect
+// `mesh11sd.mesh_params.mesh_gate_announcements`, because the factory
+// image ships that section with `option mesh_gate_announcements '0'`
+// already set. Either would flag every fresh device as configured.
 func (s *SetupService) detectAlreadyConfigured(currentHostname string) bool {
-	if s.Cfg.GetAuthEnable() {
+	if s.Cfg.GetSetupComplete() || s.legacyLuciWizardUsed() {
 		return true
 	}
 

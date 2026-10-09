@@ -14,6 +14,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/comms/control/alsa"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
+	"github.com/openmanet/openmanetd/internal/hardware"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 )
@@ -417,4 +418,148 @@ func newTestDB(t *testing.T) *models.Queries {
 	}
 
 	return models.New(db)
+}
+
+// ── fakeHardwareManager ─────────────────────────────────────────────────────
+
+// fakeHardwareManager implements handlers.HardwareManager.
+type fakeHardwareManager struct {
+	mu           sync.Mutex // protects the fields below
+	status       hardware.Status
+	events       []hardware.Event
+	subs         []chan struct{}
+	subscribeErr error
+	controlErr   error
+	gnssAt       time.Time
+	lastCaller   string
+	lastRadio    hardware.Radio
+	lastLimit    int
+	powerCalls   int
+	rfCalls      int
+	recoverCalls int
+	gnssCalls    int
+	cancels      int
+	lastOn       bool
+}
+
+func (f *fakeHardwareManager) Status() hardware.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.status
+}
+
+func (f *fakeHardwareManager) Events(limit int, r hardware.Radio) []hardware.Event {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.lastLimit, f.lastRadio = limit, r
+
+	return append([]hardware.Event(nil), f.events...)
+}
+
+func (f *fakeHardwareManager) Subscribe() (<-chan struct{}, func(), error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.subscribeErr != nil {
+		return nil, nil, f.subscribeErr
+	}
+
+	ch := make(chan struct{}, 1)
+	f.subs = append(f.subs, ch)
+
+	return ch, func() {
+		f.mu.Lock()
+		f.cancels++
+		f.mu.Unlock()
+	}, nil
+}
+
+// setStatus replaces the status and notifies every subscriber.
+func (f *fakeHardwareManager) setStatus(st hardware.Status) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.status = st
+
+	for _, ch := range f.subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (f *fakeHardwareManager) radioStatus(r hardware.Radio) hardware.RadioStatus {
+	return hardware.RadioStatus{Radio: r, State: hardware.StateUp}
+}
+
+func (f *fakeHardwareManager) SetRadioPower(r hardware.Radio, on bool, caller string) (hardware.RadioStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.powerCalls++
+	f.lastRadio, f.lastOn, f.lastCaller = r, on, caller
+
+	return f.radioStatus(r), f.controlErr
+}
+
+func (f *fakeHardwareManager) SetRFDisable(r hardware.Radio, disabled bool, caller string) (hardware.RadioStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.rfCalls++
+	f.lastRadio, f.lastOn, f.lastCaller = r, disabled, caller
+
+	return f.radioStatus(r), f.controlErr
+}
+
+func (f *fakeHardwareManager) Recover(r hardware.Radio, caller string) (hardware.RadioStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.recoverCalls++
+	f.lastRadio, f.lastCaller = r, caller
+
+	return f.radioStatus(r), f.controlErr
+}
+
+func (f *fakeHardwareManager) ResetGNSS(caller string) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.gnssCalls++
+	f.lastCaller = caller
+
+	return f.gnssAt, f.controlErr
+}
+
+// calls returns power, rf, recover and gnss call counts.
+func (f *fakeHardwareManager) calls() (power, rf, recov, gnss int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.powerCalls, f.rfCalls, f.recoverCalls, f.gnssCalls
+}
+
+func (f *fakeHardwareManager) last() (r hardware.Radio, on bool, caller string, limit int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.lastRadio, f.lastOn, f.lastCaller, f.lastLimit
+}
+
+func (f *fakeHardwareManager) getCancels() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.cancels
+}
+
+func (f *fakeHardwareManager) subscriberCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.subs)
 }
