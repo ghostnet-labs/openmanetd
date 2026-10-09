@@ -75,6 +75,11 @@ type CommsRuntime struct { //nolint:govet // fieldalignment: mu must sit directl
 	// GPIOSel is the hardware talk group selector; nil when the board
 	// doesn't wire one, the operator disabled it, or open failed.
 	GPIOSel *gpio.Selector
+	// VLMFault is the OpenVLM host port fault monitor (VLM_USB_FAULT_N);
+	// nil unless the board routes the line, comms.vlmUsbFault.enable is
+	// set, and the line request succeeded. Atomic because Start installs
+	// it while the instrumentation goroutine may already be snapshotting.
+	VLMFault atomic.Pointer[gpio.FaultMonitor]
 
 	// selectMu serializes SelectTalkGroup's multi-port flip so two
 	// concurrent selections cannot interleave partial port states. Never
@@ -95,6 +100,12 @@ type CommsRuntime struct { //nolint:govet // fieldalignment: mu must sit directl
 	// Run executes synchronously on the Start goroutine, so all accesses
 	// are sequential and no lock is needed.
 	audioCleanup func()
+
+	// audioCard is the bound ALSA card the running hardware audio was
+	// opened on; meaningful only while audioCardSet. Owned by the
+	// Start/Run goroutine like audioCleanup.
+	audioCard    int
+	audioCardSet bool
 }
 
 // Broadcast returns the live capture stream, or nil when hardware audio is
@@ -142,12 +153,24 @@ type CommsConfig struct {
 	// detectALSACardFn overrides ALSA card auto-detection for tests. When
 	// nil, detectALSACard falls back to control.DetectAndSetALSACard(cfg.Log).
 	detectALSACardFn func()
+	// binder overrides the process-wide device.DefaultBinder that pairs
+	// the OpenVLM HID node with its ALSA card. Test seam; nil in production.
+	binder audioBinder
 	// readUDPDropsFn overrides the /proc/net/udp kernel-drop scan for
 	// tests. When nil, readUDPDrops falls back to readUDPSocketDrops.
 	readUDPDropsFn func(localPort int) (int64, error)
 	// gpioSelectorSupportedFn overrides the board capability check for
 	// tests. Nil means board.GPIOSelectorSupported.
-	gpioSelectorSupportedFn  func() bool
+	gpioSelectorSupportedFn func() bool
+	// vlmFaultSupportedFn overrides the board capability check for tests.
+	// Nil means board.VLMUSBFaultSupported.
+	vlmFaultSupportedFn func() bool
+	// newVLMFaultMonitorFn overrides fault monitor construction for tests
+	// (fake line). Nil means a hardware-backed gpio.FaultMonitor.
+	newVLMFaultMonitorFn func(line string) *gpio.FaultMonitor
+	// VLMUSBFaultLine is the GPIO line name for VLM_USB_FAULT_N
+	// (comms.vlmUsbFault.line). Empty means gpio.DefaultVLMUSBFaultLine.
+	VLMUSBFaultLine          string
 	BluetoothOutputDevice    string
 	NanoPTTDevicePath        string
 	CommKey                  string
@@ -191,7 +214,11 @@ type CommsConfig struct {
 	Loopback           bool
 	Debug              bool
 	GPIOSelectorEnable bool
-	ROIPCOSGPIOMask    byte
+	// VLMUSBFaultEnable opts in to the port-3 fault monitor
+	// (comms.vlmUsbFault.enable). Off by default: the pin mapping is not
+	// hardware-verified.
+	VLMUSBFaultEnable bool
+	ROIPCOSGPIOMask   byte
 }
 
 // NewComms copies cfg and returns a pointer ready for Start.
@@ -209,6 +236,8 @@ func NewComms(cfg CommsConfig) *CommsConfig {
 		RtpID:                    cfg.RtpID,
 		Debug:                    cfg.Debug,
 		GPIOSelectorEnable:       cfg.GPIOSelectorEnable,
+		VLMUSBFaultEnable:        cfg.VLMUSBFaultEnable,
+		VLMUSBFaultLine:          cfg.VLMUSBFaultLine,
 		Loopback:                 cfg.Loopback,
 		Trace:                    cfg.Trace,
 		ControlSource:            cfg.ControlSource,

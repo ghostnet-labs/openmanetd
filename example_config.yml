@@ -28,6 +28,13 @@ comms:
   enable: false
   debug: false
   controlSource: openvlm
+  # OpenVLM host USB port fault telemetry (ghostnet,v1 only). Watches the
+  # active-low VLM_USB_FAULT_N line and reports it as
+  # comms.vlm_usb_fault in instrumentation snapshots. Off by default
+  # because the GPIO25 mapping is not hardware-verified yet.
+  # vlmUsbFault:
+  #   enable: false
+  #   line: GPIO25
   # DSCP marking for outgoing voice (RTP/RTCP). 46 = EF (default): voice
   # rides the elevated WMM video class end-to-end on the mesh. 48 = CS6:
   # full WMM voice class (validate the radio's EDCA behavior on-air
@@ -74,6 +81,35 @@ instrumentation:
   enable: false
   intervalSecs: 300
   snapshotDir: /tmp
+# Firmware update (sysupgrade). releasesRepo is the GitHub "owner/name"
+# repository whose releases feed the online update check and downloads; it
+# must match ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ or the daemon logs a warning
+# and falls back to the default. onlineCheck: false disables every GitHub
+# release lookup (the firmware page shows no online offers); manual image
+# upload keeps working. Both keys are read at startup — restart the daemon
+# after changing them.
+sysupgrade:
+  releasesRepo: OpenMANET/firmware
+  onlineCheck: true
+# Ghostnet V1 hardware manager: battery telemetry, radio power state machine
+# and recovery ladder. On other boards it runs telemetry-only. Every GPIO
+# write, bus reset, watchdog pet and low-battery poweroff is OFF by default
+# because the V1 pin map is not yet verified on hardware (GHO-9, GHO-21).
+# hardware:
+#   enable: true                 # start the manager (telemetry is read-only)
+#   actuationEnable: false       # allow GPIO, USB reset and PCIe remove/rescan
+#   watchdogEnable: false        # open and pet the supervisor gpio-wdt
+#   batteryShutdownEnable: false # power off at the shutdown battery level
+#   faultInputs: []              # fault line names to watch, e.g. HALOW_FAULT_N
+#   recoveryStateFile: /etc/openmanetd/hwrecovery.json  # boot-loop guard
+#   watchdogIdentity: "GPIO Watchdog"
+#   packResistanceOhm: 0.06      # load-sag compensation
+#   halow:
+#     usbDevice: ""              # sysfs USB device, e.g. 1-1.2
+#     netdev: ""
+#   wifi:
+#     pciAddress: ""             # PCIe function, e.g. 0001:01:00.0
+#     netdev: ""
 frontend:
   # Unified UI (GHO-69/GHO-70): reverse-proxy LuCI through the OpenMANET web
   # server so https://<node>:8081/cgi-bin/luci/ reaches LuCI on the same

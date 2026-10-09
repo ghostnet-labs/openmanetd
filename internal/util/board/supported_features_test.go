@@ -293,3 +293,93 @@ func TestGPIOSelectorSupported_BoardConfigError(t *testing.T) {
 		t.Errorf("GPIOSelectorSupported() with config error = %v, want false", got)
 	}
 }
+
+func TestHardwareControlSupported(t *testing.T) {
+	tests := []struct {
+		name    string
+		modelID string
+		want    bool
+	}{
+		{name: "GhostnetV1", modelID: GhostnetV1, want: true},
+		{name: "BCM2712_MM8108_USB", modelID: BCM2712_MM8108_USB, want: false},
+		{name: "BCM2711_RAVEN_USB", modelID: BCM2711_RAVEN_USB, want: false},
+		{name: "empty", modelID: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := newBoardConfigInfoFn
+
+			defer func() { newBoardConfigInfoFn = orig }()
+
+			newBoardConfigInfoFn = func() (*Board, error) {
+				return &Board{Model: Model{ID: tt.modelID}}, nil
+			}
+
+			if got := HardwareControlSupported(); got != tt.want {
+				t.Errorf("HardwareControlSupported() for model %q = %v, want %v", tt.modelID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHardwareControlSupported_BoardConfigError(t *testing.T) {
+	orig := newBoardConfigInfoFn
+
+	defer func() { newBoardConfigInfoFn = orig }()
+
+	newBoardConfigInfoFn = func() (*Board, error) {
+		return nil, errors.New("no board.json")
+	}
+
+	if HardwareControlSupported() {
+		t.Error("HardwareControlSupported() = true on board config error, want false")
+	}
+}
+
+func TestVLMUSBFaultSupported(t *testing.T) {
+	tests := []struct {
+		name    string
+		modelID string
+		want    bool
+	}{
+		{name: "ghostnet v1", modelID: GhostnetV1, want: true},
+		{name: "cm5 mm8108 usb", modelID: BCM2712_MM8108_USB, want: false},
+		{name: "raven", modelID: BCM2711_RAVEN_USB, want: false},
+		{name: "halowlink2", modelID: HalowLink2, want: false},
+		{name: "unknown", modelID: "vendor,unknown", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origNewBoardConfigInfo := newBoardConfigInfoFn
+
+			defer func() { newBoardConfigInfoFn = origNewBoardConfigInfo }()
+
+			newBoardConfigInfoFn = func() (*Board, error) {
+				return &Board{
+					Model: Model{ID: tt.modelID},
+				}, nil
+			}
+
+			got := VLMUSBFaultSupported()
+			if got != tt.want {
+				t.Errorf("VLMUSBFaultSupported() for model %v = %v, want %v", tt.modelID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVLMUSBFaultSupported_BoardConfigError(t *testing.T) {
+	origNewBoardConfigInfo := newBoardConfigInfoFn
+
+	defer func() { newBoardConfigInfoFn = origNewBoardConfigInfo }()
+
+	newBoardConfigInfoFn = func() (*Board, error) {
+		return nil, errors.New("board config not available")
+	}
+
+	if VLMUSBFaultSupported() {
+		t.Error("VLMUSBFaultSupported() with config error = true, want false")
+	}
+}

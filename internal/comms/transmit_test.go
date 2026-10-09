@@ -1009,6 +1009,7 @@ func TestRun_AudioRecovery_RetriesUntilSuccess(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:                   zerolog.Nop(),
 		ControlSource:         defaultCtrlSrc,
+		binder:                newFakeAudioBinder(true, 0),
 		audioRecoveryInterval: 5 * time.Millisecond,
 		startHardwareAudioFn:  fake.fn,
 	}
@@ -1048,6 +1049,7 @@ func TestRun_AudioRecovery_StopsAfterSuccess(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:                   zerolog.Nop(),
 		ControlSource:         defaultCtrlSrc,
+		binder:                newFakeAudioBinder(true, 0),
 		audioRecoveryInterval: time.Millisecond,
 		startHardwareAudioFn:  fake.fn,
 	}
@@ -1095,6 +1097,7 @@ func TestRun_AudioRecovery_DisabledWhenHealthy(t *testing.T) {
 	cfg := &CommsConfig{
 		Log:                   zerolog.Nop(),
 		ControlSource:         defaultCtrlSrc,
+		binder:                newFakeAudioBinder(true, 0),
 		audioRecoveryInterval: time.Millisecond,
 		startHardwareAudioFn: func(_ *CommsRuntime) (func(), error) {
 			t.Error("recovery must not run when audio is already up")
@@ -1169,6 +1172,7 @@ func TestTryAudioRecovery_DetectionGate(t *testing.T) {
 			cfg := &CommsConfig{
 				Log:           zerolog.Nop(),
 				ControlSource: defaultCtrlSrc,
+				binder:        newFakeAudioBinder(true, 0),
 				detectALSACardFn: func() {
 					detectCalls++
 				},

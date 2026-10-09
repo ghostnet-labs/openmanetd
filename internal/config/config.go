@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/netip"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +82,8 @@ const (
 	DefaultCommsBluetoothPttBluetoothInputDevice     string = ""
 	DefaultCommsBluetoothPttBluetoothOutputDevice    string = ""
 	DefaultCommsGPIOSelectorEnable                   bool   = true
+	DefaultCommsVLMUSBFaultEnable                    bool   = false
+	DefaultCommsVLMUSBFaultLine                      string = "GPIO25"
 	DefaultResetDBOnStart                            bool   = false
 	DefaultEnableGNSS                                bool   = false
 	DefaultGNSSSendAsNMEA                            bool   = false
@@ -208,7 +211,68 @@ const (
 	DefaultInstrumentationSnapshotDir string = "/tmp"
 	DefaultTerminalEnable             bool   = true
 	DefaultTerminalShell              string = "/bin/login"
+	// DefaultSysupgradeReleasesRepo is the GitHub "owner/name" repository
+	// whose releases feed the online firmware-update check and downloads.
+	DefaultSysupgradeReleasesRepo string = "OpenMANET/firmware"
+	// DefaultSysupgradeOnlineCheck controls whether the daemon contacts
+	// GitHub for online firmware offers. Manual image upload is unaffected.
+	DefaultSysupgradeOnlineCheck bool = true
+
+	// DefaultHardwareEnable starts the V1 hardware manager. On boards
+	// other than Ghostnet V1 it runs telemetry-only and drives nothing.
+	DefaultHardwareEnable bool = true
+	// DefaultHardwareActuationEnable gates every GPIO write, bus reset and
+	// sysfs remove/rescan. Off until the V1 pin map is verified on
+	// hardware (GHO-9, GHO-21).
+	DefaultHardwareActuationEnable bool = false
+	// DefaultHardwareWatchdogEnable gates opening and petting the
+	// supervisor's gpio-wdt device (GHO-10 must define arming first).
+	DefaultHardwareWatchdogEnable bool = false
+	// DefaultHardwareBatteryShutdownEnable gates the low-battery poweroff.
+	DefaultHardwareBatteryShutdownEnable bool = false
+	// DefaultHardwareRecoveryStateFile persists the boot-loop guard.
+	DefaultHardwareRecoveryStateFile string = "/etc/openmanetd/hwrecovery.json"
+	// DefaultHardwareWatchdogIdentity is the watchdog identity string the
+	// supervisor's gpio-wdt driver reports in sysfs.
+	DefaultHardwareWatchdogIdentity string = "GPIO Watchdog"
+	// DefaultHardwarePackResistanceOhm is the pack plus wiring resistance
+	// used to compensate bus voltage for load sag.
+	DefaultHardwarePackResistanceOhm float64 = 0.06
 )
+
+// HardwareConfig holds the V1 hardware manager settings. It is returned by
+// value from GetHardware; FaultInputs is copied so callers may keep it.
+type HardwareConfig struct {
+	// RecoveryStateFile is where the boot-loop guard record lives.
+	RecoveryStateFile string
+	// HaLowUSBDevice is the sysfs USB device name (for example "1-1.2").
+	HaLowUSBDevice string
+	// HaLowNetdev is the HaLow network interface name.
+	HaLowNetdev string
+	// WiFiPCIAddress is the PCIe function address (for example
+	// "0001:01:00.0").
+	WiFiPCIAddress string
+	// WiFiNetdev is the Wi-Fi network interface name.
+	WiFiNetdev string
+	// WatchdogIdentity selects the watchdog device by sysfs identity.
+	WatchdogIdentity string
+	// FaultInputs lists the fault input line names to request. Empty
+	// means none are requested and all report unavailable.
+	FaultInputs []string
+	// PackResistanceOhm compensates bus voltage for load sag.
+	PackResistanceOhm float64
+	// Enable starts the hardware manager.
+	Enable bool
+	// ActuationEnable allows GPIO and bus actuation.
+	ActuationEnable bool
+	// WatchdogEnable allows opening and petting the watchdog.
+	WatchdogEnable bool
+	// BatteryShutdownEnable allows the low-battery poweroff.
+	BatteryShutdownEnable bool
+}
+
+// sysupgradeReleasesRepoRe matches a GitHub "owner/name" repository slug.
+var sysupgradeReleasesRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
 // LuCI reverse-proxy defaults (Unified UI, GHO-69 / GHO-70).
 const (
@@ -233,6 +297,7 @@ type Config struct {
 	OpenMANETFrontendTLSCertFile              string
 	MeshNetInterface                          string
 	CommsNanoPTTDevicePath                    string
+	CommsVLMUSBFaultLine                      string
 	CommsBluetoothPttBluetoothOutputDevice    string
 	DBFile                                    string
 	CommsControlSource                        string
@@ -253,10 +318,13 @@ type Config struct {
 	InstrumentationSnapshotDir                string
 	BLOSAdvertisedMeshSubnet                  string
 	TerminalShell                             string
+	SysupgradeReleasesRepo                    string
+	SysupgradeReleasesRepoRejected            string
 	CommsAudioSpeakerControl                  string
 	CommsAudioMicControl                      string
 	CommsAudioAGCControl                      string
 	onChangeCallbacks                         []func(*Config)
+	Hardware                                  HardwareConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
 	MeshTopologyDeltaSampleInterval           int
@@ -283,6 +351,7 @@ type Config struct {
 	BatmanMulticastForceflood                 bool
 	CommsDebug                                bool
 	CommsGPIOSelectorEnable                   bool
+	CommsVLMUSBFaultEnable                    bool
 	CommsEnable                               bool
 	CommsTrace                                bool
 	CommsNanoPTTEnable                        bool
@@ -305,7 +374,9 @@ type Config struct {
 	SetupComplete                             bool
 	InstrumentationEnable                     bool
 	TerminalEnable                            bool
-	FrontendLuCIProxyEnable                   bool
+	SysupgradeOnlineCheck                     bool
+
+	FrontendLuCIProxyEnable bool
 }
 
 // New creates a new Config instance with the given viper instance.
@@ -492,6 +563,20 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 		c.CommsGPIOSelectorEnable = c.v.GetBool("comms.gpioSelector.enable")
 	} else {
 		c.CommsGPIOSelectorEnable = DefaultCommsGPIOSelectorEnable
+	}
+
+	// The VLM_USB_FAULT_N pin mapping is not hardware-verified (GHO-9), so
+	// the monitor stays off unless an operator opts in.
+	if c.v.IsSet("comms.vlmUsbFault.enable") {
+		c.CommsVLMUSBFaultEnable = c.v.GetBool("comms.vlmUsbFault.enable")
+	} else {
+		c.CommsVLMUSBFaultEnable = DefaultCommsVLMUSBFaultEnable
+	}
+
+	if val := strings.TrimSpace(c.v.GetString("comms.vlmUsbFault.line")); val != "" {
+		c.CommsVLMUSBFaultLine = val
+	} else {
+		c.CommsVLMUSBFaultLine = DefaultCommsVLMUSBFaultLine
 	}
 
 	if c.v.IsSet("comms.loopback") {
@@ -872,6 +957,78 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	} else {
 		c.TerminalEnable = DefaultTerminalEnable
 	}
+
+	// Load sysupgrade configuration. releasesRepo must be a GitHub
+	// "owner/name" slug; anything else falls back to the default and the
+	// rejected value is retained so the daemon can log a warning at
+	// startup (this package has no logger).
+	c.SysupgradeReleasesRepo = DefaultSysupgradeReleasesRepo
+	c.SysupgradeReleasesRepoRejected = ""
+
+	if val := strings.TrimSpace(c.v.GetString("sysupgrade.releasesRepo")); val != "" {
+		if sysupgradeReleasesRepoRe.MatchString(val) {
+			c.SysupgradeReleasesRepo = val
+		} else {
+			c.SysupgradeReleasesRepoRejected = val
+		}
+	}
+
+	if c.v.IsSet("sysupgrade.onlineCheck") {
+		c.SysupgradeOnlineCheck = c.v.GetBool("sysupgrade.onlineCheck")
+	} else {
+		c.SysupgradeOnlineCheck = DefaultSysupgradeOnlineCheck
+	}
+
+	c.Hardware = c.loadHardware()
+}
+
+// loadHardware reads the hardware section, applying defaults. The caller
+// holds c.mu.
+func (c *Config) loadHardware() HardwareConfig {
+	h := HardwareConfig{
+		Enable:                DefaultHardwareEnable,
+		ActuationEnable:       DefaultHardwareActuationEnable,
+		WatchdogEnable:        DefaultHardwareWatchdogEnable,
+		BatteryShutdownEnable: DefaultHardwareBatteryShutdownEnable,
+		RecoveryStateFile:     DefaultHardwareRecoveryStateFile,
+		WatchdogIdentity:      DefaultHardwareWatchdogIdentity,
+		PackResistanceOhm:     DefaultHardwarePackResistanceOhm,
+		HaLowUSBDevice:        c.v.GetString("hardware.halow.usbDevice"),
+		HaLowNetdev:           c.v.GetString("hardware.halow.netdev"),
+		WiFiPCIAddress:        c.v.GetString("hardware.wifi.pciAddress"),
+		WiFiNetdev:            c.v.GetString("hardware.wifi.netdev"),
+		FaultInputs:           c.v.GetStringSlice("hardware.faultInputs"),
+	}
+
+	if c.v.IsSet("hardware.enable") {
+		h.Enable = c.v.GetBool("hardware.enable")
+	}
+
+	if c.v.IsSet("hardware.actuationEnable") {
+		h.ActuationEnable = c.v.GetBool("hardware.actuationEnable")
+	}
+
+	if c.v.IsSet("hardware.watchdogEnable") {
+		h.WatchdogEnable = c.v.GetBool("hardware.watchdogEnable")
+	}
+
+	if c.v.IsSet("hardware.batteryShutdownEnable") {
+		h.BatteryShutdownEnable = c.v.GetBool("hardware.batteryShutdownEnable")
+	}
+
+	if val := c.v.GetString("hardware.recoveryStateFile"); val != "" {
+		h.RecoveryStateFile = val
+	}
+
+	if val := c.v.GetString("hardware.watchdogIdentity"); val != "" {
+		h.WatchdogIdentity = val
+	}
+
+	if val := c.v.GetFloat64("hardware.packResistanceOhm"); val > 0 {
+		h.PackResistanceOhm = val
+	}
+
+	return h
 }
 
 // clampPct clamps v into the [0, 100] percent range.
@@ -1064,6 +1221,25 @@ func (c *Config) GetCommsGPIOSelectorEnable() bool {
 	defer c.mu.RUnlock()
 
 	return c.CommsGPIOSelectorEnable
+}
+
+// GetCommsVLMUSBFaultEnable returns whether the OpenVLM host port fault
+// monitor (VLM_USB_FAULT_N) is enabled. Honored only on boards that route
+// the line; defaults to false until the pin mapping is hardware-verified.
+func (c *Config) GetCommsVLMUSBFaultEnable() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.CommsVLMUSBFaultEnable
+}
+
+// GetCommsVLMUSBFaultLine returns the GPIO line name the fault monitor
+// watches (default "GPIO25").
+func (c *Config) GetCommsVLMUSBFaultLine() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.CommsVLMUSBFaultLine
 }
 
 // GetCommsLoopback returns whether comms loopback mode is enabled.
@@ -1618,6 +1794,47 @@ func (c *Config) GetTerminalShell() string {
 	defer c.mu.RUnlock()
 
 	return c.TerminalShell
+}
+
+// GetSysupgradeReleasesRepo returns the GitHub "owner/name" repository
+// whose releases feed the online firmware-update check. Invalid
+// configured values are replaced by DefaultSysupgradeReleasesRepo.
+func (c *Config) GetSysupgradeReleasesRepo() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeReleasesRepo
+}
+
+// GetSysupgradeReleasesRepoRejected returns the configured
+// sysupgrade.releasesRepo value when it failed validation and was
+// replaced by the default, or "" when the configured value (if any) was
+// accepted. Callers use it to log a warning.
+func (c *Config) GetSysupgradeReleasesRepoRejected() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeReleasesRepoRejected
+}
+
+// GetSysupgradeOnlineCheck returns whether the online firmware-update
+// check against GitHub releases is enabled.
+func (c *Config) GetSysupgradeOnlineCheck() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeOnlineCheck
+}
+
+// GetHardware returns a copy of the hardware manager settings.
+func (c *Config) GetHardware() HardwareConfig {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	h := c.Hardware
+	h.FaultInputs = append([]string(nil), c.Hardware.FaultInputs...)
+
+	return h
 }
 
 // parseDurationOrDefault parses a Go duration string, returning def when

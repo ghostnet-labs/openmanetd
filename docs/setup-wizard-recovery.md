@@ -15,18 +15,21 @@ the device's UCI state from scratch.
 
 ## What it changes
 
-`setup-reset` flips two flags in `/etc/openmanetd/config.yml` and one UCI flag:
+`setup-reset` sets three flags in `/etc/openmanetd/config.yml` (in a single
+write) and one UCI flag:
 
 | Flag | New value | Why |
 |------|-----------|-----|
+| `setup.enabled` | `true` | Lifts the wizard's kill switch. It defaults to `false`, so on a stock `config.yml` the wizard would stay hidden without this. |
 | `setup.complete` | `false` | The wizard's precondition guard admits the run again. |
 | `auth.enable` | `false` | The wizard is reachable without a login session. |
 | `luci.wizard.used` | `0` | Both the LuCI mesh wizard and the Go wizard set this to `1` on completion and refuse to re-run while it is set. |
 
-All three must be cleared together. The Go wizard's re-apply guard refuses a run
-when *either* `setup.complete` is true *or* `luci.wizard.used` is `1`, so clearing
-only `setup.complete` would leave the wizard unreachable. `setup-reset` clears
-all three in one command.
+All four must change together. The wizard is hidden unless `setup.enabled` is
+true, and the Go wizard's re-apply guard refuses a run when *either*
+`setup.complete` is true *or* `luci.wizard.used` is `1`, so clearing only
+`setup.complete` would leave the wizard unreachable. `setup-reset` sets all four
+in one command.
 
 ## After running it
 

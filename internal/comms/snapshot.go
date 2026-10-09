@@ -4,6 +4,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/comms/announce"
 	"github.com/openmanet/openmanetd/internal/comms/audio"
 	"github.com/openmanet/openmanetd/internal/comms/control"
+	"github.com/openmanet/openmanetd/internal/comms/device"
 	"github.com/openmanet/openmanetd/internal/comms/gpio"
 	"github.com/openmanet/openmanetd/internal/comms/rtp"
 	"github.com/openmanet/openmanetd/internal/comms/webaudio"
@@ -14,15 +15,21 @@ import (
 // in docs/instrumentation-snapshot.md — keep that file in sync when adding
 // or renaming fields here.
 type CommsSnapshot struct {
-	ControlSource    string                     `json:"control_source"`
-	Ports            []PortSnapshot             `json:"ports"`
+	ControlSource string         `json:"control_source"`
+	Ports         []PortSnapshot `json:"ports"`
+	// DeviceBinding is the paired CM108/OpenVLM HID + ALSA device state
+	// (zeros, alsa_card -1, outside the openvlm and roip control sources).
+	DeviceBinding    device.BindingSnapshot     `json:"device_binding"`
 	BroadcastEncoder audio.AudioEncoderSnapshot `json:"broadcast_encoder"`
-	WebBridge        webaudio.BridgeSnapshot    `json:"web_bridge"`
 	FECAdapter       FECAdapterSnapshot         `json:"fec_adapter"`
+	WebBridge        webaudio.BridgeSnapshot    `json:"web_bridge"`
 	// Announcer is the voice-announcement player section.
 	Announcer announce.Snapshot `json:"announcer"`
 	// GPIOSelector is the hardware selector section (zeros off-Raven).
 	GPIOSelector gpio.SelectorSnapshot `json:"gpio_selector"`
+	// VLMUSBFault is the OpenVLM host port fault section (zeros unless
+	// comms.vlmUsbFault.enable is set on a board that routes the line).
+	VLMUSBFault gpio.FaultSnapshot `json:"vlm_usb_fault"`
 	// ActiveTalkgroup is the 1-based active talk group (0 when nothing
 	// has been selected yet or comms is down).
 	ActiveTalkgroup int `json:"active_talkgroup"`
@@ -115,14 +122,18 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 		dst.TalkgroupEventsDropped = 0
 		dst.Announcer = announce.Snapshot{}
 		dst.GPIOSelector = gpio.SelectorSnapshot{}
+		dst.VLMUSBFault = gpio.FaultSnapshot{}
+		dst.DeviceBinding = device.BindingSnapshot{ALSACard: device.NoCard}
 
 		return
 	}
 
 	if s.Cfg != nil {
+		s.Cfg.bindingSnapshot(&dst.DeviceBinding)
 		dst.ControlSource = s.Cfg.ControlSource
 	} else {
 		dst.ControlSource = ""
+		dst.DeviceBinding = device.BindingSnapshot{ALSACard: device.NoCard}
 	}
 
 	rt := s.Rt
@@ -137,6 +148,7 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 		dst.TalkgroupEventsDropped = 0
 		dst.Announcer = announce.Snapshot{}
 		dst.GPIOSelector = gpio.SelectorSnapshot{}
+		dst.VLMUSBFault = gpio.FaultSnapshot{}
 
 		return
 	}
@@ -148,6 +160,7 @@ func (s *Service) Snapshot(dst *CommsSnapshot) {
 	dst.TalkgroupEventsDropped = rt.Events.Dropped()
 	rt.Announcer.Snapshot(&dst.Announcer)
 	rt.GPIOSel.Snapshot(&dst.GPIOSelector)
+	rt.VLMFault.Load().Snapshot(&dst.VLMUSBFault)
 
 	// BroadcastStream is an interface. In production the live instance is
 	// always a *audio.BroadcastEncoder; test fakes may substitute a
@@ -217,4 +230,15 @@ func (c *CommsSnapshotter) Refresh() {
 // stable across Refresh calls.
 func (c *CommsSnapshotter) Data() any {
 	return &c.data
+}
+
+// bindingSnapshot fills dst from the process-wide device binder for the
+// control sources that use it, and with the unbound zero value otherwise.
+func (cfg *CommsConfig) bindingSnapshot(dst *device.BindingSnapshot) {
+	switch cfg.ControlSource {
+	case defaultCtrlSrc, controlSourceROIP:
+		device.DefaultBinder().Snapshot(dst)
+	default:
+		*dst = device.BindingSnapshot{ALSACard: device.NoCard}
+	}
 }
