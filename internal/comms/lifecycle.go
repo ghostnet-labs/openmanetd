@@ -189,6 +189,13 @@ func (cfg *CommsConfig) initAudioIO(ctx context.Context, rt *CommsRuntime) func(
 		startHA = cfg.startHardwareAudio
 	}
 
+	if gateErr := cfg.pairedAudioGate(); gateErr != nil {
+		cfg.Log.Warn().Err(gateErr).
+			Msg("comms: local mic/speaker deferred until the OpenVLM device is attached")
+
+		return nil
+	}
+
 	var lastErr error
 
 	for attempt := 1; attempt <= audioInitAttempts; attempt++ {
@@ -197,6 +204,8 @@ func (cfg *CommsConfig) initAudioIO(ctx context.Context, rt *CommsRuntime) func(
 			if attempt > 1 {
 				cfg.Log.Info().Int("attempt", attempt).Msg("comms: hardware audio init succeeded after retry")
 			}
+
+			cfg.recordAudioCard(rt)
 
 			return cleanup
 		}
@@ -268,7 +277,13 @@ func (cfg *CommsConfig) tryAudioRecovery(rt *CommsRuntime, attempt int) bool {
 		startHA = cfg.startHardwareAudio
 	}
 
-	cleanup, err := startHA(rt)
+	err := cfg.pairedAudioGate()
+
+	var cleanup func()
+	if err == nil {
+		cleanup, err = startHA(rt)
+	}
+
 	if err != nil {
 		logEvent := cfg.Log.Debug()
 		if attempt == 1 {
@@ -284,6 +299,7 @@ func (cfg *CommsConfig) tryAudioRecovery(rt *CommsRuntime, attempt int) bool {
 	}
 
 	rt.audioCleanup = cleanup
+	cfg.recordAudioCard(rt)
 
 	cfg.applyMixerStartup()
 
