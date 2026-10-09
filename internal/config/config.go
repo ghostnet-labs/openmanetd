@@ -220,6 +220,19 @@ const (
 // sysupgradeReleasesRepoRe matches a GitHub "owner/name" repository slug.
 var sysupgradeReleasesRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
+// LuCI reverse-proxy defaults (Unified UI, GHO-69 / GHO-70).
+const (
+	// DefaultFrontendLuCIProxyEnable is the default for
+	// frontend.luciProxy.enable. Off by default: the frontend server only
+	// reverse-proxies LuCI's paths once an operator opts in, so a node
+	// that does not set the key behaves exactly as before.
+	DefaultFrontendLuCIProxyEnable bool = false
+	// DefaultFrontendLuCIProxyUpstream is the default for
+	// frontend.luciProxy.upstream: uhttpd serving LuCI on the loopback
+	// interface of the same node.
+	DefaultFrontendLuCIProxyUpstream string = "http://127.0.0.1:80"
+)
+
 // Config holds the application configuration values with automatic reloading support.
 type Config struct {
 	v                                         *viper.Viper
@@ -239,6 +252,7 @@ type Config struct {
 	OpenMANETFrontendHostPort                 string
 	AlfredSocketPath                          string
 	OpenMANETFrontendTLSKeyFile               string
+	FrontendLuCIProxyUpstream                 string
 	OpenMANETAPIAddress                       string
 	OpenMANETCommsAPIAddress                  string
 	RuntimeMemLimit                           string
@@ -304,6 +318,8 @@ type Config struct {
 	InstrumentationEnable                     bool
 	TerminalEnable                            bool
 	SysupgradeOnlineCheck                     bool
+
+	FrontendLuCIProxyEnable bool
 }
 
 // New creates a new Config instance with the given viper instance.
@@ -624,6 +640,21 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 		c.OpenMANETFrontendTLSKeyFile = val
 	} else {
 		c.OpenMANETFrontendTLSKeyFile = DefaultOpenMANETFrontendTLSKeyFile
+	}
+
+	// LuCI reverse proxy (Unified UI, GHO-69/GHO-70). The upstream is
+	// stored as configured; internal/frontend validates it when it builds
+	// the proxy and refuses to proxy an unusable value.
+	if c.v.IsSet("frontend.luciProxy.enable") {
+		c.FrontendLuCIProxyEnable = c.v.GetBool("frontend.luciProxy.enable")
+	} else {
+		c.FrontendLuCIProxyEnable = DefaultFrontendLuCIProxyEnable
+	}
+
+	if val := strings.TrimSpace(c.v.GetString("frontend.luciProxy.upstream")); val != "" {
+		c.FrontendLuCIProxyUpstream = val
+	} else {
+		c.FrontendLuCIProxyUpstream = DefaultFrontendLuCIProxyUpstream
 	}
 
 	if val := c.v.GetString("openmanetAPIAddress"); val != "" {
@@ -1278,6 +1309,25 @@ func (c *Config) GetOpenMANETFrontendTLSKeyFile() string {
 	defer c.mu.RUnlock()
 
 	return c.OpenMANETFrontendTLSKeyFile
+}
+
+// GetFrontendLuCIProxyEnable reports whether the frontend server
+// reverse-proxies LuCI's paths (/cgi-bin/luci, /luci-static, /ubus, ...)
+// to the configured upstream.
+func (c *Config) GetFrontendLuCIProxyEnable() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.FrontendLuCIProxyEnable
+}
+
+// GetFrontendLuCIProxyUpstream returns the base URL of the LuCI web server
+// the frontend proxies to (default http://127.0.0.1:80).
+func (c *Config) GetFrontendLuCIProxyUpstream() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.FrontendLuCIProxyUpstream
 }
 
 // GetOpenMANETAPIAddress returns the OpenMANET API listen address.

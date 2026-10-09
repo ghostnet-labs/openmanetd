@@ -144,6 +144,25 @@ body.lat-shell-active {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Full-page handoff entries (Advanced -> LuCI): a label with a one-line
+   description underneath, at a 44px minimum touch target. */
+.nav-item-handoff { min-height: 44px; }
+.nav-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nav-desc {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--dim);
+  text-transform: none;
+  letter-spacing: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .sidebar-footer {
   padding: 12px 16px;
