@@ -14,6 +14,12 @@ vi.mock('../../contexts/useAuth.js', () => ({
 }));
 
 const dismissState = { dismissed: false };
+const luciState = { enabled: false };
+
+vi.mock('../../hooks/useLuciProxy.js', () => ({
+  default: () => luciState.enabled,
+  LUCI_PATH: '/cgi-bin/luci/',
+}));
 
 vi.mock('../../services/setupDismiss.js', () => ({
   isSetupDismissed: () => dismissState.dismissed,
@@ -22,6 +28,7 @@ vi.mock('../../services/setupDismiss.js', () => ({
 
 beforeEach(() => {
   dismissState.dismissed = false;
+  luciState.enabled = false;
   resumeSetup.mockClear();
 });
 
@@ -294,5 +301,69 @@ describe('TestLayoutBodyClass', () => {
     const { unmount } = renderLayout(1024);
     unmount();
     expect(document.body.classList.contains('lat-shell-active')).toBe(false);
+  });
+});
+
+describe('TestLayoutAdvancedEntry', () => {
+  it('hides the Advanced entry on desktop when the LuCI proxy is off', () => {
+    const { container } = renderLayout(1024);
+    expect(screen.queryByText('Advanced')).toBeNull();
+    expect(container.querySelector('a[href="/cgi-bin/luci/"]')).toBeNull();
+  });
+
+  it('hides the Advanced entry in the mobile sheet when the LuCI proxy is off', () => {
+    const { container } = renderLayout(360);
+    fireEvent.click(screen.getByText('More').closest('button'));
+    expect(screen.queryByText('Advanced')).toBeNull();
+    expect(container.querySelector('a[href="/cgi-bin/luci/"]')).toBeNull();
+  });
+
+  it('shows Advanced with its description in the desktop sidebar after Settings', () => {
+    luciState.enabled = true;
+    const { container } = renderLayout(1024);
+    const link = screen.getByText('Advanced').closest('a');
+    expect(link.getAttribute('href')).toBe('/cgi-bin/luci/');
+    expect(link.classList.contains('nav-item')).toBe(true);
+    expect(link.classList.contains('nav-item-handoff')).toBe(true);
+    expect(screen.getByText('Full router settings (LuCI)')).toBeTruthy();
+    expect(link.querySelector('svg[data-icon="advanced"]')).toBeTruthy();
+    const hrefs = Array.from(container.querySelectorAll('.sidebar-nav a')).map((a) => a.getAttribute('href'));
+    expect(hrefs.slice(-2)).toEqual(['/settings', '/cgi-bin/luci/']);
+  });
+
+  it('is a plain full-page link, not a client-side route', () => {
+    luciState.enabled = true;
+    renderLayout(1024);
+    const link = screen.getByText('Advanced').closest('a');
+    // NavLink would add aria-current / active handling; a handoff must not
+    // open in a frame or a new tab either.
+    expect(link.hasAttribute('aria-current')).toBe(false);
+    expect(link.hasAttribute('target')).toBe(false);
+  });
+
+  it('keeps the icon and a descriptive title when the sidebar is collapsed', () => {
+    luciState.enabled = true;
+    const { container } = renderLayout(1024);
+    fireEvent.click(container.querySelector('.sidebar-toggle'));
+    const link = container.querySelector('a[href="/cgi-bin/luci/"]');
+    expect(link).toBeTruthy();
+    expect(link.querySelector('svg[data-icon="advanced"]')).toBeTruthy();
+    expect(link.getAttribute('title')).toBe('Advanced: Full router settings (LuCI)');
+    expect(screen.queryByText('Advanced')).toBeNull();
+  });
+
+  it('shows Advanced in the 360px mobile sheet above Sign Out', () => {
+    luciState.enabled = true;
+    const { container } = renderLayout(360);
+    expect(screen.queryByText('Advanced')).toBeNull();
+    fireEvent.click(screen.getByText('More').closest('button'));
+    const link = screen.getByText('Advanced').closest('a');
+    expect(link.getAttribute('href')).toBe('/cgi-bin/luci/');
+    expect(link.classList.contains('tab-sheet-item')).toBe(true);
+    expect(screen.getByText('Full router settings (LuCI)')).toBeTruthy();
+    const icons = Array.from(container.querySelectorAll('.tab-sheet svg[data-icon]')).map((el) =>
+      el.getAttribute('data-icon')
+    );
+    expect(icons).toEqual(['blos', 'settings', 'advanced', 'signout']);
   });
 });

@@ -49,6 +49,7 @@ type Server struct {
 	term         *terminal.Manager
 	rpcProxy     http.Handler
 	authProxy    http.Handler
+	luci         *luciProxy
 	indexHTML    []byte
 	authEnabled  bool
 }
@@ -118,6 +119,7 @@ func NewFrontendServer(ctx context.Context, cfg *config.Config, staticFS fs.FS, 
 		term:         term,
 		rpcProxy:     rpcProxy,
 		authProxy:    authProxy,
+		luci:         &luciProxy{},
 	}
 }
 
@@ -380,7 +382,9 @@ func (s *Server) handler() http.Handler {
 
 	root.Handle("/", authMW(mux))
 
-	return coiMiddleware(root)
+	// LuCI paths are routed ahead of everything above when
+	// frontend.luciProxy.enable is set; otherwise this is a pass-through.
+	return s.withLuCIProxy(coiMiddleware(root))
 }
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
