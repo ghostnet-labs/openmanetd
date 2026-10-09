@@ -53,7 +53,10 @@
 
   /* Text */
   --text: #d9e6ed;
-  --muted: #5c7682;
+  /* #678492 clears WCAG AA (4.5:1) for small text on every surface token
+     up to --surface-hi; the previous #5c7682 was 3.7–4.2:1, short of AA and
+     hard to read in sunlight. Guarded by e2e/a11y.spec.js (color-contrast). */
+  --muted: #678492;
   --dim: #3a4b55;
 
   /* Accent + status */
@@ -129,6 +132,23 @@ html, body {
 .lat-panel.col-span-2 { grid-column: span 2; }
 .lat-panel.col-span-3 { grid-column: span 3; }
 .lat-panel.col-span-all { grid-column: 1 / -1; }
+/* Single-column collapse for the spans. It lives here, beside the rules it
+   overrides, because main.jsx imports lattice.css after Layout.css: when the
+   collapse sat in Layout.css's 768px block, these base rules came later in
+   the bundle at equal specificity and won, so on phones a span-3 panel
+   forced implicit grid columns and squeezed its siblings to ~26px wide
+   (Dashboard and GPS at 360px). Matches MOBILE_BREAKPOINT in constants.js.
+   Between 769 and 900px the 3- and 4-column body grids are 2 columns wide,
+   so a span-3 panel is clamped to the two that exist instead of adding an
+   implicit third column. */
+@media (max-width: 900px) {
+  .lat-panel.col-span-3 { grid-column: span 2; }
+}
+@media (max-width: 768px) {
+  .lat-panel.col-span-2,
+  .lat-panel.col-span-3,
+  .lat-panel.col-span-all { grid-column: span 1; }
+}
 
 .lat-panel .panel-head {
   display: flex;
@@ -990,6 +1010,10 @@ input[type="range"].lat-slider:disabled {
     min-height: 44px;
     padding: 8px 14px;
   }
+  /* A primary button is the page's main action (Save, Next, Join), so it
+     gets the touch floor wherever it sits, not only in a toolbar. Guarded
+     by the touch-target checks in frontend/e2e/layout.spec.js. */
+  .lat-btn.primary { min-height: 44px; }
 
   .lat-tabular .table-scroll { display: none; }
   .lat-cardlist {

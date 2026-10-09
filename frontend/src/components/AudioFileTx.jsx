@@ -138,6 +138,7 @@ export default function AudioFileTxPanel({ onLog, onPttSet, txEnabled }) {
         <input
           type="file"
           accept="audio/*"
+          aria-label="Audio file to transmit"
           onChange={handleFileChange}
           className="audio-file-tx-input"
         />
