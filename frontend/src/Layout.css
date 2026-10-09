@@ -64,7 +64,8 @@ body.lat-shell-active {
 .brand-sub {
   font-family: var(--font-mono);
   font-size: 9px;
-  color: var(--dim);
+  /* Readable text, not decoration: --dim is 2.2:1 on --bg, under WCAG AA. */
+  color: var(--muted);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -98,7 +99,7 @@ body.lat-shell-active {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.22em;
-  color: var(--dim);
+  color: var(--muted);
   text-transform: uppercase;
 }
 .sidebar.collapsed .sidebar-group-label { display: none; }
@@ -156,7 +157,7 @@ body.lat-shell-active {
 .nav-desc {
   font-size: 9px;
   font-weight: 400;
-  color: var(--dim);
+  color: var(--muted);
   text-transform: none;
   letter-spacing: normal;
   overflow: hidden;
@@ -465,9 +466,8 @@ body.lat-shell-active {
   .lat-body.grid-4,
   .lat-body.grid-3,
   .lat-body.grid-2x { grid-template-columns: 1fr; }
-  .lat-panel.col-span-2,
-  .lat-panel.col-span-3,
-  .lat-panel.col-span-all { grid-column: span 1; }
+  /* The matching .lat-panel.col-span-* collapse is in lattice.css, after
+     the span rules it overrides (see the comment there). */
   .lat-topbar { padding: 10px 12px; }
   .lat-view-header { padding: 10px 12px; }
   /* Status-chip horizontal scroll on narrow viewports */

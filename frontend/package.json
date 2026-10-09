@@ -8,6 +8,9 @@
     "dev": "vite",
     "build": "vite build && node scripts/check-css-target.mjs ../static/assets",
     "preview": "vite preview",
+    "e2e:build": "vite build --outDir e2e/.dist --emptyOutDir && cp -R ../static/whisper e2e/.dist/whisper",
+    "e2e": "pnpm run e2e:build && playwright test",
+    "size": "node scripts/check-bundle-size.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.provider=v8 --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
     "test:watch": "vitest",
@@ -29,7 +32,9 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.56.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.12",

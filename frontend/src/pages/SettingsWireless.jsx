@@ -473,6 +473,7 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
             <input
               className="lat-input"
               type="text"
+              aria-label={mesh ? 'Mesh ID' : 'SSID'}
               value={mesh ? (draft.meshId ?? '') : (draft.ssid ?? '')}
               onChange={e => update(mesh ? 'meshId' : 'ssid', e.target.value)}
             />
@@ -483,6 +484,7 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
             <input
               className="lat-input"
               type="password"
+              aria-label="Password"
               value={draft.password ?? ''}
               placeholder="(unchanged)"
               onChange={e => update('password', e.target.value)}
@@ -535,6 +537,7 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
             <input
               className="lat-input"
               type="text"
+              aria-label="Country"
               maxLength={2}
               value={(draft.country ?? '').toUpperCase()}
               onChange={e => update('country', e.target.value.toUpperCase())}

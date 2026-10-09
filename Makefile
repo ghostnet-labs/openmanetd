@@ -82,6 +82,17 @@ test-frontend: ## Run frontend tests.
 lint-frontend: ## Lint the React frontend with ESLint.
 	pnpm -C frontend install && pnpm -C frontend run lint
 
+.PHONY: e2e
+e2e: ## Browser e2e suite (Playwright + axe) and bundle budget, against the real frontend server and the sample backend.
+	pnpm -C frontend install
+	pnpm -C frontend run e2e:build
+	cd frontend && node scripts/check-bundle-size.mjs e2e/.dist
+	pnpm -C frontend exec playwright test
+
+.PHONY: bundle-size
+bundle-size: ## Check the gzip size of static/ (run after make frontend) against frontend/scripts/bundle-budget.json.
+	cd frontend && node scripts/check-bundle-size.mjs ../static
+
 .PHONY: lint-go
 lint-go: ## Install golangci-lint if not present, then run it.
 	$(GOBIN)/golangci-lint run --fix --timeout 5m

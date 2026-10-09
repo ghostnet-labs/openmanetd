@@ -1,0 +1,20 @@
+{
+  "desktop /setup": [
+    "color-contrast"
+  ],
+  "mobile /blos": [
+    "color-contrast"
+  ],
+  "mobile /comms": [
+    "scrollable-region-focusable"
+  ],
+  "mobile /settings": [
+    "color-contrast"
+  ],
+  "mobile /settings/wireless": [
+    "color-contrast"
+  ],
+  "mobile /topology": [
+    "color-contrast"
+  ]
+}

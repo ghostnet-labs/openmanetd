@@ -28,13 +28,25 @@ const reactRules = {
 
 export default [
   // Global ignores: auto-generated protobuf clients, node_modules, coverage reports
-  { ignores: ['src/gen/**', 'node_modules/**', 'coverage/**'] },
+  { ignores: ['src/gen/**', 'node_modules/**', 'coverage/**', 'e2e/.dist/**', 'e2e/.results/**', 'e2e/.report/**'] },
 
   // Config files run in Node (vite.config.js, vitest.config.js, eslint.config.js)
   {
     files: ['*.config.js'],
     languageOptions: {
       globals: { ...globals.node },
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+    },
+    rules: { ...js.configs.recommended.rules },
+  },
+
+  // Node-side tooling: build guards in scripts/ and the Playwright suite in
+  // e2e/ (its page.evaluate callbacks run in the browser, hence both sets).
+  {
+    files: ['scripts/**/*.{js,mjs}', 'e2e/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
       ecmaVersion: 'latest',
       sourceType: 'module',
     },

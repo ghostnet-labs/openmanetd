@@ -1,6 +1,6 @@
 """Loopback-only sample backend for the unmodified OpenMANET React UI."""
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-import json,time,copy
+import json,time,copy,os
 HOST='UI-LAB-SIMULATED'
 macs=['02:00:00:00:00:01','02:00:00:00:00:02','02:00:00:00:00:03']
 radios=[dict(name='radio0',displayName='HaLow mesh (sample)',hardwareName='Morse Micro MM6108 — simulated',band=4,interfaceName='wlan0'),dict(name='radio1',displayName='2.4 GHz access point (sample)',hardwareName='Sample Wi-Fi',band=1,interfaceName='wlan1')]
@@ -71,5 +71,7 @@ class Handler(BaseHTTPRequestHandler):
  def log_message(self,fmt,*args):
   if args and str(args[1]) not in ['200']:super().log_message(fmt,*args)
 if __name__=='__main__':
- print('Sample API on http://127.0.0.1:8080 — all data is simulated',flush=True)
- ThreadingHTTPServer(('127.0.0.1',8080),Handler).serve_forever()
+ # SAMPLE_API_PORT lets the browser suite (frontend/e2e) run beside a lab on 8080.
+ port=int(os.environ.get('SAMPLE_API_PORT','8080'))
+ print('Sample API on http://127.0.0.1:%d — all data is simulated'%port,flush=True)
+ ThreadingHTTPServer(('127.0.0.1',port),Handler).serve_forever()
