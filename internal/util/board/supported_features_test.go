@@ -293,3 +293,46 @@ func TestGPIOSelectorSupported_BoardConfigError(t *testing.T) {
 		t.Errorf("GPIOSelectorSupported() with config error = %v, want false", got)
 	}
 }
+
+func TestHardwareControlSupported(t *testing.T) {
+	tests := []struct {
+		name    string
+		modelID string
+		want    bool
+	}{
+		{name: "GhostnetV1", modelID: GhostnetV1, want: true},
+		{name: "BCM2712_MM8108_USB", modelID: BCM2712_MM8108_USB, want: false},
+		{name: "BCM2711_RAVEN_USB", modelID: BCM2711_RAVEN_USB, want: false},
+		{name: "empty", modelID: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := newBoardConfigInfoFn
+
+			defer func() { newBoardConfigInfoFn = orig }()
+
+			newBoardConfigInfoFn = func() (*Board, error) {
+				return &Board{Model: Model{ID: tt.modelID}}, nil
+			}
+
+			if got := HardwareControlSupported(); got != tt.want {
+				t.Errorf("HardwareControlSupported() for model %q = %v, want %v", tt.modelID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHardwareControlSupported_BoardConfigError(t *testing.T) {
+	orig := newBoardConfigInfoFn
+
+	defer func() { newBoardConfigInfoFn = orig }()
+
+	newBoardConfigInfoFn = func() (*Board, error) {
+		return nil, errors.New("no board.json")
+	}
+
+	if HardwareControlSupported() {
+		t.Error("HardwareControlSupported() = true on board config error, want false")
+	}
+}

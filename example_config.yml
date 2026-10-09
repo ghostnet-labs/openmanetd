@@ -74,6 +74,25 @@ instrumentation:
   enable: false
   intervalSecs: 300
   snapshotDir: /tmp
+# Ghostnet V1 hardware manager: battery telemetry, radio power state machine
+# and recovery ladder. On other boards it runs telemetry-only. Every GPIO
+# write, bus reset, watchdog pet and low-battery poweroff is OFF by default
+# because the V1 pin map is not yet verified on hardware (GHO-9, GHO-21).
+# hardware:
+#   enable: true                 # start the manager (telemetry is read-only)
+#   actuationEnable: false       # allow GPIO, USB reset and PCIe remove/rescan
+#   watchdogEnable: false        # open and pet the supervisor gpio-wdt
+#   batteryShutdownEnable: false # power off at the shutdown battery level
+#   faultInputs: []              # fault line names to watch, e.g. HALOW_FAULT_N
+#   recoveryStateFile: /etc/openmanetd/hwrecovery.json  # boot-loop guard
+#   watchdogIdentity: "GPIO Watchdog"
+#   packResistanceOhm: 0.06      # load-sag compensation
+#   halow:
+#     usbDevice: ""              # sysfs USB device, e.g. 1-1.2
+#     netdev: ""
+#   wifi:
+#     pciAddress: ""             # PCIe function, e.g. 0001:01:00.0
+#     netdev: ""
 frontend:
   # Unified UI (GHO-69/GHO-70): reverse-proxy LuCI through the OpenMANET web
   # server so https://<node>:8081/cgi-bin/luci/ reaches LuCI on the same
