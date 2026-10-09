@@ -254,6 +254,15 @@ func (s *OpenVLMSource) Events(ctx context.Context) <-chan PTTEvent { //nolint:g
 				}
 
 				s.log.Error().Err(readErr).Msg("OpenVLM: HID read error; stopping")
+				// A disconnected dongle cannot report the release edge. Balance
+				// the last press before closing the event stream so the consumer
+				// does not leave transmission active after the source disappears.
+				if prevGPIO3 {
+					select {
+					case ch <- PTTUp:
+					case <-ctx.Done():
+					}
+				}
 
 				return
 			}
