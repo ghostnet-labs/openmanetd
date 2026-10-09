@@ -43,7 +43,7 @@ Every snapshot is a single JSON object with this shape:
 
 ```json
 {
-  "schema_version": "1.7.0",
+  "schema_version": "1.9.0",
   "captured_at_start": "2026-04-09T12:34:56.789012345Z",
   "captured_at_end":   "2026-04-09T12:34:56.789013101Z",
   "daemon": { ... },
@@ -61,7 +61,7 @@ Every snapshot is a single JSON object with this shape:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.7.0`. |
+| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `1.9.0`. |
 | `captured_at_start` | RFC3339 timestamp | Wall-clock time when the capture loop began reading counters. |
 | `captured_at_end` | RFC3339 timestamp | Wall-clock time when the capture loop finished. The difference `captured_at_end - captured_at_start` bounds the counter-read skew window; in practice this is microseconds, but it can stretch into milliseconds when the `wireless` section's cache is cold (the first `Refresh` after the 5 s TTL walks netlink under the registry mutex). |
 | `daemon.version` | string | openmanetd build version. Empty until the build system populates it. |
@@ -115,6 +115,8 @@ so reading them does not stall the TX or RX paths.
   "fec_adapter": { ... },
   "announcer": { ... },
   "gpio_selector": { ... },
+  "device_binding": { ... },
+  "vlm_usb_fault": { ... },
   "ports": [ ... ]
 }
 ```
@@ -132,6 +134,8 @@ so reading them does not stall the TX or RX paths.
 | `fec_adapter` | object | Adaptive Opus FEC control-loop state. See **comms.fec_adapter** below. |
 | `announcer` | object | Voice-announcement player counters. See **comms.talkgroup** below. |
 | `gpio_selector` | object | Hardware talk group selector counters. See **comms.talkgroup** below. |
+| `device_binding` | object | Which CM108/OpenVLM USB device the HID (PTT) and ALSA (audio, mixer) paths are paired to. See **comms.device_binding** below. |
+| `vlm_usb_fault` | object | OpenVLM host USB port power/overcurrent fault line state. All zero unless enabled. See **comms.vlm_usb_fault** below. |
 | `ports` | array | Per-talk-group counters. |
 
 #### `comms.broadcast_encoder`
@@ -205,6 +209,53 @@ wired in (web mode for the announcer, a non-Raven board or
 | `announcer.frame_drops` | count | Announcement frames refused by a full playback buffer. |
 | `gpio_selector.transitions` | count | Accepted hardware selector position changes. **Includes the one boot-time selection** — the selector emits the initial switch position at start, which counts as a transition, so a fresh daemon shows `transitions >= 1` even before the operator has touched the switch. |
 | `gpio_selector.held_glitches` | count | Selector edge wakeups where zero or multiple pins were active and the previous selection was held. |
+
+#### `comms.device_binding`
+
+The process-wide device binder picks one CM108-family USB device and takes
+both its hidraw node and its ALSA card from the same USB parent, so PTT and
+audio cannot end up on two different devices. Ranking: the card named by an
+operator `ALSA_CARD` override, then GPIO1-strapped OpenVLM devices, then a
+generic CM108 (only when every identity probe answered); ties go to the
+lowest USB path. The binding is sticky while that USB parent stays present,
+is released when the OpenVLM HID reader loses the device, and is redone on
+replug. Filled for the `openvlm` and `roip` control sources; for others
+every field is zero except `alsa_card`, which is -1.
+
+| Field | Unit | Meaning |
+|---|---|---|
+| `bound` | bool | `true` while a device is bound. |
+| `sys_path` | string | USB parent of the bound device under `/sys` (e.g. `bus/usb/devices/1-1.3`, the hub port). Empty when unbound. |
+| `hid_path` | string | hidraw node read for PTT/volume buttons (e.g. `/dev/hidraw2`). |
+| `serial` | string | USB serial of the bound device; may be empty on stock parts. |
+| `alsa_card` | int | ALSA card index used for capture, playback and mixer. -1 when unbound. |
+| `candidates` | count | CM108-family devices seen at the last bind. |
+| `openvlm` | bool | `true` when the bound device's GPIO1 strap read high (a real OpenVLM). `false` with `bound: true` means a generic CM108 fallback. |
+| `ambiguous` | bool | `true` when another device ranked equally (e.g. two OpenVLMs); the lowest USB path won. |
+| `card_override` | bool | `true` when `ALSA_CARD` was set by the operator before startup; the binder then never writes or clears it and local audio does not follow rebinds. |
+| `binds` | count | Binding changes since daemon start: first bind, rebind after replug, or hidraw/card renumbering on the same port. |
+| `losses` | count | Bound devices that disappeared (HID read failure or absent at rescan). |
+| `bind_failures` | count | Bind attempts that found no usable device (none present, children still enumerating, or an identity probe failed). |
+
+#### `comms.vlm_usb_fault`
+
+Watches the board's `VLM_USB_FAULT_N` line, which is active low and
+reports a power or overcurrent fault on the USB host port feeding the
+OpenVLM (port 3 on `ghostnet,v1`). The monitor reads the line at start and
+again on every debounced edge (10 ms, applied in the kernel). It only
+reports; it never switches port power. It runs only on boards that route
+the line (`ghostnet,v1`), and only when `comms.vlmUsbFault.enable: true` is
+set. That key **defaults to false** because the `GPIO25` mapping
+(`comms.vlmUsbFault.line`) is not yet verified on hardware. While the
+monitor is off, every field is zero.
+
+| Field | Unit | Meaning |
+|---|---|---|
+| `monitored` | bool | `true` while the watch goroutine holds the line. `false` when disabled, on an unsupported board, after the line request failed (logged at warn), after 10 consecutive read failures, or after comms stopped. |
+| `asserted` | bool | `true` while the line reads low, meaning the fault is present now. After the monitor stops, this keeps the last level it read. |
+| `assertions` | count | Transitions into fault. A fault already present when monitoring started counts once. |
+| `last_assert_unix_nano` | ns since Unix epoch | Wall-clock time of the most recent assertion. 0 = never. |
+| `read_errors` | count | Line reads that failed. 10 in a row stop the monitor. |
 
 #### `comms.ports[*]`
 
@@ -598,6 +649,33 @@ thumb in order and flag anything that fits.
    `watchdog_pets_total` flat means nothing is petting it (watchdog
    disabled or the daemon stalled). `battery_stale` true makes every
    battery inference unreliable.
+25. **OpenVLM pairing and replug.** `comms.device_binding.bound: false`
+   with `bind_failures` rising means no usable CM108 is attached; local
+   mic/speaker stay off on purpose (the daemon never falls back to the
+   ALSA default card in `openvlm` mode) while RTP relay keeps running.
+   `losses` advancing in step with `binds` is an unplug/replug or USB
+   reset cycle; if it keeps climbing with nobody touching the cable,
+   suspect the hub port or cable. `bound: true` with `openvlm: false`
+   means a generic CM108 headset was chosen because no strapped OpenVLM
+   was found. `ambiguous: true` means several equal candidates were
+   attached; detach the extra one rather than relying on USB path order.
+   With `card_override: true`, `alsa_card` shows the HID device's own
+   card, which can differ from the operator's `ALSA_CARD`.
+
+26. **OpenVLM port power fault.** Check whether
+   `comms.vlm_usb_fault.assertions` advanced around the time
+   `comms.device_binding.losses` advanced (compare
+   `last_assert_unix_nano` with the snapshot time).
+   - If both moved together, the device dropped because the port's
+     power switch tripped (overcurrent, short, or a bad cable or device).
+     Software did not lose it.
+   - `asserted: true` that stays set means the port is still faulted, so
+     the device will not re-enumerate until the cause is removed.
+   - `losses` rising with flat `assertions` and `monitored: true` points
+     to a data-path problem (USB reset, cable, hub), not to power.
+   - With `monitored: false` and the key enabled, the line request failed.
+     The pin mapping is unverified, so check the startup warning before
+     you trust a zero count.
 
 ## Skew note
 

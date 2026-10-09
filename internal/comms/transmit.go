@@ -489,25 +489,36 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 	}
 
 	// In-run audio recovery: when hardware audio failed at startup (or the
-	// dongle was absent), periodically re-attempt init. Disabled in web
+	// device was absent), periodically re-attempt init. Disabled in web
 	// mode, when audio is already up, or when the interval is unset (<= 0,
-	// the zero value used by unit tests). recoverC stays nil when disabled;
-	// a receive from a nil channel blocks forever, so the extra case is
-	// inert. Single attempt per tick on this goroutine — bounded by design.
+	// the zero value used by unit tests). An unarmed rec.c is nil; a
+	// receive from a nil channel blocks forever, so the case is inert.
+	// Single attempt per tick on this goroutine — bounded by design.
 	// Accepted tradeoff: tryAudioRecovery is not ctx-aware, so ctx
 	// cancellation during an in-flight ALSA open leaves shutdown waiting
 	// behind that one attempt before Run can return.
-	var (
-		recoverC        <-chan time.Time
-		recoverTick     *time.Ticker
-		recoverAttempts int
-	)
+	rec := audioRecovery{interval: cfg.audioRecoveryInterval}
+	defer rec.disarm()
 
-	if cfg.ControlSource != controlSourceWeb && cfg.audioRecoveryInterval > 0 && rt.Broadcast() == nil {
-		recoverTick = time.NewTicker(cfg.audioRecoveryInterval)
-		defer recoverTick.Stop()
+	if cfg.ControlSource != controlSourceWeb && rt.Broadcast() == nil {
+		rec.arm()
+	}
 
-		recoverC = recoverTick.C
+	// Paired-device following: the binder signals when the OpenVLM is
+	// lost, re-attached or its ALSA card renumbered; reconcile restarts
+	// local audio on the paired card. bindC stays nil (inert) when no
+	// binder governs audio.
+	binder := cfg.audioBinding()
+
+	var bindC <-chan struct{}
+	if binder != nil && cfg.ControlSource != controlSourceWeb {
+		bindC = binder.Changed()
+
+		// A change between audio init and the Changed call above would
+		// otherwise go unnoticed until the next one; check once now.
+		if rt.Broadcast() != nil {
+			cfg.reconcileAudioBinding(rt, binder, &rec)
+		}
 	}
 
 	for {
@@ -520,14 +531,16 @@ func (cfg *CommsConfig) Run(parentCtx context.Context, rt *CommsRuntime, src con
 			if !pendingStart.finish(ctx, cfg, rt, events) {
 				return
 			}
-		case <-recoverC:
-			recoverAttempts++
+		case <-rec.c:
+			rec.attempts++
 
-			if cfg.tryAudioRecovery(rt, recoverAttempts) {
-				recoverTick.Stop()
-
-				recoverC = nil
+			if cfg.tryAudioRecovery(rt, rec.attempts) {
+				rec.disarm()
 			}
+		case <-bindC:
+			bindC = binder.Changed()
+
+			cfg.reconcileAudioBinding(rt, binder, &rec)
 		case ev, ok := <-events:
 			if !ok {
 				return

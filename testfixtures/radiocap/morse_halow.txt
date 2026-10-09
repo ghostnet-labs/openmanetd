@@ -1,0 +1,50 @@
+Wiphy phy0
+	wiphy index: 0
+	max # scan SSIDs: 4
+	max scan IEs length: 2048 bytes
+	max # sched scan SSIDs: 0
+	max # match sets: 0
+	Retry short limit: 7
+	Retry long limit: 4
+	Coverage class: 0 (up to 0m)
+	Device supports AP-side u-APSD.
+	Supported Ciphers:
+		* CCMP-128 (00-0f-ac:4)
+		* CMAC (00-0f-ac:6)
+	Available Antennas: TX 0x1 RX 0x1
+	Configured Antennas: TX 0x1 RX 0x1
+	Supported interface modes:
+		 * managed
+		 * AP
+		 * monitor
+		 * mesh point
+	Band 2:
+		Capabilities: 0x1062
+			HT20/HT40
+			Static SM Power Save
+			RX HT20 SGI
+			RX HT40 SGI
+			No RX STBC
+			Max AMSDU length: 3839 bytes
+			No DSSS/CCK HT40
+		Maximum RX AMPDU length 65535 bytes (exponent: 0x003)
+		Minimum RX AMPDU time spacing: No restriction (0x00)
+		HT TX/RX MCS rate indexes supported: 0-7
+		VHT Capabilities (0x00000060):
+			Max MPDU length: 3895
+			Supported Channel Width: neither 160 nor 80+80
+			short GI (80 MHz)
+		Frequencies:
+			* 5180.0 MHz [36] (21.0 dBm)
+			* 5200.0 MHz [40] (21.0 dBm)
+			* 5220.0 MHz [44] (21.0 dBm)
+			* 5240.0 MHz [48] (21.0 dBm)
+			* 5745.0 MHz [149] (21.0 dBm)
+			* 5765.0 MHz [153] (21.0 dBm)
+	valid interface combinations:
+		 * #{ managed } <= 1, #{ AP, mesh point } <= 2,
+		   total <= 3, #channels <= 1, STA/AP BI must match
+
+	Device supports TX status socket option.
+	Driver supports a userspace MPM
+	Maximum associated stations in AP mode: 128

@@ -618,29 +618,74 @@ it low. The CM108B datasheet (§7.4) requires `IR0[7:6] == 0` for IR1[3:0]
 to reflect live GPIO state; the helper checks this and returns an error
 otherwise.
 
-`OpenVLMSource.Events` runs the GPIO1 probe at startup and prefers a
-descriptor whose `IsOpenVLM` is set when opening the HID device, falling
-back to "any matching VID/PID" if no positively-identified unit is found.
+#### Same-device pairing and rediscovery
 
-ALSA card auto-detection runs before the malgo context is initialized when
-`controlSource` is `openvlm` or `roip`. It uses the same `DiscoverCM108`
-walk to map the OpenVLM to an ALSA card index and sets `ALSA_CARD` so
-malgo selects the correct sound card. If `ALSA_CARD` is already set, it
-is left unchanged. A fallback path scans `/proc/asound/card*/usbid` for
-`0d8c:0012` when sysfs discovery fails.
+[`device.Binder`](device/binder.go) owns the single process-wide choice of
+CM108 device. [`device.SelectCM108`](device/binding.go) only considers
+devices that expose **both** a hidraw node and an ALSA card under the same
+USB parent, and ranks them: the card named by an operator `ALSA_CARD`
+override, then GPIO1-strapped OpenVLM devices, then a generic CM108 (only
+when every identity probe answered — an unanswered probe could hide the
+real OpenVLM). Ties go to the lowest USB path and are logged as
+ambiguous. The HID source opens the bound hidraw node by path, and the
+card index is published to `ALSA_CARD` (alsa-lib's default PCM and the
+mixer read it), so PTT, capture, playback and mixer all come from one
+physical device.
+
+The binding is sticky while that USB parent (same path, VID/PID and
+serial) stays present; hidraw or card renumbering on the same port is
+picked up on the next rescan. `OpenVLMSource.Events` never closes its
+channel on device loss: a HID read failure balances a held PTT (and held
+volume buttons) with release events, releases the binding (clearing the
+auto-set `ALSA_CARD` so a stale card number can never point at another
+device) and rediscovers with capped exponential backoff (500 ms → 10 s)
+until the context ends. The same loop covers a device that is absent at
+boot. An `ALSA_CARD` set by the operator before startup is never written
+or cleared.
+
+The Run loop subscribes to binding changes: on loss it tears local audio
+down (closing the TX gate first), and on rebind or card renumbering it
+reopens audio on the paired card immediately. While nothing is bound in
+`openvlm` mode, local audio stays off rather than opening the ALSA default
+card; RTP relay keeps running. Binding state is exposed as
+`comms.device_binding` in the instrumentation snapshot.
+
+#### Port fault telemetry (`ghostnet,v1`)
+
+[`gpio.FaultMonitor`](gpio/fault.go) watches `VLM_USB_FAULT_N`, an active-low
+line that reports a power or overcurrent fault on the USB host port feeding
+the OpenVLM. The line is found by name (default `GPIO25`) and requested with a
+pull-up, events on both edges, and a 10 ms debounce applied in the kernel. The
+monitor reads the line once at start and again on each edge. It only reports:
+an assertion is logged at error level and counted. It does not switch port
+power. Rediscovery after the port recovers is the binder's job.
+
+The monitor runs only when the board routes the line
+(`board.VLMUSBFaultSupported()`, which is true for `ghostnet,v1` only) and
+`comms.vlmUsbFault.enable` is `true`. That key **defaults to false** because
+the pin mapping has not been verified on hardware. `comms.vlmUsbFault.line`
+overrides the line name. If the line request fails, the failure is logged and
+comms keeps running without fault telemetry. The state is published as
+`comms.vlm_usb_fault` in the instrumentation snapshot.
+
+```yaml
+comms:
+  vlmUsbFault:
+    enable: false   # opt in once the GPIO25 mapping is verified on hardware
+    line: GPIO25
+```
 
 ### Audio init retry and in-run recovery
 
 Hardware audio init is retried up to 3 times at startup (750 ms apart,
 context-aware) to absorb transient ALSA/USB failures while the OpenVLM
-dongle settles after boot-time enumeration (observed as `miniaudio:
+device settles after boot-time enumeration (observed as `miniaudio:
 Broken pipe` from the dmix slave start). If all startup attempts fail,
 comms stays up (RTP relay and WebUI toggles keep working) and the Run
-loop re-attempts init every 10 seconds — including re-running ALSA card
-detection when `ALSA_CARD` is still unset — so plugging the dongle in
-later brings local mic/speaker up without a daemon restart. Both log
-paths carry an `alsa_card` field naming the card index the `default`
-ALSA PCM resolves to.
+loop re-attempts init every 10 seconds — including re-running device
+binding when `ALSA_CARD` is still unset — and a binding change triggers
+an immediate attempt. Both log paths carry an `alsa_card` field naming
+the card index the `default` ALSA PCM resolves to.
 
 `PTTDown` → `beginTransmission`; `PTTUp` → `endTransmission`.
 
