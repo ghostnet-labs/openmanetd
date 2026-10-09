@@ -74,3 +74,13 @@ instrumentation:
   enable: false
   intervalSecs: 300
   snapshotDir: /tmp
+# Firmware update (sysupgrade). releasesRepo is the GitHub "owner/name"
+# repository whose releases feed the online update check and downloads; it
+# must match ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ or the daemon logs a warning
+# and falls back to the default. onlineCheck: false disables every GitHub
+# release lookup (the firmware page shows no online offers); manual image
+# upload keeps working. Both keys are read at startup — restart the daemon
+# after changing them.
+sysupgrade:
+  releasesRepo: OpenMANET/firmware
+  onlineCheck: true

@@ -112,6 +112,7 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 | `database.*` | SQLite file path |
 | `instrumentation.*` | Periodic JSON snapshot capture (see `docs/instrumentation-snapshot.md`) |
 | `runtime.*` | Memory limit, GC tuning |
+| `sysupgrade.*` | Firmware update source: `releasesRepo` (GitHub `owner/name`, default `OpenMANET/firmware`) and `onlineCheck` (default `true`; `false` disables online offers, manual upload still works) |
 
 ## Developer Tools
 
