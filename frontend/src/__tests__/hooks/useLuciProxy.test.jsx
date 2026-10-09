@@ -24,6 +24,16 @@ describe('TestUseLuciProxy', () => {
     vi.resetModules();
   });
 
+  it('knownLuciProxyEnabled reads the cache without fetching', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ luci_proxy_enabled: true })));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(mod.knownLuciProxyEnabled()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await mod.fetchLuciProxyEnabled();
+    expect(mod.knownLuciProxyEnabled()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes the LuCI path on this origin', () => {
     expect(mod.LUCI_PATH).toBe('/cgi-bin/luci/');
   });

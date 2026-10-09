@@ -31,7 +31,13 @@ import (
 // SameSite=strict, no Secure flag). The browser stores and returns it on the
 // https://<node>:8081 origin like any other cookie, so the session works.
 // X-Forwarded-Proto carries the browser's scheme for upstreams that honor
-// it; uhttpd does not, and the proxy never rewrites Set-Cookie.
+// it; uhttpd does not, and the proxy never rewrites LuCI's own Set-Cookie.
+//
+// Sessions stay separate in both directions: the OpenMANET session cookies
+// are stripped from requests to LuCI, and a LuCI response may not set or
+// clear a cookie with an OpenMANET session cookie name. The proxy adds no
+// credentials of its own, so /cgi-bin/ and /ubus/ meet uhttpd's and rpcd's
+// own authentication exactly as they would on port 80.
 //
 // With the flag off, none of this runs: requests for these paths reach the
 // existing handler chain exactly as before.
@@ -127,10 +133,11 @@ func newLuCIReverseProxy(upstream *url.URL, log zerolog.Logger) (*httputil.Rever
 			// names the proxied origin, not the loopback upstream.
 			pr.Out.Host = pr.In.Host
 
-			stripCookie(pr.Out, auth.SessionCookieName)
+			stripSessionCookies(pr.Out)
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			rewriteUpstreamLocation(resp.Header, upstreamHostPort)
+			dropSessionSetCookies(resp.Header)
 
 			return nil
 		},
@@ -148,16 +155,17 @@ func newLuCIReverseProxy(upstream *url.URL, log zerolog.Logger) (*httputil.Rever
 	return proxy, transport
 }
 
-// stripCookie removes the named cookie from an outbound request so the
-// OpenMANET session token is never handed to LuCI. The Cookie header is
-// left byte-for-byte untouched when the cookie is absent.
-func stripCookie(r *http.Request, name string) {
+// stripSessionCookies removes the OpenMANET session cookies (session and
+// __Host-session) from an outbound request so the OpenMANET session token
+// is never handed to LuCI. The Cookie header is left byte-for-byte
+// untouched when neither is present.
+func stripSessionCookies(r *http.Request) {
 	cookies := r.Cookies()
 
 	found := false
 
 	for _, c := range cookies {
-		if c.Name == name {
+		if auth.IsSessionCookieName(c.Name) {
 			found = true
 
 			break
@@ -171,9 +179,41 @@ func stripCookie(r *http.Request, name string) {
 	r.Header.Del("Cookie")
 
 	for _, c := range cookies {
-		if c.Name != name {
+		if !auth.IsSessionCookieName(c.Name) {
 			r.AddCookie(c)
 		}
+	}
+}
+
+// dropSessionSetCookies removes any Set-Cookie from a LuCI response that
+// names an OpenMANET session cookie, so nothing behind the proxy can
+// overwrite or clear the OpenMANET sign-in. LuCI's own cookies
+// (sysauth_http, sysauth_https) differ by name and pass through unchanged.
+func dropSessionSetCookies(h http.Header) {
+	values := h.Values("Set-Cookie")
+	if len(values) == 0 {
+		return
+	}
+
+	keep := make([]string, 0, len(values))
+
+	for _, v := range values {
+		pair, _, _ := strings.Cut(v, ";")
+		name, _, _ := strings.Cut(pair, "=")
+
+		if !auth.IsSessionCookieName(strings.TrimSpace(name)) {
+			keep = append(keep, v)
+		}
+	}
+
+	if len(keep) == len(values) {
+		return
+	}
+
+	h.Del("Set-Cookie")
+
+	for _, v := range keep {
+		h.Add("Set-Cookie", v)
 	}
 }
 

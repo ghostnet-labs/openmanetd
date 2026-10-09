@@ -3,7 +3,7 @@
 The OpenMANET frontend server can reverse-proxy LuCI so a node has one web
 origin: `https://<node>:8081` (and `http://<node>:8080`). With the proxy on,
 LuCI is at `https://<node>:8081/cgi-bin/luci/` and the OpenMANET navigation
-shows an **Advanced** entry ("Full router settings (LuCI)") that opens it.
+shows an **Advanced** entry ("LuCI · separate root login") that opens it.
 
 This is the first routing step of the Unified UI project. The design record is
 [`project/software/unified-ui-design.md`](https://github.com/ghostnet-labs/docs/blob/main/project/software/unified-ui-design.md)
@@ -53,9 +53,13 @@ Request handling:
 - The browser's `Host` header is forwarded, so absolute URLs that LuCI builds
   name the proxied origin. `X-Forwarded-For`, `-Host` and `-Proto` are set by
   the proxy, and inbound copies are discarded.
-- The OpenMANET `session` cookie is removed from requests sent to LuCI. All
-  other cookies are forwarded as sent.
-- `Set-Cookie` from LuCI is never modified. `Location` is preserved, except
+- The OpenMANET session cookies (`session` and `__Host-session`, matched
+  without regard to case) are removed from requests sent to LuCI. All other
+  cookies are forwarded as sent. The proxy adds no credentials of its own.
+- A `Set-Cookie` from LuCI that names an OpenMANET session cookie is dropped,
+  so nothing behind the proxy can set, overwrite or clear the OpenMANET
+  sign-in. LuCI's own cookies (`sysauth_http`, `sysauth_https`) pass through
+  unmodified. `Location` is preserved, except
   that an absolute `Location` pointing at the upstream itself (for example
   `http://127.0.0.1/cgi-bin/luci/`) becomes path-only so the browser stays on
   the proxied origin.
@@ -79,7 +83,40 @@ The two sign-ins stay separate in release 1:
   valid if you open LuCI directly on `http://<node>/`.
 - LuCI's CSRF token is embedded in its own pages and checked by LuCI, so it
   works unchanged through the proxy.
-- The OpenMANET `session` cookie (`Path=/`) is unchanged.
+- `/cgi-bin/` and `/ubus/` meet uhttpd's and rpcd's own authentication. An
+  OpenMANET session (cookie or bearer token) grants nothing there: the
+  session cookie is stripped and the proxy adds no credentials.
+
+### What the operator sees
+
+- The Advanced entry's description and tooltip say LuCI asks for its own root
+  login, that the OpenMANET sign-in is kept, and that Back returns.
+- **Sign Out** ends the OpenMANET session only. Its tooltip, and the notice on
+  the login page afterwards, say LuCI keeps its own sign-in when Advanced is
+  shown. Sign out of LuCI from LuCI.
+- When the OpenMANET session ends (expiry, sign-out, or any `401` from
+  `/rpc/*` or `/api/*`) the SPA sends the operator to
+  `/login?next=<the page they were on>` and returns them there after sign-in.
+  The login page says the session expired when that is why. `next` must be a
+  same-origin, root-relative SPA path: anything else (`//host`, `/\host`,
+  absolute or `javascript:` URLs, control characters, `/login`, the LuCI and
+  API paths) is ignored and the operator lands on the dashboard.
+
+### OpenMANET session cookie
+
+| Served over | Cookie | Attributes |
+|---|---|---|
+| HTTPS (`:8081`) | `__Host-session` | `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain` |
+| HTTP (`:8080`) | `session` | `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain` |
+
+Both are browser-session cookies; the server enforces the lifetime
+(`auth.sessionMaxAge`, seconds). The API decides the scheme from the request's
+TLS state or the `X-Forwarded-Proto` header the frontend server sets (it
+discards any inbound copy). The names differ because browsers refuse to let a
+plain-HTTP response overwrite a `Secure` cookie of the same name, which would
+block HTTP sign-in after an HTTPS one. A request may carry both; the API tries
+the bearer token if present, otherwise `__Host-session` then `session`, and
+sign-out revokes every token the request carries.
 
 ## Recovery
 

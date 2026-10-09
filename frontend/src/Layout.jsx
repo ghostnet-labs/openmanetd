@@ -41,9 +41,18 @@ const PRIMARY_TABS = [
 // The Advanced entry is a plain link, not a NavLink: LuCI is served by the
 // frontend daemon's reverse proxy, so this is a full-page handoff that leaves
 // the SPA. Shown only when the daemon reports the proxy is enabled.
+// LuCI keeps its own root login (the sign-ins are separate by design, D-037),
+// so the entry says so up front: the LuCI login screen is expected, and the
+// OpenMANET session is untouched, so Back returns without signing in again.
 const ADVANCED_LABEL = 'Advanced';
-const ADVANCED_DESC = 'Full router settings (LuCI)';
-const ADVANCED_TITLE = `${ADVANCED_LABEL}: ${ADVANCED_DESC}`;
+const ADVANCED_DESC = 'LuCI · separate root login';
+const ADVANCED_TITLE = 'Advanced: full router settings in LuCI. LuCI asks for its own root '
+  + 'login; your OpenMANET sign-in stays as it is. Use Back to return.';
+
+// Signing out ends the OpenMANET session only. With the Advanced entry
+// shown, the tooltip says LuCI's separate sign-in is not affected.
+const SIGN_OUT_TITLE = 'Sign out of OpenMANET';
+const SIGN_OUT_TITLE_LUCI = `${SIGN_OUT_TITLE} (LuCI keeps its own sign-in)`;
 
 const OVERFLOW_TABS = [
   { to: '/blos',     label: 'BLOS',     icon: 'blos' },
@@ -62,6 +71,7 @@ export default function Layout() {
   );
   const [sheetOpen, setSheetOpen] = useState(false);
   const luciEnabled = useLuciProxy();
+  const signOutTitle = luciEnabled ? SIGN_OUT_TITLE_LUCI : SIGN_OUT_TITLE;
 
   useEffect(() => {
     let timeoutId = null;
@@ -123,6 +133,7 @@ export default function Layout() {
               <button
                 className="tab-sheet-item danger"
                 onClick={() => { setSheetOpen(false); logout(); }}
+                title={signOutTitle}
                 type="button"
               >
                 <span className="nav-icon"><NavIcon name="signout" /></span>
@@ -209,7 +220,7 @@ export default function Layout() {
         </div>
         <div className="sidebar-footer">
           {!collapsed && <div className="operator">Operator</div>}
-          <button className="sidebar-logout" onClick={logout} title="Sign out" type="button">
+          <button className="sidebar-logout" onClick={logout} title={signOutTitle} type="button">
             {collapsed ? '×' : '× Sign Out'}
           </button>
         </div>

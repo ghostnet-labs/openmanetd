@@ -325,7 +325,7 @@ describe('TestLayoutAdvancedEntry', () => {
     expect(link.getAttribute('href')).toBe('/cgi-bin/luci/');
     expect(link.classList.contains('nav-item')).toBe(true);
     expect(link.classList.contains('nav-item-handoff')).toBe(true);
-    expect(screen.getByText('Full router settings (LuCI)')).toBeTruthy();
+    expect(screen.getByText('LuCI · separate root login')).toBeTruthy();
     expect(link.querySelector('svg[data-icon="advanced"]')).toBeTruthy();
     const hrefs = Array.from(container.querySelectorAll('.sidebar-nav a')).map((a) => a.getAttribute('href'));
     expect(hrefs.slice(-2)).toEqual(['/settings', '/cgi-bin/luci/']);
@@ -348,7 +348,7 @@ describe('TestLayoutAdvancedEntry', () => {
     const link = container.querySelector('a[href="/cgi-bin/luci/"]');
     expect(link).toBeTruthy();
     expect(link.querySelector('svg[data-icon="advanced"]')).toBeTruthy();
-    expect(link.getAttribute('title')).toBe('Advanced: Full router settings (LuCI)');
+    expect(link.getAttribute('title')).toMatch(/^Advanced: full router settings in LuCI\./);
     expect(screen.queryByText('Advanced')).toBeNull();
   });
 
@@ -360,10 +360,42 @@ describe('TestLayoutAdvancedEntry', () => {
     const link = screen.getByText('Advanced').closest('a');
     expect(link.getAttribute('href')).toBe('/cgi-bin/luci/');
     expect(link.classList.contains('tab-sheet-item')).toBe(true);
-    expect(screen.getByText('Full router settings (LuCI)')).toBeTruthy();
+    expect(screen.getByText('LuCI · separate root login')).toBeTruthy();
     const icons = Array.from(container.querySelectorAll('.tab-sheet svg[data-icon]')).map((el) =>
       el.getAttribute('data-icon')
     );
     expect(icons).toEqual(['blos', 'settings', 'advanced', 'signout']);
+  });
+});
+
+describe('TestLayoutSeparateSignIns', () => {
+  it('says in the Advanced tooltip that LuCI has its own login and Back returns', () => {
+    luciState.enabled = true;
+    renderLayout(1024);
+    const title = screen.getByText('Advanced').closest('a').getAttribute('title');
+    expect(title).toContain('LuCI asks for its own root login');
+    expect(title).toContain('your OpenMANET sign-in stays as it is');
+    expect(title).toContain('Use Back to return');
+  });
+
+  it('labels desktop Sign Out as OpenMANET-only and names LuCI when Advanced is shown', () => {
+    luciState.enabled = true;
+    renderLayout(1024);
+    const button = screen.getByText('× Sign Out');
+    expect(button.getAttribute('title')).toBe('Sign out of OpenMANET (LuCI keeps its own sign-in)');
+  });
+
+  it('does not mention LuCI on Sign Out when the proxy is off', () => {
+    renderLayout(1024);
+    const button = screen.getByText('× Sign Out');
+    expect(button.getAttribute('title')).toBe('Sign out of OpenMANET');
+  });
+
+  it('labels the mobile sheet Sign Out the same way', () => {
+    luciState.enabled = true;
+    renderLayout(360);
+    fireEvent.click(screen.getByText('More').closest('button'));
+    const button = screen.getByText('Sign Out').closest('button');
+    expect(button.getAttribute('title')).toBe('Sign out of OpenMANET (LuCI keeps its own sign-in)');
   });
 });
