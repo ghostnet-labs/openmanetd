@@ -137,21 +137,7 @@ func Start(staticFS fs.FS) {
 	// manager spawns no background goroutines on construction; the
 	// only goroutine it owns is the per-upgrade one created on
 	// StartUpgrade.
-	sysupgradeMgr := sysupgrade.NewManager(sysupgrade.Options{
-		Log:                 logger.GetLogger("sysupgrade"),
-		Repo:                "OpenMANET/firmware",
-		Board:               handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{}),
-		Firmware:            handlers.NewCachedFirmwareProvider(&system.OpenWrtFirmwareProvider{}),
-		SysInfo:             &system.LinuxSysInfo{},
-		Capable:             &system.LinuxSysupgradeCapabilityProvider{},
-		Cache:               sysupgrade.NewDiskCache("/var/lib/openmanetd/sysupgrade-releases.json"),
-		Releases:            &sysupgrade.GitHubReleasesClient{Repo: "OpenMANET/firmware", Log: logger.GetLogger("sysupgrade-github")},
-		Runner:              &sysupgrade.ExecSysupgradeRunner{},
-		FactoryReset:        &sysupgrade.ExecFactoryResetRunner{},
-		FactoryResetCapable: &system.LinuxFactoryResetCapabilityProvider{},
-		DownloadDir:         "/tmp/openmanetd/sysupgrade",
-		PersistentLogDir:    "/etc/openmanetd/sysupgrade",
-	})
+	sysupgradeMgr := newSysupgradeManager(cfg, log)
 
 	// One TTL-bounded wireless cache serves both the API handlers and
 	// the instrumentation snapshotter, so the snapshot adds no netlink
@@ -359,6 +345,41 @@ func Start(staticFS fs.FS) {
 
 	log.Info().Msg("Exiting OpenMANETd")
 	os.Exit(0)
+}
+
+// newSysupgradeManager builds the firmware-update manager from config.
+// The GitHub releases repository and the online-check switch are read
+// once here; changing them requires a daemon restart.
+func newSysupgradeManager(cfg *config.Config, log zerolog.Logger) *sysupgrade.Manager {
+	releasesRepo := cfg.GetSysupgradeReleasesRepo()
+	if rejected := cfg.GetSysupgradeReleasesRepoRejected(); rejected != "" {
+		log.Warn().
+			Str("configured", rejected).
+			Str("fallback", releasesRepo).
+			Msg("sysupgrade.releasesRepo is not a valid GitHub owner/name slug; using default")
+	}
+
+	onlineCheck := cfg.GetSysupgradeOnlineCheck()
+	if !onlineCheck {
+		log.Info().Msg("sysupgrade online release check disabled; manual image upload only")
+	}
+
+	return sysupgrade.NewManager(sysupgrade.Options{
+		Log:                 logger.GetLogger("sysupgrade"),
+		Repo:                releasesRepo,
+		Board:               handlers.NewCachedBoardProvider(&handlers.DefaultBoardProvider{}),
+		Firmware:            handlers.NewCachedFirmwareProvider(&system.OpenWrtFirmwareProvider{}),
+		SysInfo:             &system.LinuxSysInfo{},
+		Capable:             &system.LinuxSysupgradeCapabilityProvider{},
+		Cache:               sysupgrade.NewDiskCache("/var/lib/openmanetd/sysupgrade-releases.json"),
+		Releases:            &sysupgrade.GitHubReleasesClient{Repo: releasesRepo, Log: logger.GetLogger("sysupgrade-github")},
+		Runner:              &sysupgrade.ExecSysupgradeRunner{},
+		FactoryReset:        &sysupgrade.ExecFactoryResetRunner{},
+		FactoryResetCapable: &system.LinuxFactoryResetCapabilityProvider{},
+		DownloadDir:         "/tmp/openmanetd/sysupgrade",
+		PersistentLogDir:    "/etc/openmanetd/sysupgrade",
+		DisableOnlineCheck:  !onlineCheck,
+	})
 }
 
 // startInstrumentationWorker constructs the instrumentation snapshot
