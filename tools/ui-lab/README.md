@@ -118,4 +118,10 @@ Real audio/PTT transmission, terminal access, firmware flashing, service restart
 python3 tools/test-sample-api.py
 ```
 
+## Automated browser checks
+
+`make e2e` (from the openmanetd root) runs the Playwright + axe suite in `frontend/e2e` against the same sample backend, started on port 18087 (`SAMPLE_API_PORT`) so it does not collide with a running lab, behind the real Go frontend server (`tools/e2e-frontend`) with a fake LuCI upstream. It covers the Advanced (LuCI) handoff, deep links and reload, settings save/readback, auth expiry and login return, the setup gate, 1280x800 and 360x640 layout, touch targets, keyboard focus, accessibility, polling budgets, PTT over TLS, and the bundle-size budget. Chromium comes from Playwright's cache (`PLAYWRIGHT_BROWSERS_PATH`) or `E2E_CHROMIUM`.
+
+Hardware measurements the suite cannot make (startup time, memory and CPU of openmanetd, real PTT) are a run sheet in [docs/poc-node-measurements.md](../../docs/poc-node-measurements.md), with [node-measure.sh](node-measure.sh) to run on the node.
+
 OpenWrt images: https://downloads.openwrt.org/releases/24.10.5/targets/armsr/armv8/
