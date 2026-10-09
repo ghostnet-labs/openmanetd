@@ -79,6 +79,34 @@ describe('dismissed', () => {
   });
 });
 
+describe('alreadyConfigured', () => {
+  const active = { isEnabled: true, isSetupComplete: false, hasHalowRadio: true, alreadyConfigured: true };
+
+  it('wizard-active + alreadyConfigured opens routes', () => {
+    expect(gateStateFromStatus(active)).toBe('wizard-optional');
+  });
+
+  it('no-halow + alreadyConfigured opens routes', () => {
+    expect(gateStateFromStatus({ ...active, hasHalowRadio: false })).toBe('wizard-optional');
+  });
+
+  it('alreadyConfigured=false keeps the trap', () => {
+    expect(gateStateFromStatus({ ...active, alreadyConfigured: false })).toBe('wizard-active');
+  });
+
+  it('setup complete still hides the wizard', () => {
+    expect(gateStateFromStatus({ ...active, isSetupComplete: true })).toBe('wizard-hidden');
+  });
+
+  it('setup disabled still hides the wizard', () => {
+    expect(gateStateFromStatus({ ...active, isEnabled: false })).toBe('wizard-hidden');
+  });
+
+  it('dismissed takes precedence but is equally untrapped', () => {
+    expect(gateStateFromStatus(active, true)).toBe('wizard-dismissed');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Component: routing behaviour
 // ---------------------------------------------------------------------------
@@ -87,6 +115,7 @@ const HIDDEN = { isEnabled: false, isSetupComplete: false, hasHalowRadio: true }
 const COMPLETE = { isEnabled: true, isSetupComplete: true, hasHalowRadio: true };
 const NO_HALOW = { isEnabled: true, isSetupComplete: false, hasHalowRadio: false };
 const ACTIVE = { isEnabled: true, isSetupComplete: false, hasHalowRadio: true };
+const CONFIGURED = { ...ACTIVE, alreadyConfigured: true };
 
 // LocationProbe exposes the router's current path so a <Navigate>
 // issued by the gate can be asserted on.
@@ -226,6 +255,45 @@ describe('SetupGate', () => {
     it('opens routes for a no-HaLow device too', async () => {
       dismissSetup();
       resolveStatus(NO_HALOW);
+
+      renderGate('/dashboard');
+
+      expect(await screen.findByTestId('app')).toBeTruthy();
+      expect(screen.queryByTestId('no-halow')).toBeNull();
+      expect(screen.getByTestId('loc').textContent).toBe('/dashboard');
+    });
+  });
+
+  describe('wizard-optional (already configured)', () => {
+    it('opens / instead of trapping it onto /setup', async () => {
+      resolveStatus(CONFIGURED);
+
+      renderGate('/');
+
+      expect(await screen.findByTestId('app')).toBeTruthy();
+      expect(screen.getByTestId('loc').textContent).toBe('/');
+    });
+
+    it('opens other routes', async () => {
+      resolveStatus(CONFIGURED);
+
+      renderGate('/dashboard');
+
+      expect(await screen.findByTestId('app')).toBeTruthy();
+      expect(screen.getByTestId('loc').textContent).toBe('/dashboard');
+    });
+
+    it('keeps /setup reachable', async () => {
+      resolveStatus(CONFIGURED);
+
+      renderGate('/setup');
+
+      expect(await screen.findByTestId('app')).toBeTruthy();
+      expect(screen.getByTestId('loc').textContent).toBe('/setup');
+    });
+
+    it('does not trap a no-HaLow node either', async () => {
+      resolveStatus({ ...CONFIGURED, hasHalowRadio: false });
 
       renderGate('/dashboard');
 

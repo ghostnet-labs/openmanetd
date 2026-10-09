@@ -617,6 +617,78 @@ auth:
 	assert.Equal(t, "login", cfg.GetAuthPAMService())
 }
 
+// ── PersistSetupReset ───────────────────────────────────────────────────────
+
+// TestPersistSetupReset_StockConfigReopensWizard pins the GHO-75 fix: a
+// stock config.yml never mentions setup.enabled, so it resolves to
+// DefaultSetupEnabled (false). The reset must write setup.enabled=true or
+// the wizard stays behind its kill switch.
+func TestPersistSetupReset_StockConfigReopensWizard(t *testing.T) {
+	cfg := setupTestConfigFromYAML(t, `
+logLevel: info
+blos:
+  enable: false
+`)
+
+	require.False(t, cfg.GetSetupEnabled(), "precondition: stock config has the wizard disabled")
+	require.True(t, cfg.GetAuthEnable(), "precondition: stock config has auth on")
+
+	require.NoError(t, cfg.PersistSetupReset())
+
+	assert.True(t, cfg.GetSetupEnabled())
+	assert.False(t, cfg.GetSetupComplete())
+	assert.False(t, cfg.GetAuthEnable())
+
+	// Re-read from disk with a fresh viper to prove the write is durable.
+	v := viper.New()
+	v.SetConfigFile(cfg.GetConfigFilePath())
+	require.NoError(t, v.ReadInConfig())
+
+	reloaded := NewWithoutWatch(v)
+	assert.True(t, reloaded.GetSetupEnabled())
+	assert.False(t, reloaded.GetSetupComplete())
+	assert.False(t, reloaded.GetAuthEnable())
+	assert.False(t, reloaded.GetEnableBLOS(), "unrelated keys survive the reset")
+}
+
+func TestPersistSetupReset_FlipsCompletedNode(t *testing.T) {
+	cfg := setupTestConfigFromYAML(t, `# operator config
+setup:
+  # kill switch
+  enabled: false
+  complete: true
+auth:
+  enable: true
+  pamService: login
+`)
+
+	require.NoError(t, cfg.PersistSetupReset())
+
+	assert.True(t, cfg.GetSetupEnabled())
+	assert.False(t, cfg.GetSetupComplete())
+	assert.False(t, cfg.GetAuthEnable())
+	assert.Equal(t, "login", cfg.GetAuthPAMService())
+
+	data, err := os.ReadFile(cfg.GetConfigFilePath())
+	require.NoError(t, err)
+
+	content := string(data)
+	assert.Contains(t, content, "# operator config")
+	assert.Contains(t, content, "# kill switch")
+	assert.Contains(t, content, "enabled: true")
+	assert.Contains(t, content, "complete: false")
+	assert.Contains(t, content, "enable: false")
+	assert.NotContains(t, content, "enabled: false")
+}
+
+func TestPersistSetupReset_NoConfigFile(t *testing.T) {
+	cfg := NewWithoutWatch(viper.New())
+
+	err := cfg.PersistSetupReset()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no config file path configured")
+}
+
 func TestPersistSetupAndAuth_PreservesComments(t *testing.T) {
 	yamlContent := `# Main config
 setup:

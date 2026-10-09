@@ -13,6 +13,12 @@
 //                                                 (and any non-/setup → /setup)
 //   above two + session "Skip for now" flag set → routes open, /setup still
 //                                                 shows the wizard
+//   above two + already_configured=true         → routes open, /setup still
+//                                                 shows the wizard (a
+//                                                 hand-configured node with a
+//                                                 fresh config.yml must never
+//                                                 be trapped in a wizard that
+//                                                 resets UCI)
 //
 // On RPC error the gate FAILS CLOSED — i.e. treats the wizard as
 // unavailable so a transient glitch doesn't trap users in the wizard on
@@ -27,19 +33,23 @@ import StepNoHalowRadio from '../pages/setup/StepNoHalowRadio.jsx';
 
 const SETUP_PATH_PREFIX = '/setup';
 
-// gateStateFromStatus converts a GetSetupStatusResponse into one of five
+// gateStateFromStatus converts a GetSetupStatusResponse into one of six
 // branches the gate's render switches over. Pulled out into a pure
 // function so SetupGate.test.jsx can table-test it without standing up
 // the whole router. `dismissed` reflects the session-only "Skip for now"
 // flag; it only ever opens routes that would otherwise be trapped
 // (wizard-active / no-halow) and never affects the fail-closed or
-// setup-complete branches.
+// setup-complete branches. `status.alreadyConfigured` (the daemon's
+// "this node's UCI state looks set up" heuristic) opens the same routes
+// for the same reason: the wizard stays optional at /setup instead of
+// being forced on a node that is already configured.
 export function gateStateFromStatus(status, dismissed = false) {
   if (!status?.isEnabled) return 'wizard-hidden';
   if (status.isSetupComplete) return 'wizard-hidden';
 
   const trapped = !status.hasHalowRadio ? 'no-halow' : 'wizard-active';
   if (dismissed) return 'wizard-dismissed';
+  if (status.alreadyConfigured) return 'wizard-optional';
 
   return trapped;
 }
@@ -81,7 +91,7 @@ export default function SetupGate({ children }) {
     return <Navigate to={SETUP_PATH_PREFIX} replace />;
   }
 
-  if (gate === 'wizard-dismissed') {
+  if (gate === 'wizard-dismissed' || gate === 'wizard-optional') {
     // Routes open; visiting /setup still shows the wizard (its route
     // is part of children). Never traps.
     return children;
