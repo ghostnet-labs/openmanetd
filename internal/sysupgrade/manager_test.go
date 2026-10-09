@@ -197,12 +197,20 @@ func (c *inMemoryCache) Save(_ context.Context, r []Release, at time.Time) error
 func makeManager(t *testing.T, fetcher ReleasesFetcher, runner SysupgradeRunner, currentVer string) *Manager {
 	t.Helper()
 
+	return makeManagerWith(t, fetcher, runner, currentVer, nil)
+}
+
+// makeManagerWith is makeManager with a hook that may adjust the
+// Options before NewManager runs. A nil mutate leaves them unchanged.
+func makeManagerWith(t *testing.T, fetcher ReleasesFetcher, runner SysupgradeRunner, currentVer string, mutate func(*Options)) *Manager {
+	t.Helper()
+
 	desc := ""
 	if currentVer != "" {
 		desc = "OpenMANET " + currentVer
 	}
 
-	mgr := NewManager(Options{
+	opts := Options{
 		Log:  zerolog.Nop(),
 		Repo: "OpenMANET/firmware",
 		HTTP: http.DefaultClient,
@@ -231,7 +239,13 @@ func makeManager(t *testing.T, fetcher ReleasesFetcher, runner SysupgradeRunner,
 		Runner:           runner,
 		DownloadDir:      t.TempDir(),
 		PersistentLogDir: t.TempDir(),
-	})
+	}
+
+	if mutate != nil {
+		mutate(&opts)
+	}
+
+	mgr := NewManager(opts)
 
 	// Drain in-flight upgrade / watcher goroutines before the test's
 	// t.TempDir cleanup runs RemoveAll on the download / persistent log

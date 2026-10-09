@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/netip"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -208,6 +209,12 @@ const (
 	DefaultInstrumentationSnapshotDir string = "/tmp"
 	DefaultTerminalEnable             bool   = true
 	DefaultTerminalShell              string = "/bin/login"
+	// DefaultSysupgradeReleasesRepo is the GitHub "owner/name" repository
+	// whose releases feed the online firmware-update check and downloads.
+	DefaultSysupgradeReleasesRepo string = "OpenMANET/firmware"
+	// DefaultSysupgradeOnlineCheck controls whether the daemon contacts
+	// GitHub for online firmware offers. Manual image upload is unaffected.
+	DefaultSysupgradeOnlineCheck bool = true
 
 	// DefaultHardwareEnable starts the V1 hardware manager. On boards
 	// other than Ghostnet V1 it runs telemetry-only and drives nothing.
@@ -262,6 +269,9 @@ type HardwareConfig struct {
 	BatteryShutdownEnable bool
 }
 
+// sysupgradeReleasesRepoRe matches a GitHub "owner/name" repository slug.
+var sysupgradeReleasesRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
 // LuCI reverse-proxy defaults (Unified UI, GHO-69 / GHO-70).
 const (
 	// DefaultFrontendLuCIProxyEnable is the default for
@@ -305,6 +315,8 @@ type Config struct {
 	InstrumentationSnapshotDir                string
 	BLOSAdvertisedMeshSubnet                  string
 	TerminalShell                             string
+	SysupgradeReleasesRepo                    string
+	SysupgradeReleasesRepoRejected            string
 	CommsAudioSpeakerControl                  string
 	CommsAudioMicControl                      string
 	CommsAudioAGCControl                      string
@@ -358,7 +370,9 @@ type Config struct {
 	SetupComplete                             bool
 	InstrumentationEnable                     bool
 	TerminalEnable                            bool
-	FrontendLuCIProxyEnable                   bool
+	SysupgradeOnlineCheck                     bool
+
+	FrontendLuCIProxyEnable bool
 }
 
 // New creates a new Config instance with the given viper instance.
@@ -924,6 +938,27 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 		c.TerminalEnable = c.v.GetBool("terminal.enable")
 	} else {
 		c.TerminalEnable = DefaultTerminalEnable
+	}
+
+	// Load sysupgrade configuration. releasesRepo must be a GitHub
+	// "owner/name" slug; anything else falls back to the default and the
+	// rejected value is retained so the daemon can log a warning at
+	// startup (this package has no logger).
+	c.SysupgradeReleasesRepo = DefaultSysupgradeReleasesRepo
+	c.SysupgradeReleasesRepoRejected = ""
+
+	if val := strings.TrimSpace(c.v.GetString("sysupgrade.releasesRepo")); val != "" {
+		if sysupgradeReleasesRepoRe.MatchString(val) {
+			c.SysupgradeReleasesRepo = val
+		} else {
+			c.SysupgradeReleasesRepoRejected = val
+		}
+	}
+
+	if c.v.IsSet("sysupgrade.onlineCheck") {
+		c.SysupgradeOnlineCheck = c.v.GetBool("sysupgrade.onlineCheck")
+	} else {
+		c.SysupgradeOnlineCheck = DefaultSysupgradeOnlineCheck
 	}
 
 	c.Hardware = c.loadHardware()
@@ -1722,6 +1757,36 @@ func (c *Config) GetTerminalShell() string {
 	defer c.mu.RUnlock()
 
 	return c.TerminalShell
+}
+
+// GetSysupgradeReleasesRepo returns the GitHub "owner/name" repository
+// whose releases feed the online firmware-update check. Invalid
+// configured values are replaced by DefaultSysupgradeReleasesRepo.
+func (c *Config) GetSysupgradeReleasesRepo() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeReleasesRepo
+}
+
+// GetSysupgradeReleasesRepoRejected returns the configured
+// sysupgrade.releasesRepo value when it failed validation and was
+// replaced by the default, or "" when the configured value (if any) was
+// accepted. Callers use it to log a warning.
+func (c *Config) GetSysupgradeReleasesRepoRejected() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeReleasesRepoRejected
+}
+
+// GetSysupgradeOnlineCheck returns whether the online firmware-update
+// check against GitHub releases is enabled.
+func (c *Config) GetSysupgradeOnlineCheck() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.SysupgradeOnlineCheck
 }
 
 // GetHardware returns a copy of the hardware manager settings.

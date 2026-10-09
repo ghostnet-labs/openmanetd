@@ -265,6 +265,7 @@ func mapManagerError(log zerolog.Logger, err error, op string) error {
 		errors.Is(err, sysupgrade.ErrStagedPreflightFailed),
 		errors.Is(err, sysupgrade.ErrFactoryResetNotCapable),
 		errors.Is(err, sysupgrade.ErrFactoryResetHostnameUnknown),
+		errors.Is(err, sysupgrade.ErrOnlineCheckDisabled),
 		errors.Is(err, sysupgrade.ErrBusy):
 		log.Warn().Err(err).Str("op", op).Msg("sysupgrade: precondition failed")
 
