@@ -43,6 +43,9 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.1
+          # The Mac Studio VM's five runners share one user, so golangci-lint's
+          # lock file would make concurrent lint jobs fail.
+          args: --allow-parallel-runners
 
   test:
     runs-on: [self-hosted, Linux, ARM64]
