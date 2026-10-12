@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -35,8 +35,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install Dependencies
-        run: sudo apt update && sudo apt install -y build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev
+      - name: Check build dependencies are installed
+        # Preinstalled in the Mac Studio's Ubuntu VM: its runner user has no sudo.
+        run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -44,7 +45,7 @@ jobs:
           version: v2.13.1
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64]
     needs: lint
     steps:
       - name: Checkout code
@@ -57,8 +58,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install Dependencies
-        run: sudo apt update && sudo apt install -y build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev
+      - name: Check build dependencies are installed
+        # Preinstalled in the Mac Studio's Ubuntu VM: its runner user has no sudo.
+        run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
         run: make alfred
@@ -99,7 +101,7 @@ jobs:
 
   integration_test:
     name: "Integration tests"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64]
     needs: lint
     steps:
       - name: Checkout code
@@ -112,8 +114,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install Dependencies
-        run: sudo apt update && sudo apt install -y build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev
+      - name: Check build dependencies are installed
+        # Preinstalled in the Mac Studio's Ubuntu VM: its runner user has no sudo.
+        run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
         run: make alfred
@@ -142,7 +145,7 @@ jobs:
 
   benchmark:
     name: "Benchmarks"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64]
     needs: test
     steps:
       - name: Checkout code
@@ -155,8 +158,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install Dependencies
-        run: sudo apt update && sudo apt install -y build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev
+      - name: Check build dependencies are installed
+        # Preinstalled in the Mac Studio's Ubuntu VM: its runner user has no sudo.
+        run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
         run: make alfred
