@@ -37,8 +37,10 @@ jobs:
       - name: Lint frontend
         run: pnpm -C frontend run lint
 
+      # Same as `make test-frontend` minus the install above; the self-hosted
+      # Ubuntu VM has no make.
       - name: Run frontend tests
-        run: make test-frontend
+        run: pnpm -C frontend run test:coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
