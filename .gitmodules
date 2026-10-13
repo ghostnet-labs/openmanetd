@@ -1,6 +1,6 @@
 [submodule "proto"]
 	path = proto
-	url = git@github.com:ghostnet-labs/protobufs.git
+	url = https://github.com/ghostnet-labs/protobufs.git
 [submodule "internal/alfred"]
 	path = internal/alfred
-	url = git@github.com:OpenMANET/go-alfred.git
+	url = https://github.com/OpenMANET/go-alfred.git
