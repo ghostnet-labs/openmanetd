@@ -29,6 +29,7 @@ concurrency:
 jobs:
   lint:
     runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -67,6 +68,7 @@ jobs:
 
   test:
     runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
     needs: lint
     steps:
       - name: Checkout code
@@ -136,6 +138,7 @@ jobs:
   integration_test:
     name: "Integration tests"
     runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
     needs: lint
     steps:
       - name: Checkout code
@@ -193,6 +196,7 @@ jobs:
   benchmark:
     name: "Benchmarks"
     runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
     needs: test
     steps:
       - name: Checkout code
