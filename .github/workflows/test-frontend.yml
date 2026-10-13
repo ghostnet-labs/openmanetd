@@ -11,10 +11,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   frontend_test:
     name: "Frontend tests"
     runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
