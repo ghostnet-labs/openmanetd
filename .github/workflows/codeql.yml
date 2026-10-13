@@ -28,7 +28,9 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    # Pushes and same-repo PRs use the Mac Studio Linux VM runners; fork PRs
+    # stay on GitHub-hosted runners so outside code never reaches the Mac.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "Linux", "ARM64"]') || 'ubuntu-latest' }}
     permissions:
       # required for all workflows
       security-events: write
@@ -67,6 +69,26 @@ jobs:
     # or others). This is typically only required for manual builds.
     # - name: Setup runtime (example)
     #   uses: actions/setup-example@v1
+
+    # The Mac Studio VM's five runners share one Linux user and home
+    # directory. Give each runner its own Go caches so concurrent jobs do
+    # not unpack and read the same module cache at once.
+    - name: Use per-runner Go caches
+      if: runner.environment == 'self-hosted'
+      run: |
+        base="$(dirname "$(dirname "$GITHUB_WORKSPACE")")/_go"
+        {
+          echo "GOPATH=$base/path"
+          echo "GOMODCACHE=$base/path/pkg/mod"
+          echo "GOCACHE=$base/build"
+        } >>"$GITHUB_ENV"
+
+    # Self-hosted runners have no preinstalled Go for autobuild.
+    - name: Set up Go
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: "go.mod"
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
