@@ -29,6 +29,19 @@ func openFDs(t *testing.T) int {
 	return len(ents)
 }
 
+// shortTempDir returns a temp directory under /tmp. Unix socket paths are
+// limited to 108 bytes, and t.TempDir() under a runner's long TMPDIR (plus the
+// test name) overflows that, failing bind with "invalid argument".
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("/tmp", "blos")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return dir
+}
+
 // fakeLocalAPI is a minimal tailscaled LocalAPI served over a unix socket.
 // It implements the status and prefs endpoints the BLOS client uses and can
 // be switched into a failing mode to exercise error paths.
@@ -44,7 +57,7 @@ type fakeLocalAPI struct {
 func startFakeLocalAPI(t *testing.T) *fakeLocalAPI {
 	t.Helper()
 
-	f := &fakeLocalAPI{socket: filepath.Join(t.TempDir(), "ts.sock")}
+	f := &fakeLocalAPI{socket: filepath.Join(shortTempDir(t), "ts.sock")}
 	f.prefs.Hostname = "fake-node"
 
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", f.socket)

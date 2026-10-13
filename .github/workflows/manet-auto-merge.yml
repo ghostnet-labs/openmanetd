@@ -1,24 +1,27 @@
 name: Handle passing PRs
 on:
   workflow_run:
-    workflows: ["Manet merge gate","Build Frontend Assets","CodeQL Advanced","Release","Frontend Tests","Go Tests"]
+    workflows: ["Manet merge gate","Build Frontend Assets","CodeQL Advanced","Frontend Tests","Go Tests","Frontend E2E"]
     types: [completed]
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
   pull_request_review:
     types: [submitted, dismissed]
-  # Revisit dependencies and resolved conversations that have no local CI event.
+  # Hourly fallback for dependencies and resolved conversations that have no
+  # local CI event; check results and reviews above trigger it right away.
   schedule:
-    - cron: '4,19,34,49 * * * *'
+    - cron: '4 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
   pull-requests: write
   checks: read
   actions: write
+# A newer trigger replaces a queued or running sweep, so one run stuck waiting
+# for a runner can never hold the group and starve every later run.
 concurrency:
   group: manet-auto-merge
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   merge:
     name: Handle passing PRs
