@@ -7,10 +7,11 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
   pull_request_review:
     types: [submitted, dismissed]
-  # Hourly fallback for dependencies and resolved conversations that have no
-  # local CI event; check results and reviews above trigger it right away.
+  # Low-frequency fallback for dependencies and resolved conversations that
+  # have no local CI event; check results and reviews above trigger it right
+  # away, so this only catches what events miss.
   schedule:
-    - cron: '4 * * * *'
+    - cron: '4 */6 * * *'
   workflow_dispatch:
 permissions:
   contents: write
@@ -25,6 +26,11 @@ concurrency:
 jobs:
   merge:
     name: Handle passing PRs
+    # Self-hosted is safe here: pull_request_target runs only base-branch
+    # workflow code, and this job never checks out or executes PR-head code
+    # (it checks out a pinned docs commit and makes API calls).
+    # Hosted on purpose: this job holds a write token, so it must not share a persistent
+    # self-hosted runner with jobs that run PR code. Revisit with dedicated JIT runners.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
