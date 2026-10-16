@@ -19,8 +19,11 @@ concurrency:
 jobs:
   frontend_test:
     name: "Frontend tests"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "Linux", "ARM64"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
     timeout-minutes: 60
+    # Leave native overhead beneath the 2 GiB ephemeral runner limit.
+    env:
+      NODE_OPTIONS: --max-old-space-size=1400
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -43,10 +46,9 @@ jobs:
       - name: Lint frontend
         run: pnpm -C frontend run lint
 
-      # Same as `make test-frontend` minus the install above; the self-hosted
-      # Ubuntu VM has no make.
+      # Keep one Vitest worker inside the one-CPU ARC allocation.
       - name: Run frontend tests
-        run: pnpm -C frontend run test:coverage
+        run: pnpm -C frontend run test:coverage --maxWorkers=1
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
