@@ -39,10 +39,11 @@ func iwListFixture(t *testing.T) []byte {
 func newTestRadioGate(t *testing.T, v *viper.Viper, log zerolog.Logger) *radiogate.Gate {
 	t.Helper()
 
-	g := newRadioCapacityGate(config.NewWithoutWatch(v), log, nil, nil, nil)
+	g, p := newRadioCapacityGate(config.NewWithoutWatch(v), log, nil, nil, nil)
 
-	p, ok := g.Source.(*radiogate.Provider)
+	src, ok := g.Source.(*radiogate.Provider)
 	require.True(t, ok)
+	require.Same(t, p, src, "RadioService reads the gate's own provider")
 
 	out := iwListFixture(t)
 	p.Exec = func(context.Context) ([]byte, error) { return out, nil }

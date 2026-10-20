@@ -30,6 +30,7 @@ import (
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
 	niv1 "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1"
 	niconnect "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1/network_interfacev1connect"
+	radioconnect "github.com/openmanet/openmanetd/internal/api/openmanet/radio/v1/radiov1connect"
 	serviceproto "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1"
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupv1 "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1"
@@ -182,6 +183,8 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Manager:        hwManager,
 		StreamInterval: time.Millisecond,
 	}, handlerOpt))
+
+	mux.Handle(radioconnect.NewRadioServiceHandler(newIntegrationRadioService(t), handlerOpt))
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

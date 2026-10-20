@@ -354,3 +354,32 @@ func TestAPIAuthMiddleware_MeshJoinRequiresSession(t *testing.T) {
 		})
 	}
 }
+
+// TestAPIAuthMiddleware_RadioServiceRequiresSession pins that the radio
+// capacity and decision RPCs are never on the skip list.
+func TestAPIAuthMiddleware_RadioServiceRequiresSession(t *testing.T) {
+	store := auth.NewSessionStore(time.Hour, 16)
+	mw := auth.NewAPIAuthMiddleware(store, true)
+
+	for _, path := range []string{
+		"/openmanet.radio.v1.RadioService/GetRadioCapacity",
+		"/openmanet.radio.v1.RadioService/ListAdmissionDecisions",
+		"/openmanet.radio.v1.RadioService/ListPathDecisions",
+	} {
+		t.Run(path, func(t *testing.T) {
+			called := false
+			handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.False(t, called, "radio RPCs must not bypass auth")
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		})
+	}
+}

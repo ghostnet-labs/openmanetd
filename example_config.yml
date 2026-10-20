@@ -153,6 +153,8 @@ sysupgrade:
 # FAILED_PRECONDITION; off skips the check. A failed probe never blocks.
 # Enumerated PHYs are unqualified until listed below (wiphy "phy0" or
 # multi-radio "phy0/radio1"); the HaLow PHY is found from UCI type=morse.
+# The mode, PHY inventory and last 32 decisions are shown read-only on the
+# Wireless settings page (RadioService, session required).
 # radio:
 #   capacityGate: advisory
 #   capacity:

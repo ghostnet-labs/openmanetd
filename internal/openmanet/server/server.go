@@ -18,6 +18,7 @@ import (
 	meshjoinconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_join/v1/mesh_joinv1connect"
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
 	niconnect "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1/network_interfacev1connect"
+	radioconnect "github.com/openmanet/openmanetd/internal/api/openmanet/radio/v1/radiov1connect"
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupconnect "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1/setupv1connect"
 	supconnect "github.com/openmanet/openmanetd/internal/api/openmanet/sysupgrade/v1/sysupgradev1connect"
@@ -81,8 +82,9 @@ type APIServer struct {
 	SetupReloader       system.ServiceReloader
 	SetupRNG            *rand.Rand
 	// RadioCapacity is the radio capacity gate NewAPIServer builds. Its
-	// Recent decision history and NewBandAdmitter (the pathsel capacity
-	// input) are exposed here for later wiring; callers do not set it.
+	// decision history is served by RadioService; NewBandAdmitter (the
+	// pathsel capacity input) is exposed here for later wiring. Callers do
+	// not set it.
 	RadioCapacity *radiogate.Gate
 	AuthEnabled   bool
 }
@@ -277,11 +279,22 @@ func NewAPIServer(cfg APIServer) *APIServer {
 	// Radio capacity gate (GHO-59): radio writes from the settings page
 	// and mesh join are checked against the node's PHY capacity before
 	// staging. Advisory by default; see radio.capacityGate.
-	radioCapacity := newRadioCapacityGate(cfg.Cfg, cfg.Log.With().Str("component", "radio_capacity").Logger(),
+	radioCapacity, radioInventory := newRadioCapacityGate(cfg.Cfg, cfg.Log.With().Str("component", "radio_capacity").Logger(),
 		wifiSvc.ConfigReader, wifiSvc.WirelessStatus, wifiSvc.IwinfoClient)
 	wifiSvc.Capacity = radioCapacity
 
 	api.Handle(wificonfigconnect.NewWifiConfigServiceHandler(wifiSvc, connect.WithInterceptors(validateInterceptor)))
+
+	// RadioService (GHO-51) exposes the capacity gate's mode, PHY
+	// inventory and decision history read-only. Path selection is not
+	// wired to live traffic yet, so Paths stays nil and ListPathDecisions
+	// returns an empty list. Session-gated like every other settings read
+	// (not in isAPISkipPath).
+	api.Handle(radioconnect.NewRadioServiceHandler(&handlers.RadioService{
+		Log:       cfg.Log.With().Str("service", "radio").Logger(),
+		Gate:      radioCapacity,
+		Inventory: radioInventory,
+	}, connect.WithInterceptors(validateInterceptor)))
 
 	// MeshJoinService shares this node's mesh credentials as a QR code
 	// and joins the node from a scanned code. It reads the same UCI

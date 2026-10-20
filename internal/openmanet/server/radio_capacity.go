@@ -10,7 +10,8 @@ import (
 )
 
 // newRadioCapacityGate builds the radio capacity gate (GHO-59) from
-// config. Mode, qualification evidence and policy are read from cfg on
+// config, and returns the Provider it reads so RadioService can expose the
+// same cached PHY inventory. Mode, qualification evidence and policy are read from cfg on
 // every evaluation, so a config file edit applies without a restart. HaLow
 // PHYs are identified from the same UCI tree, ubus status and iwinfo the
 // wifi config service uses, plus hardware.halow.netdev.
@@ -20,7 +21,7 @@ func newRadioCapacityGate(
 	reader network.ConfigReader,
 	status network.WirelessStatusProvider,
 	iw iwinfo.IwinfoProvider,
-) *radiogate.Gate {
+) (*radiogate.Gate, *radiogate.Provider) {
 	if rejected := cfg.GetRadio().CapacityGateRejected; rejected != "" {
 		log.Warn().Str("configured", rejected).Str("fallback", string(radiogate.DefaultMode)).
 			Msg("radio.capacityGate is not off, advisory or enforce; using default")
@@ -49,7 +50,7 @@ func newRadioCapacityGate(
 		},
 	}
 
-	return &radiogate.Gate{
+	gate := &radiogate.Gate{
 		Log:    log,
 		Source: provider,
 		Mode: func() radiogate.Mode {
@@ -64,4 +65,6 @@ func newRadioCapacityGate(
 			return p
 		},
 	}
+
+	return gate, provider
 }
