@@ -8,6 +8,7 @@ import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/re
 const {
   mockListRadios, mockGetRadioStatus, mockGetRadioSettings, mockUpdateRadioSettings,
   mockListConnectedClients, mockListMeshPeers, mockGetMeshJoinQR, mockApplyMeshJoin,
+  mockGetRadioCapacity, mockListAdmissionDecisions,
 } = vi.hoisted(() => ({
   mockListRadios: vi.fn(),
   mockGetRadioStatus: vi.fn(),
@@ -17,6 +18,8 @@ const {
   mockListMeshPeers: vi.fn(),
   mockGetMeshJoinQR: vi.fn(),
   mockApplyMeshJoin: vi.fn(),
+  mockGetRadioCapacity: vi.fn(),
+  mockListAdmissionDecisions: vi.fn(),
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -32,6 +35,8 @@ vi.mock('@connectrpc/connect', async (importOriginal) => {
       listMeshPeers: mockListMeshPeers,
       getMeshJoinQR: mockGetMeshJoinQR,
       applyMeshJoin: mockApplyMeshJoin,
+      getRadioCapacity: mockGetRadioCapacity,
+      listAdmissionDecisions: mockListAdmissionDecisions,
     }),
   };
 });
@@ -43,11 +48,14 @@ import SettingsWireless from '../../pages/SettingsWireless.jsx';
 import { dBmToLevel, levelToDbm } from '../../pages/SettingsWireless.power.js';
 
 // The existing suites in this file don't touch mesh join at all, but the
-// Share Mesh panel (MeshJoinQR) is now always rendered, so every test needs
-// a safe default for the two new RPCs.
+// Share Mesh panel (MeshJoinQR) and the Radio capacity panel are always
+// rendered, so every test needs a safe default for their RPCs.
 beforeEach(() => {
   mockGetMeshJoinQR.mockResolvedValue(QR_RESPONSE);
   mockApplyMeshJoin.mockResolvedValue({ radios: [] });
+  // The Radio capacity panel is always rendered too.
+  mockGetRadioCapacity.mockResolvedValue({ capacity: { gateMode: 2, phys: [] } });
+  mockListAdmissionDecisions.mockResolvedValue({ decisions: [] });
 });
 
 afterEach(() => {
@@ -61,6 +69,8 @@ afterEach(() => {
   mockListMeshPeers.mockReset();
   mockGetMeshJoinQR.mockReset();
   mockApplyMeshJoin.mockReset();
+  mockGetRadioCapacity.mockReset();
+  mockListAdmissionDecisions.mockReset();
 });
 
 const RADIO_AP = {
@@ -172,6 +182,18 @@ describe('TestSettingsWirelessEmpty', () => {
     await waitFor(() => {
       expect(screen.getByText(/No radios detected/i)).toBeTruthy();
     });
+  });
+});
+
+describe('TestSettingsWirelessRadioCapacity', () => {
+  it('shows the Radio capacity panel beside the radios', async () => {
+    mockListRadios.mockResolvedValue({ radios: [] });
+    render(<SettingsWireless />);
+    await waitFor(() => {
+      expect(screen.getByText('Radio capacity')).toBeTruthy();
+      expect(screen.getByText('No admission decisions yet.')).toBeTruthy();
+    });
+    expect(mockListAdmissionDecisions).toHaveBeenCalledWith({ limit: 10 });
   });
 });
 

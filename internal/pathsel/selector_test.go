@@ -540,6 +540,78 @@ func TestSelector_lastAndForget(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestSelector_decisions(t *testing.T) {
+	const other = "node-9"
+
+	h := newSelector(t, pathsel.Config{})
+	h.typical()
+	h.metrics.set(other, pathsel.Band5G, makeMetrics(h.clock.Now(), 5, 2, 20, 60000))
+
+	assert.Empty(t, h.sel.Decisions("", "", 0), "nothing decided yet")
+
+	// An override alone creates state but no decision.
+	require.NoError(t, h.sel.SetOverride(other, pathsel.ClassControl, pathsel.Band5G))
+	assert.Empty(t, h.sel.Decisions("", "", 0))
+
+	voice := h.selectOK(t, pathsel.ClassVoice)
+
+	h.clock.Advance(time.Second)
+	control := h.selectOK(t, pathsel.ClassControl)
+
+	h.clock.Advance(time.Second)
+	bulkOther, err := h.sel.Select(other, pathsel.ClassBulk)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		dest  string
+		class pathsel.Class
+		limit int
+		want  []pathsel.Decision
+	}{
+		{name: "all newest first", want: []pathsel.Decision{bulkOther, control, voice}},
+		{name: "limit", limit: 2, want: []pathsel.Decision{bulkOther, control}},
+		{name: "destination", dest: peer, want: []pathsel.Decision{control, voice}},
+		{name: "class", class: pathsel.ClassVoice, want: []pathsel.Decision{voice}},
+		{name: "destination and class", dest: other, class: pathsel.ClassBulk, want: []pathsel.Decision{bulkOther}},
+		{name: "no match", dest: "node-404"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := h.sel.Decisions(tc.dest, tc.class, tc.limit)
+			assert.Len(t, got, len(tc.want))
+
+			for i := range tc.want {
+				if i < len(got) {
+					assert.Equal(t, tc.want[i], got[i])
+				}
+			}
+		})
+	}
+
+	got := h.sel.Decisions(peer, pathsel.ClassVoice, 1)
+	require.Len(t, got, 1)
+	got[0].Candidates[0].Score = -1
+	again, _ := h.sel.Last(peer, pathsel.ClassVoice)
+	assert.NotEqual(t, -1.0, again.Candidates[0].Score, "returned records are copies")
+}
+
+func TestSelector_decisionsTieOrder(t *testing.T) {
+	h := newSelector(t, pathsel.Config{})
+	h.typical()
+
+	for _, c := range []pathsel.Class{pathsel.ClassBulk, pathsel.ClassControl, pathsel.ClassVoice} {
+		h.selectOK(t, c)
+	}
+
+	got := h.sel.Decisions("", "", 0)
+	require.Len(t, got, 3)
+	assert.Equal(t, pathsel.ClassControl, got[0].Class, "same instant: higher priority first")
+	assert.Equal(t, pathsel.ClassVoice, got[1].Class)
+	assert.Equal(t, pathsel.ClassBulk, got[2].Class)
+}
+
 func TestDecision_JSON(t *testing.T) {
 	h := newSelector(t, pathsel.Config{})
 	h.typical()
@@ -576,6 +648,7 @@ func TestSelector_concurrentUse(t *testing.T) {
 				_ = h.sel.SetOverride(peer, class, pathsel.Band2G4)
 				h.sel.ClearOverride(peer, class)
 				_, _ = h.sel.Last(peer, class)
+				_ = h.sel.Decisions("", class, 2)
 			}
 		}()
 	}

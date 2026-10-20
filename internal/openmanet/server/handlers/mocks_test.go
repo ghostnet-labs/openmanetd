@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -15,6 +16,8 @@ import (
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
+	"github.com/openmanet/openmanetd/internal/pathsel"
+	"github.com/openmanet/openmanetd/internal/radiogate"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 )
@@ -562,4 +565,135 @@ func (f *fakeHardwareManager) subscriberCount() int {
 	defer f.mu.Unlock()
 
 	return len(f.subs)
+}
+
+// ── fakeRadioCapacityGate ─────────────────────────────────────────────────────
+
+// fakeRadioCapacityGate implements handlers.RadioCapacityGate: it records
+// every request and returns evaluateErr.
+type fakeRadioCapacityGate struct {
+	evaluateErr error
+	requests    []radiogate.Request
+	mu          sync.Mutex
+}
+
+func (f *fakeRadioCapacityGate) Evaluate(_ context.Context, req radiogate.Request) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.requests = append(f.requests, req)
+
+	return f.evaluateErr
+}
+
+func (f *fakeRadioCapacityGate) getRequests() []radiogate.Request {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]radiogate.Request(nil), f.requests...)
+}
+
+// ── failingSectionsReader ─────────────────────────────────────────────────────
+
+// failingSectionsReader wraps fakeConfigReader and fails GetSections for
+// one section type.
+type failingSectionsReader struct {
+	*fakeConfigReader
+	failType string
+}
+
+func (f *failingSectionsReader) GetSections(config, secType string) ([]string, error) {
+	if secType == f.failType {
+		return nil, errors.New("uci: list " + secType + " failed")
+	}
+
+	return f.fakeConfigReader.GetSections(config, secType)
+}
+
+// ── RadioService fakes ────────────────────────────────────────────────────────
+
+// fakeRadioCapacityView implements handlers.RadioCapacityView.
+type fakeRadioCapacityView struct {
+	mu          sync.Mutex // protects the fields below
+	mode        radiogate.Mode
+	records     []radiogate.Record
+	recentCalls int
+}
+
+func (f *fakeRadioCapacityView) CurrentMode() radiogate.Mode {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.mode
+}
+
+func (f *fakeRadioCapacityView) Recent() []radiogate.Record {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.recentCalls++
+
+	return append([]radiogate.Record(nil), f.records...)
+}
+
+func (f *fakeRadioCapacityView) getRecentCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.recentCalls
+}
+
+// fakeRadioInventory implements handlers.RadioInventory.
+type fakeRadioInventory struct {
+	mu           sync.Mutex // protects the fields below
+	inv          radiogate.Inventory
+	inventoryErr error
+	calls        int
+}
+
+func (f *fakeRadioInventory) Inventory(_ context.Context) (radiogate.Inventory, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+	if f.inventoryErr != nil {
+		return radiogate.Inventory{}, f.inventoryErr
+	}
+
+	return f.inv, nil
+}
+
+func (f *fakeRadioInventory) getCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.calls
+}
+
+// fakePathDecisionLister implements handlers.PathDecisionLister and
+// records the arguments of the last call.
+type fakePathDecisionLister struct {
+	mu        sync.Mutex // protects the fields below
+	decisions []pathsel.Decision
+	lastDest  string
+	lastClass pathsel.Class
+	lastLimit int
+	calls     int
+}
+
+func (f *fakePathDecisionLister) Decisions(dest string, class pathsel.Class, limit int) []pathsel.Decision {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+	f.lastDest, f.lastClass, f.lastLimit = dest, class, limit
+
+	return append([]pathsel.Decision(nil), f.decisions...)
+}
+
+func (f *fakePathDecisionLister) lastArgs() (string, pathsel.Class, int, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.lastDest, f.lastClass, f.lastLimit, f.calls
 }

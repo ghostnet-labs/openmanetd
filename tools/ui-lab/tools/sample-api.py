@@ -43,6 +43,9 @@ def rpc(method,b):
  if method=='SelectTalkGroup':selected=b['talkgroup'];return dict(success=True,message='Selected in sandbox')
  if method in ['SetSendTalkGroup','SetReceiveTalkGroup','SendPTTEvent']:return dict(success=True,message='Sample action; no audio transmission')
  if method=='GetAudioMixer':return dict(state=dict(available=False))
+ if method=='GetRadioCapacity':return dict(capacity=dict(generatedAt=now,inventoryUpdatedAt=now,gateMode='CAPACITY_GATE_MODE_ADVISORY',phys=[dict(name='phy0',wiphy='phy0',bands=['BAND_2_4_GHZ'],available=True),dict(name='phy1',wiphy='phy1',bands=['BAND_HALOW'],isHalow=True,available=True)]))
+ if method=='ListAdmissionDecisions':return dict(decisions=[dict(decidedAt=now,gateMode='CAPACITY_GATE_MODE_ADVISORY',outcome='ADMISSION_OUTCOME_REJECT',reason='ADMISSION_REASON_UNQUALIFIED_ONLY',explanation='Sample decision: no PHY is qualified in the sandbox',physicalQualification='PHYSICAL_QUALIFICATION_NOT_EVALUATED')][:b.get('limit',64)])
+ if method=='ListPathDecisions':return dict(decisions=[])
  raise NotImplementedError(method)
 
 class Handler(BaseHTTPRequestHandler):

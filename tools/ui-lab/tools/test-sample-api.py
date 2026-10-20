@@ -15,4 +15,8 @@ class SampleBackendTests(unittest.TestCase):
    with self.assertRaises(NotImplementedError):api.rpc(action,{})
  def test_simulated_data_is_identified(self):
   data=api.rpc('GetDashboardStatus',{});self.assertIn('sandbox',data['deviceInfo']['model']);self.assertIn('SIMULATED',data['deviceInfo']['hostname'])
+ def test_radio_capacity_is_read_only_sample(self):
+  cap=api.rpc('GetRadioCapacity',{})['capacity'];self.assertEqual(cap['gateMode'],'CAPACITY_GATE_MODE_ADVISORY');self.assertTrue(any(p.get('isHalow') for p in cap['phys']))
+  self.assertEqual(len(api.rpc('ListAdmissionDecisions',dict(limit=1))['decisions']),1);self.assertIn('Sample',api.rpc('ListAdmissionDecisions',{})['decisions'][0]['explanation'])
+  self.assertEqual(api.rpc('ListPathDecisions',dict(limit=5))['decisions'],[])
 if __name__=='__main__':unittest.main()

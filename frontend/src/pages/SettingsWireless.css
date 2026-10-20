@@ -238,6 +238,22 @@
   min-height: 44px;
 }
 
+/* radio capacity (GHO-51) ---------------------------------------------- */
+.radio-capacity .radio-cap-sub {
+  margin: 14px 0 6px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.radio-capacity .radio-cap-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
 /* mobile ----------------------------------------------------------------- */
 @media (max-width: 768px) {
   .settings-wireless-list {

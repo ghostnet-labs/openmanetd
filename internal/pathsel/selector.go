@@ -176,6 +176,45 @@ func (s *Selector) Last(dest string, class Class) (Decision, bool) {
 	return cloneDecision(st.last), true
 }
 
+// Decisions returns the latest decision of every (destination, class)
+// matching dest and class, newest DecidedAt first. An empty dest or class
+// matches every destination or class. limit <= 0 returns every match.
+func (s *Selector) Decisions(dest string, class Class, limit int) []Decision {
+	s.mu.Lock()
+
+	out := make([]Decision, 0, len(s.paths))
+
+	for k, st := range s.paths {
+		if st.decidedAt.IsZero() || (dest != "" && k.dest != dest) || (class != "" && k.class != class) {
+			continue
+		}
+
+		out = append(out, cloneDecision(st.last))
+	}
+
+	s.mu.Unlock()
+
+	slices.SortFunc(out, func(a, b Decision) int {
+		if c := b.DecidedAt.Compare(a.DecidedAt); c != 0 {
+			return c
+		}
+
+		// Ties (one Select pass at a fixed clock) order deterministically.
+		if c := strings.Compare(a.Destination, b.Destination); c != 0 {
+			return c
+		}
+
+		return b.Class.Priority() - a.Class.Priority()
+	})
+
+	if limit > 0 && len(out) > limit {
+		clear(out[limit:])
+		out = out[:limit]
+	}
+
+	return out
+}
+
 // Forget drops all state, including overrides, for dest.
 func (s *Selector) Forget(dest string) {
 	s.mu.Lock()

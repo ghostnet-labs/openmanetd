@@ -24,7 +24,8 @@
 //
 // Decisions are pure functions of the metrics, the optional capacity gate,
 // the clock and the selector's own state, so scenario tests are
-// deterministic. The package is not wired to transport or RPC yet.
+// deterministic. The package is not wired to transport yet; once a Selector
+// runs, RadioService.ListPathDecisions exposes its Decisions.
 package pathsel
 
 import (

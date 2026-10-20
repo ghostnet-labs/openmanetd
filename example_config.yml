@@ -146,6 +146,22 @@ sysupgrade:
 #       allowed: ["36/80", "149/80"]
 #   timing:
 #     advertInterval: 10s
+# Radio capacity gate (GHO-59). Radio changes from the settings page and
+# mesh join are checked against the PHYs `iw list` reports before anything
+# is written. advisory (default) logs and records the decision but never
+# blocks; enforce refuses a deferred or rejected change with
+# FAILED_PRECONDITION; off skips the check. A failed probe never blocks.
+# Enumerated PHYs are unqualified until listed below (wiphy "phy0" or
+# multi-radio "phy0/radio1"); the HaLow PHY is found from UCI type=morse.
+# The mode, PHY inventory and last 64 decisions are shown read-only on the
+# Wireless settings page (RadioService, session required).
+# radio:
+#   capacityGate: advisory
+#   capacity:
+#     qualifiedPhys: []          # PHYs with hardware qualification evidence
+#     sharingQualifiedPhys: []   # qualified for 2+ interfaces on one channel
+#     unavailablePhys: []        # treat as failed even though enumerated
+#     allowUnqualified: false    # let unqualified PHYs carry demands
 frontend:
   # Unified UI (GHO-69/GHO-70): reverse-proxy LuCI through the OpenMANET web
   # server so https://<node>:8081/cgi-bin/luci/ reaches LuCI on the same

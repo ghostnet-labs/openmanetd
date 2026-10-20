@@ -87,11 +87,9 @@ func (f *chanmigFixture) writePrivateKey(t *testing.T, priv ed25519.PrivateKey, 
 	require.NoError(t, os.Chmod(f.cfg.PrivateKeyFile, mode))
 }
 
-func TestChanmigDataType_doesNotCollide(t *testing.T) {
-	for v := range netv1.DataType_name {
-		assert.NotEqual(t, int32(platform.AlfredDataType), v,
-			"alfred data type %d is already used by openmanet.network.v1.DataType", platform.AlfredDataType)
-	}
+func TestChanmigDataType_matchesReservation(t *testing.T) {
+	assert.Equal(t, int32(netv1.DataType_DATA_TYPE_CHANNEL_MIGRATION), int32(platform.AlfredDataType),
+		"platform.AlfredDataType must match openmanet.network.v1.DATA_TYPE_CHANNEL_MIGRATION")
 }
 
 func TestStartChanmig_offByDefault(t *testing.T) {

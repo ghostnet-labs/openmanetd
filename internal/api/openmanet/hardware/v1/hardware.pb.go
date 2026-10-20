@@ -550,8 +550,11 @@ const (
 	// FAULT_LINE_INA228_ALERT is INA228_ALERT_N (GPIO20), the battery monitor's
 	// hardware alert.
 	FaultLine_FAULT_LINE_INA228_ALERT FaultLine = 7
-	// FAULT_LINE_SUPERVISOR_WDO is SUPERVISOR_WDO (GPIO11), the TPS386000
-	// watchdog output. Logged only.
+	// FAULT_LINE_SUPERVISOR_WDO was SUPERVISOR_WDO (GPIO11), the TPS386000
+	// watchdog output. Retired by D-044/R-23: GPIO11 is now the SUPERVISOR_ARM
+	// output, so openmanetd never emits this value. Kept for wire compatibility.
+	//
+	// Deprecated: Marked as deprecated in openmanet/hardware/v1/hardware.proto.
 	FaultLine_FAULT_LINE_SUPERVISOR_WDO FaultLine = 8
 )
 
@@ -1722,7 +1725,7 @@ const file_openmanet_hardware_v1_hardware_proto_rawDesc = "" +
 	"\x19RECOVERY_RESULT_SUCCEEDED\x10\x01\x12\x1a\n" +
 	"\x16RECOVERY_RESULT_FAILED\x10\x02\x12\x1b\n" +
 	"\x17RECOVERY_RESULT_SKIPPED\x10\x03\x12\x1d\n" +
-	"\x19RECOVERY_RESULT_EXHAUSTED\x10\x04*\x8f\x02\n" +
+	"\x19RECOVERY_RESULT_EXHAUSTED\x10\x04*\x93\x02\n" +
 	"\tFaultLine\x12\x1a\n" +
 	"\x16FAULT_LINE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16FAULT_LINE_HALOW_FAULT\x10\x01\x12\x19\n" +
@@ -1731,8 +1734,8 @@ const file_openmanet_hardware_v1_hardware_proto_rawDesc = "" +
 	"\x16FAULT_LINE_EFUSE_FAULT\x10\x04\x12\x1e\n" +
 	"\x1aFAULT_LINE_HALOW_USB_FAULT\x10\x05\x12\x1c\n" +
 	"\x18FAULT_LINE_VLM_USB_FAULT\x10\x06\x12\x1b\n" +
-	"\x17FAULT_LINE_INA228_ALERT\x10\a\x12\x1d\n" +
-	"\x19FAULT_LINE_SUPERVISOR_WDO\x10\b*s\n" +
+	"\x17FAULT_LINE_INA228_ALERT\x10\a\x12!\n" +
+	"\x19FAULT_LINE_SUPERVISOR_WDO\x10\b\x1a\x02\b\x01*s\n" +
 	"\tLineState\x12\x1a\n" +
 	"\x16LINE_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16LINE_STATE_UNAVAILABLE\x10\x01\x12\x15\n" +
