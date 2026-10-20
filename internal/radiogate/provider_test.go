@@ -297,3 +297,58 @@ func TestProvider_Model_concurrentSingleFlight(t *testing.T) {
 	wg.Wait()
 	assert.Equal(t, 1, ex.getCalls(), "concurrent callers share one probe")
 }
+
+func TestProvider_Inventory(t *testing.T) {
+	settings := radiogate.Settings{
+		QualifiedPHYs:        []string{"phy0", "phy2"},
+		SharingQualifiedPHYs: []string{"phy0"},
+		UnavailablePHYs:      []string{"phy1"},
+	}
+	p, ex, clk := newProvider(t, settings)
+	ctx := context.Background()
+	probedAt := clk.Now()
+
+	inv, err := p.Inventory(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, ex.getCalls(), "the first call probes")
+	assert.Equal(t, probedAt, inv.UpdatedAt)
+	require.Len(t, inv.PHYs, 3)
+
+	byName := make(map[string]radiocap.PHY, len(inv.PHYs))
+	for _, phy := range inv.PHYs {
+		byName[phy.Name] = phy
+	}
+
+	assert.True(t, byName["phy0"].Qualified)
+	assert.True(t, byName["phy0"].SharingQualified)
+	assert.True(t, byName["phy0"].Available)
+	assert.False(t, byName["phy1"].Qualified)
+	assert.False(t, byName["phy1"].Available)
+	assert.True(t, byName["phy2"].Qualified)
+	assert.Equal(t, []radiocap.Band{radiocap.BandS1G}, byName["phy2"].Bands)
+
+	inv.PHYs[0].Bands[0] = radiocap.Band60G
+
+	clk.Advance(time.Second)
+
+	again, err := p.Inventory(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, ex.getCalls(), "reused within the TTL")
+	assert.Equal(t, probedAt, again.UpdatedAt)
+	assert.NotEqual(t, radiocap.Band60G, again.PHYs[0].Bands[0], "callers get copies")
+}
+
+func TestProvider_Inventory_probeFailure(t *testing.T) {
+	p, ex, _ := newProvider(t, radiogate.Settings{})
+	ctx := context.Background()
+
+	_, err := p.Inventory(ctx)
+	require.NoError(t, err)
+
+	ex.setErr(errors.New("exec: \"iw\": executable file not found"))
+	p.Invalidate()
+
+	_, err = p.Inventory(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "iw list")
+}

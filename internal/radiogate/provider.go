@@ -100,6 +100,7 @@ type Provider struct { //nolint:govet // fieldalignment: probeMu and mu must sit
 
 	mu       sync.Mutex // protects the fields below
 	probedAt time.Time
+	physAt   time.Time // when phys was last probed successfully
 	probeErr error
 	model    *radiocap.Model
 	phys     []radiocap.PHY // parsed, HaLow-marked, no evidence applied
@@ -242,6 +243,7 @@ func (p *Provider) ensureProbe(ctx context.Context, force bool) error {
 	}
 
 	p.phys = phys
+	p.physAt = p.probedAt
 	p.gen++
 
 	return nil
@@ -295,10 +297,7 @@ func (p *Provider) buildModel(s Settings) (*radiocap.Model, error) {
 	phys := make([]radiocap.PHY, len(p.phys))
 	for i := range p.phys {
 		phys[i] = p.phys[i]
-		phy := &phys[i]
-		phy.Available = !matches(s.UnavailablePHYs, phy)
-		phy.Qualified = matches(s.QualifiedPHYs, phy)
-		phy.SharingQualified = matches(s.SharingQualifiedPHYs, phy)
+		s.apply(&phys[i])
 	}
 
 	// NewModel deep-copies, so the shallow copies above never alias the
@@ -313,6 +312,43 @@ func (p *Provider) buildModel(s Settings) (*radiocap.Model, error) {
 	p.settings = s.clone()
 
 	return m, nil
+}
+
+// Inventory is the probed PHY list with qualification evidence applied.
+type Inventory struct {
+	// UpdatedAt is when the PHYs were last probed successfully.
+	UpdatedAt time.Time
+	// PHYs are deep copies the caller may modify.
+	PHYs []radiocap.PHY
+}
+
+// Inventory returns the current PHYs with the current settings applied,
+// probing `iw list` under the same TTL, backoff and single-flight rules as
+// Model.
+func (p *Provider) Inventory(ctx context.Context) (Inventory, error) {
+	if err := p.ensureProbe(ctx, false); err != nil {
+		return Inventory{}, err
+	}
+
+	s := p.currentSettings()
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	inv := Inventory{UpdatedAt: p.physAt, PHYs: make([]radiocap.PHY, len(p.phys))}
+	for i := range p.phys {
+		inv.PHYs[i] = clonePHY(&p.phys[i])
+		s.apply(&inv.PHYs[i])
+	}
+
+	return inv, nil
+}
+
+// apply sets the evidence-derived flags of phy.
+func (s *Settings) apply(phy *radiocap.PHY) {
+	phy.Available = !matches(s.UnavailablePHYs, phy)
+	phy.Qualified = matches(s.QualifiedPHYs, phy)
+	phy.SharingQualified = matches(s.SharingQualifiedPHYs, phy)
 }
 
 func matches(names []string, phy *radiocap.PHY) bool {

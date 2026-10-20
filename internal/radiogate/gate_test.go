@@ -278,6 +278,8 @@ func TestGate_Evaluate_neverBlocksWhenCheckCannotRun(t *testing.T) {
 			recs := g.Recent()
 			require.Len(t, recs, 1)
 			assert.Nil(t, recs[0].Decision)
+			assert.Nil(t, recs[0].RequestedDemands, "demands are kept only with a decision")
+			assert.Nil(t, recs[0].CurrentDemands)
 			assert.False(t, recs[0].Blocked)
 			assert.Contains(t, recs[0].Error, tc.wantErr)
 			assert.Contains(t, logs.String(), "proceeding without it")
@@ -294,6 +296,30 @@ func TestGate_Evaluate_defaultsWithNilFuncs(t *testing.T) {
 	require.Len(t, recs, 1)
 	assert.Equal(t, radiogate.ModeAdvisory, recs[0].Mode)
 	assert.Equal(t, radiocap.OutcomeReject, recs[0].Decision.Outcome, "nil Policy is the default reject-on-shortage policy")
+}
+
+func TestGate_CurrentMode(t *testing.T) {
+	assert.Equal(t, radiogate.DefaultMode, (&radiogate.Gate{}).CurrentMode(), "nil Mode is the default")
+
+	for _, m := range []radiogate.Mode{radiogate.ModeOff, radiogate.ModeAdvisory, radiogate.ModeEnforce} {
+		assert.Equal(t, m, newGate(nil, m, zerolog.Nop()).CurrentMode())
+	}
+}
+
+func TestGate_Evaluate_recordsDemands(t *testing.T) {
+	g := newGate(&fakeSource{model: nodeModel(t, allEvidence())}, radiogate.ModeAdvisory, zerolog.Nop())
+
+	req := halowJoin(t)
+	require.NoError(t, g.Evaluate(context.Background(), req))
+
+	recs := g.Recent()
+	require.Len(t, recs, 1)
+	require.NotNil(t, recs[0].Decision)
+	assert.Equal(t, req.Current, recs[0].CurrentDemands)
+	assert.Equal(t, req.Requested, recs[0].RequestedDemands)
+
+	req.Requested[0].ID = "mutated"
+	assert.Equal(t, "default_radio3", g.Recent()[0].RequestedDemands[0].ID, "the record owns a copy")
 }
 
 func TestGate_Evaluate_policyAllowUnqualified(t *testing.T) {

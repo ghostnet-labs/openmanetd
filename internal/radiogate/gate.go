@@ -121,6 +121,11 @@ func (g *Gate) now() time.Time {
 	return time.Now()
 }
 
+// CurrentMode returns the mode the next evaluation will use.
+func (g *Gate) CurrentMode() Mode {
+	return g.mode()
+}
+
 // Recent returns up to RingSize recent decisions, newest first.
 func (g *Gate) Recent() []Record {
 	return g.history.Recent()
@@ -162,7 +167,11 @@ func (g *Gate) Evaluate(ctx context.Context, req Request) error {
 		return nil
 	}
 
+	// The demands are kept only with a decision: a request the model
+	// could not evaluate has nothing to explain.
 	rec.Decision = &dec
+	rec.CurrentDemands = slices.Clone(req.Current)
+	rec.RequestedDemands = slices.Clone(req.Requested)
 	rec.Blocked = mode == ModeEnforce && dec.Outcome != radiocap.OutcomeAdmit
 	g.history.Add(rec)
 

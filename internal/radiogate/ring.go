@@ -23,6 +23,10 @@ type Record struct {
 	Decision *radiocap.Decision `json:"decision,omitempty"`
 	// Radios are the UCI wifi-device sections the change touched.
 	Radios []string `json:"radios"`
+	// CurrentDemands and RequestedDemands are the demands Decision was
+	// made for, nil when Error is set.
+	CurrentDemands   []radiocap.Demand `json:"current_demands,omitempty"`
+	RequestedDemands []radiocap.Demand `json:"requested_demands,omitempty"`
 	// Current and Requested count the demands evaluated.
 	Current   int `json:"current"`
 	Requested int `json:"requested"`
