@@ -242,6 +242,49 @@ const (
 	DefaultHardwarePackResistanceOhm float64 = 0.06
 )
 
+// Radio capacity gate modes (radio.capacityGate, GHO-59). The gate checks
+// every radio configuration change against the node's physical radio
+// capacity model (internal/radiocap).
+const (
+	// RadioCapacityGateOff skips the capacity check entirely.
+	RadioCapacityGateOff string = "off"
+	// RadioCapacityGateAdvisory evaluates and records every change and logs
+	// a warning on defer/reject, but never blocks the change.
+	RadioCapacityGateAdvisory string = "advisory"
+	// RadioCapacityGateEnforce refuses a change the model defers or rejects.
+	RadioCapacityGateEnforce string = "enforce"
+	// DefaultRadioCapacityGate is advisory: no PHY has hardware
+	// qualification evidence yet, so an enforcing default would refuse
+	// every radio change on every node.
+	DefaultRadioCapacityGate string = RadioCapacityGateAdvisory
+	// DefaultRadioCapacityAllowUnqualified keeps the radiocap default
+	// policy: only qualified PHYs may carry demands.
+	DefaultRadioCapacityAllowUnqualified bool = false
+)
+
+// RadioConfig holds the radio capacity gate settings. It is returned by
+// value from GetRadio; the slices are copied so callers may keep them.
+type RadioConfig struct {
+	// CapacityGate is one of the RadioCapacityGate* modes.
+	CapacityGate string
+	// CapacityGateRejected is the configured radio.capacityGate value when
+	// it was not a known mode and the default was used instead, else "".
+	CapacityGateRejected string
+	// QualifiedPHYs names the PHYs (wiphy "phy0" or radio "phy0/radio1")
+	// with hardware qualification evidence. radio.capacity.qualifiedPhys.
+	QualifiedPHYs []string
+	// SharingQualifiedPHYs names the PHYs qualified to carry more than one
+	// interface on the same channel (for example mesh plus EUD AP).
+	// radio.capacity.sharingQualifiedPhys.
+	SharingQualifiedPHYs []string
+	// UnavailablePHYs names PHYs to treat as failed or missing even though
+	// `iw list` enumerates them. radio.capacity.unavailablePhys.
+	UnavailablePHYs []string
+	// AllowUnqualified lets unqualified PHYs carry demands.
+	// radio.capacity.allowUnqualified.
+	AllowUnqualified bool
+}
+
 // HardwareConfig holds the V1 hardware manager settings. It is returned by
 // value from GetHardware; FaultInputs is copied so callers may keep it.
 type HardwareConfig struct {
@@ -326,6 +369,7 @@ type Config struct {
 	CommsAudioMicControl                      string
 	CommsAudioAGCControl                      string
 	onChangeCallbacks                         []func(*Config)
+	Radio                                     RadioConfig
 	Hardware                                  HardwareConfig
 	Chanmig                                   ChanmigConfig
 	AlfredNodeExpiry                          time.Duration
@@ -984,6 +1028,36 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 
 	c.Hardware = c.loadHardware()
 	c.Chanmig = c.loadChanmig()
+	c.Radio = c.loadRadio()
+}
+
+// loadRadio reads the radio capacity gate section, applying defaults. An
+// unknown radio.capacityGate falls back to the default and is kept in
+// CapacityGateRejected so the daemon can warn (this package has no
+// logger). The caller holds c.mu.
+func (c *Config) loadRadio() RadioConfig {
+	r := RadioConfig{
+		CapacityGate:         DefaultRadioCapacityGate,
+		QualifiedPHYs:        c.v.GetStringSlice("radio.capacity.qualifiedPhys"),
+		SharingQualifiedPHYs: c.v.GetStringSlice("radio.capacity.sharingQualifiedPhys"),
+		UnavailablePHYs:      c.v.GetStringSlice("radio.capacity.unavailablePhys"),
+		AllowUnqualified:     DefaultRadioCapacityAllowUnqualified,
+	}
+
+	if raw := strings.TrimSpace(c.v.GetString("radio.capacityGate")); raw != "" {
+		switch mode := strings.ToLower(raw); mode {
+		case RadioCapacityGateOff, RadioCapacityGateAdvisory, RadioCapacityGateEnforce:
+			r.CapacityGate = mode
+		default:
+			r.CapacityGateRejected = raw
+		}
+	}
+
+	if c.v.IsSet("radio.capacity.allowUnqualified") {
+		r.AllowUnqualified = c.v.GetBool("radio.capacity.allowUnqualified")
+	}
+
+	return r
 }
 
 // loadHardware reads the hardware section, applying defaults. The caller
@@ -1839,6 +1913,19 @@ func (c *Config) GetHardware() HardwareConfig {
 	h.FaultInputs = append([]string(nil), c.Hardware.FaultInputs...)
 
 	return h
+}
+
+// GetRadio returns a copy of the radio capacity gate settings.
+func (c *Config) GetRadio() RadioConfig {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	r := c.Radio
+	r.QualifiedPHYs = append([]string(nil), c.Radio.QualifiedPHYs...)
+	r.SharingQualifiedPHYs = append([]string(nil), c.Radio.SharingQualifiedPHYs...)
+	r.UnavailablePHYs = append([]string(nil), c.Radio.UnavailablePHYs...)
+
+	return r
 }
 
 // parseDurationOrDefault parses a Go duration string, returning def when
