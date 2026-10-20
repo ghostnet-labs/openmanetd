@@ -304,3 +304,16 @@ func TestChanmigTiming_overlay(t *testing.T) {
 		ColdBootGrace: 6, Dwell: 7, AbortMargin: 8, MaxLead: 9, RadioRetry: 10, Stagger: 11,
 	}, chanmigTiming(base, full), "every field is overlaid")
 }
+
+func TestChanmigAPI_nilServiceIsNilInterface(t *testing.T) {
+	assert.Nil(t, chanmigAPI(nil), "a typed nil must not reach the handler interface")
+
+	f := newChanmigFixture(t)
+
+	svc, err := buildChanmig(f.cfg, f.deps)
+	require.NoError(t, err)
+
+	api := chanmigAPI(svc)
+	require.NotNil(t, api)
+	assert.Equal(t, uint64(9), api.Snapshot().MeshID)
+}
