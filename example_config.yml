@@ -110,6 +110,42 @@ sysupgrade:
 #   wifi:
 #     pciAddress: ""             # PCIe function, e.g. 0001:01:00.0
 #     netdev: ""
+# Authenticated channel/width migration (internal/chanmig). OFF by default:
+# with enable false nothing starts and no radio is touched. When on, nodes
+# exchange Ed25519-signed channel plans over alfred (data type 104, needs
+# alfred.enable) and retune radios by rewriting channel/htmode of the band's
+# wifi-device in /etc/config/wireless, then running reload_config.
+# Keys are provisioned out of band (there is no network distribution):
+#   every node:        publicKeyFile  - PEM "PUBLIC KEY" or base64 raw key(s)
+#   coordinators only: privateKeyFile - PEM PKCS#8 or base64 seed, mode 0600
+#   openssl genpkey -algorithm ed25519 -out authority.key
+#   openssl pkey -in authority.key -pubout -out authority.pub
+# A node without the private key file is a plain member. Every node of a mesh
+# must share meshId and the band lists. Assignments are "CHANNEL/WIDTH_MHZ";
+# a band without an initial assignment is not managed. Timers default to
+# values sized for alfred's ~10 s sync (advert 10s, peer window 45s, verify
+# and fallback 60s, peer loss 150s, dwell 30s); override as Go durations.
+# chanmig:
+#   enable: false
+#   meshId: 0                    # uint64 shared by every node of the mesh
+#   nodeId: 0                    # 0 = derived from the alfred.batInterface MAC
+#   publicKeyFile: /etc/openmanetd/chanmig/authority.pub
+#   privateKeyFile: /etc/openmanetd/chanmig/authority.key
+#   storeFile: /etc/openmanetd/chanmig/plans.bin   # accepted plans, survives reboot
+#   historyLen: 4                # superseded plans kept for rediscovery (max 16)
+#   bands:
+#     halow:
+#       radio: ""                # wifi-device section; "" = first with band s1g
+#       initial: "28/2"
+#       rendezvous: ["28/2"]
+#       allowed: ["28/2", "30/4", "12/1"]
+#     2g:
+#       initial: "6/20"
+#     5g:
+#       initial: "36/80"
+#       allowed: ["36/80", "149/80"]
+#   timing:
+#     advertInterval: 10s
 frontend:
   # Unified UI (GHO-69/GHO-70): reverse-proxy LuCI through the OpenMANET web
   # server so https://<node>:8081/cgi-bin/luci/ reaches LuCI on the same
