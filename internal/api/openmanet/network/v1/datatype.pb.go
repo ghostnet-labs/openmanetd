@@ -43,6 +43,10 @@ const (
 	// vxlan0-reached peers into the physical mesh of whichever publisher
 	// hears them on a non-vxlan interface.
 	DataType_DATA_TYPE_MESH_NEIGHBORS DataType = 103
+	// Channel migration data type. Each node republishes a bundle of its
+	// latest channel-migration messages (signed plans, acks, adverts).
+	// Payload: openmanetd internal/chanmig/platform bundle, record version 1.
+	DataType_DATA_TYPE_CHANNEL_MIGRATION DataType = 104
 )
 
 // Enum value maps for DataType.
@@ -53,6 +57,7 @@ var (
 		101: "DATA_TYPE_ADDRESS_RESERVATION",
 		102: "DATA_TYPE_NODE",
 		103: "DATA_TYPE_MESH_NEIGHBORS",
+		104: "DATA_TYPE_CHANNEL_MIGRATION",
 	}
 	DataType_value = map[string]int32{
 		"DATA_TYPE_UNSPECIFIED":         0,
@@ -60,6 +65,7 @@ var (
 		"DATA_TYPE_ADDRESS_RESERVATION": 101,
 		"DATA_TYPE_NODE":                102,
 		"DATA_TYPE_MESH_NEIGHBORS":      103,
+		"DATA_TYPE_CHANNEL_MIGRATION":   104,
 	}
 )
 
@@ -94,13 +100,14 @@ var File_openmanet_network_v1_datatype_proto protoreflect.FileDescriptor
 
 const file_openmanet_network_v1_datatype_proto_rawDesc = "" +
 	"\n" +
-	"#openmanet/network/v1/datatype.proto\x12\x14openmanet.network.v1*\x95\x01\n" +
+	"#openmanet/network/v1/datatype.proto\x12\x14openmanet.network.v1*\xb6\x01\n" +
 	"\bDataType\x12\x19\n" +
 	"\x15DATA_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11DATA_TYPE_GATEWAY\x10d\x12%\n" +
 	"\x1dDATA_TYPE_ADDRESS_RESERVATION\x10e\x1a\x02\b\x01\x12\x12\n" +
 	"\x0eDATA_TYPE_NODE\x10f\x12\x1c\n" +
-	"\x18DATA_TYPE_MESH_NEIGHBORS\x10gB\xe8\x01\n" +
+	"\x18DATA_TYPE_MESH_NEIGHBORS\x10g\x12\x1f\n" +
+	"\x1bDATA_TYPE_CHANNEL_MIGRATION\x10hB\xe8\x01\n" +
 	"\x18com.openmanet.network.v1B\rDatatypeProtoP\x01ZKgithub.com/openmanet/openmanetd/internal/api/openmanet/network/v1;networkv1\xa2\x02\x03ONX\xaa\x02\x14Openmanet.Network.V1\xca\x02\x14Openmanet\\Network\\V1\xe2\x02 Openmanet\\Network\\V1\\GPBMetadata\xea\x02\x16Openmanet::Network::V1b\x06proto3"
 
 var (
