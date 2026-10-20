@@ -18,6 +18,9 @@
 //
 // The package is transport- and radio-agnostic. Callers inject a Clock, a
 // Transport, a RadioSetter and a Store; no radio is actuated and no RPC is
-// exposed here. The design is recorded in the ghostnet-labs docs repository
+// exposed here. The production adapters (alfred transport, UCI radio
+// setter, file store, key loading) live in the platform subpackage, and the
+// daemon starts a node only when chanmig.enable is set. The design is
+// recorded in the ghostnet-labs docs repository
 // at project/software/channel-migration.md.
 package chanmig
