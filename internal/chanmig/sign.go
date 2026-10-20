@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // NodeID identifies a mesh node (for example derived from its primary MAC).
@@ -97,6 +98,10 @@ func NewVerifier(meshID uint64, keys ...ed25519.PublicKey) (*Verifier, error) {
 
 // MeshID returns the mesh the verifier accepts plans for.
 func (v *Verifier) MeshID() uint64 { return v.meshID }
+
+// Keys returns the trusted public keys in provisioning order. The slice is
+// a copy; the keys themselves are shared and must not be modified.
+func (v *Verifier) Keys() []ed25519.PublicKey { return slices.Clone(v.keys) }
 
 // Verify authenticates raw against sig, then parses and validates it. The
 // signature is checked before parsing so unauthenticated bytes never reach
