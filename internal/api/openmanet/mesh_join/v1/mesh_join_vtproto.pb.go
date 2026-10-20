@@ -51,6 +51,19 @@ func (m *MeshJoinPayload) CloneVT() *MeshJoinPayload {
 	r.SourceHostname = m.SourceHostname
 	r.Halow = m.Halow.CloneVT()
 	r.Backhaul = m.Backhaul.CloneVT()
+	if rhs := m.PlanAuthorityPublicKeys; rhs != nil {
+		tmpContainer := make([][]byte, len(rhs))
+		for k, v := range rhs {
+			tmpBytes := make([]byte, len(v))
+			copy(tmpBytes, v)
+			tmpContainer[k] = tmpBytes
+		}
+		r.PlanAuthorityPublicKeys = tmpContainer
+	}
+	if rhs := m.ChanmigMeshId; rhs != nil {
+		tmpVal := *rhs
+		r.ChanmigMeshId = &tmpVal
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -190,6 +203,18 @@ func (this *MeshJoinPayload) EqualVT(that *MeshJoinPayload) bool {
 		return false
 	}
 	if !this.Backhaul.EqualVT(that.Backhaul) {
+		return false
+	}
+	if len(this.PlanAuthorityPublicKeys) != len(that.PlanAuthorityPublicKeys) {
+		return false
+	}
+	for i, vx := range this.PlanAuthorityPublicKeys {
+		vy := that.PlanAuthorityPublicKeys[i]
+		if string(vx) != string(vy) {
+			return false
+		}
+	}
+	if p, q := this.ChanmigMeshId, that.ChanmigMeshId; (p == nil && q != nil) || (p != nil && (q == nil || *p != *q)) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -411,6 +436,20 @@ func (m *MeshJoinPayload) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.ChanmigMeshId != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.ChanmigMeshId))
+		i--
+		dAtA[i] = 0x28
+	}
+	if len(m.PlanAuthorityPublicKeys) > 0 {
+		for iNdEx := len(m.PlanAuthorityPublicKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.PlanAuthorityPublicKeys[iNdEx])
+			copy(dAtA[i:], m.PlanAuthorityPublicKeys[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.PlanAuthorityPublicKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
 	}
 	if m.Backhaul != nil {
 		size, err := m.Backhaul.MarshalToSizedBufferVT(dAtA[:i])
@@ -757,6 +796,20 @@ func (m *MeshJoinPayload) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error)
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.ChanmigMeshId != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.ChanmigMeshId))
+		i--
+		dAtA[i] = 0x28
+	}
+	if len(m.PlanAuthorityPublicKeys) > 0 {
+		for iNdEx := len(m.PlanAuthorityPublicKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.PlanAuthorityPublicKeys[iNdEx])
+			copy(dAtA[i:], m.PlanAuthorityPublicKeys[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.PlanAuthorityPublicKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
 	if m.Backhaul != nil {
 		size, err := m.Backhaul.MarshalToSizedBufferVTStrict(dAtA[:i])
 		if err != nil {
@@ -1051,6 +1104,15 @@ func (m *MeshJoinPayload) SizeVT() (n int) {
 	if m.Backhaul != nil {
 		l = m.Backhaul.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.PlanAuthorityPublicKeys) > 0 {
+		for _, b := range m.PlanAuthorityPublicKeys {
+			l = len(b)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if m.ChanmigMeshId != nil {
+		n += 1 + protohelpers.SizeOfVarint(uint64(*m.ChanmigMeshId))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1477,6 +1539,58 @@ func (m *MeshJoinPayload) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PlanAuthorityPublicKeys", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PlanAuthorityPublicKeys = append(m.PlanAuthorityPublicKeys, make([]byte, postIndex-iNdEx))
+			copy(m.PlanAuthorityPublicKeys[len(m.PlanAuthorityPublicKeys)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChanmigMeshId", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ChanmigMeshId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -2392,6 +2506,57 @@ func (m *MeshJoinPayload) UnmarshalVTUnsafe(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PlanAuthorityPublicKeys", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PlanAuthorityPublicKeys = append(m.PlanAuthorityPublicKeys, dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChanmigMeshId", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ChanmigMeshId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
