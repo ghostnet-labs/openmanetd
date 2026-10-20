@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
+	"github.com/openmanet/openmanetd/internal/radiogate"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 )
@@ -562,4 +564,47 @@ func (f *fakeHardwareManager) subscriberCount() int {
 	defer f.mu.Unlock()
 
 	return len(f.subs)
+}
+
+// ── fakeRadioCapacityGate ─────────────────────────────────────────────────────
+
+// fakeRadioCapacityGate implements handlers.RadioCapacityGate: it records
+// every request and returns evaluateErr.
+type fakeRadioCapacityGate struct {
+	evaluateErr error
+	requests    []radiogate.Request
+	mu          sync.Mutex
+}
+
+func (f *fakeRadioCapacityGate) Evaluate(_ context.Context, req radiogate.Request) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.requests = append(f.requests, req)
+
+	return f.evaluateErr
+}
+
+func (f *fakeRadioCapacityGate) getRequests() []radiogate.Request {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]radiogate.Request(nil), f.requests...)
+}
+
+// ── failingSectionsReader ─────────────────────────────────────────────────────
+
+// failingSectionsReader wraps fakeConfigReader and fails GetSections for
+// one section type.
+type failingSectionsReader struct {
+	*fakeConfigReader
+	failType string
+}
+
+func (f *failingSectionsReader) GetSections(config, secType string) ([]string, error) {
+	if secType == f.failType {
+		return nil, errors.New("uci: list " + secType + " failed")
+	}
+
+	return f.fakeConfigReader.GetSections(config, secType)
 }

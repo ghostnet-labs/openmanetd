@@ -34,6 +34,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/mgmt"
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
+	"github.com/openmanet/openmanetd/internal/radiogate"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
 	"github.com/openmanet/openmanetd/internal/util/logger"
@@ -79,7 +80,11 @@ type APIServer struct {
 	SetupHostnameSetter handlers.HostnameSetter
 	SetupReloader       system.ServiceReloader
 	SetupRNG            *rand.Rand
-	AuthEnabled         bool
+	// RadioCapacity is the radio capacity gate NewAPIServer builds. Its
+	// Recent decision history and NewBandAdmitter (the pathsel capacity
+	// input) are exposed here for later wiring; callers do not set it.
+	RadioCapacity *radiogate.Gate
+	AuthEnabled   bool
 }
 
 func NewAPIServer(cfg APIServer) *APIServer {
@@ -269,6 +274,13 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		wifiSvc.GetMeshNeighbors = cfg.BatctlSnapshotter.GetMeshNeighbors
 	}
 
+	// Radio capacity gate (GHO-59): radio writes from the settings page
+	// and mesh join are checked against the node's PHY capacity before
+	// staging. Advisory by default; see radio.capacityGate.
+	radioCapacity := newRadioCapacityGate(cfg.Cfg, cfg.Log.With().Str("component", "radio_capacity").Logger(),
+		wifiSvc.ConfigReader, wifiSvc.WirelessStatus, wifiSvc.IwinfoClient)
+	wifiSvc.Capacity = radioCapacity
+
 	api.Handle(wificonfigconnect.NewWifiConfigServiceHandler(wifiSvc, connect.WithInterceptors(validateInterceptor)))
 
 	// MeshJoinService shares this node's mesh credentials as a QR code
@@ -341,9 +353,10 @@ func NewAPIServer(cfg APIServer) *APIServer {
 	}
 
 	return &APIServer{
-		Log:       cfg.Log,
-		DB:        cfg.DB,
-		ApiServer: &server,
+		Log:           cfg.Log,
+		DB:            cfg.DB,
+		ApiServer:     &server,
+		RadioCapacity: radioCapacity,
 	}
 }
 

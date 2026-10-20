@@ -17,6 +17,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/meshjoin"
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/network/morseregdb"
+	"github.com/openmanet/openmanetd/internal/radiogate"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -220,7 +221,18 @@ func (s *MeshJoinService) ApplyMeshJoin(ctx context.Context, req *meshjoinv1.App
 		updates = append(updates, RadioSettingsUpdate{RadioName: tgt.radio, Settings: settings})
 	}
 
+	// The batch apply checks every target against the radio capacity
+	// gate (GHO-59) before its first write. An enforced denial keeps its
+	// CodeFailedPrecondition and machine-readable reason instead of
+	// collapsing into CodeInternal.
 	if err := s.Radios.ApplyRadioSettingsBatch(ctx, updates); err != nil {
+		var denied *radiogate.DeniedError
+		if errors.As(err, &denied) {
+			s.Log.Warn().Str("reason", string(denied.Decision.Reason)).Msg("Mesh join refused by radio capacity gate")
+
+			return nil, capacityDeniedError(denied)
+		}
+
 		s.Log.Error().Err(err).Msg("Failed to apply mesh join")
 
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("apply radio settings: %w", err))

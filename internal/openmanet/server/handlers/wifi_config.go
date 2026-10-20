@@ -61,6 +61,9 @@ type WifiConfigService struct {
 	// (`reload_config`), which has procd reload `network` for the changed
 	// wireless/network configs so netifd re-syncs the radios.
 	ReloadServices func(ctx context.Context) error
+	// Capacity checks radio changes against the node's radio capacity
+	// before staging (GHO-59). nil skips the check.
+	Capacity RadioCapacityGate
 
 	mu sync.Mutex // serializes UCI writes
 }
@@ -356,6 +359,12 @@ func (s *WifiConfigService) UpdateRadioSettings(ctx context.Context, req *wifico
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := s.admitRadioCapacity(ctx, capacityOriginUpdate, []RadioSettingsUpdate{
+		{RadioName: req.GetRadioName(), Settings: req.GetSettings()},
+	}); err != nil {
+		return nil, err
+	}
+
 	if err := s.stageRadioSettings(ctx, req.GetRadioName(), req.GetSettings()); err != nil {
 		var sw *stageWriteError
 		if errors.As(err, &sw) {
@@ -379,9 +388,17 @@ func (s *WifiConfigService) UpdateRadioSettings(ctx context.Context, req *wifico
 // reloads once. Any staging error aborts before the reload; UCI writes
 // already staged for earlier radios are committed by the per-radio
 // setters and are not rolled back — callers re-read state on error.
+//
+// The whole batch is checked against the radio capacity gate before the
+// first write; an enforced denial is a CodeFailedPrecondition connect
+// error wrapping *radiogate.DeniedError, and nothing is staged.
 func (s *WifiConfigService) ApplyRadioSettingsBatch(ctx context.Context, updates []RadioSettingsUpdate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := s.admitRadioCapacity(ctx, capacityOriginBatch, updates); err != nil {
+		return err
+	}
 
 	for _, u := range updates {
 		if err := s.stageRadioSettings(ctx, u.RadioName, u.Settings); err != nil {
