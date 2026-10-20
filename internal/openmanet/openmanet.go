@@ -207,6 +207,12 @@ func Start(staticFS fs.FS) {
 	// second connection to the socket.
 	meshNeighborsSnap := startMeshNeighborsSnapshotter(ctx, cfg, manager)
 
+	// Channel migration (chanmig) rides the management module's alfred
+	// client. Off by default: with chanmig.enable false nothing is built
+	// and no radio is touched. When on, it owns one tick loop and one
+	// alfred poll loop, both bound to ctx and joined by waitChanmig.
+	chanmigSvc := startChanmig(ctx, cfg, manager, log)
+
 	// Set up session-based authentication when enabled.
 	var (
 		sessionStore  *auth.SessionStore
@@ -338,6 +344,7 @@ func Start(staticFS fs.FS) {
 	blosManager.Disable()
 
 	waitHardwareManager(hwManager, log)
+	waitChanmig(chanmigSvc, log)
 
 	if cfg.GetEnableGNSS() {
 		gps.Close()

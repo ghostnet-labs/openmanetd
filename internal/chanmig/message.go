@@ -21,6 +21,10 @@ const (
 	maxMessageSize   = advertHeaderSize + advertPlanPrefix + maxPlanSize + ed25519.SignatureSize
 )
 
+// MaxMessageSize is the largest wire message a Node ever sends or accepts.
+// Transports size their buffers and framing bounds from it.
+const MaxMessageSize = maxMessageSize
+
 // ErrMalformed reports a message that cannot be decoded.
 var ErrMalformed = errors.New("chanmig: malformed message")
 

@@ -592,6 +592,13 @@ func (c *fakeCommsGuard) TransmitActive() bool {
 	return c.transmit
 }
 
+func (c *fakeCommsGuard) setTransmit(on bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.transmit = on
+}
+
 func (c *fakeCommsGuard) BeforeHubReset(context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

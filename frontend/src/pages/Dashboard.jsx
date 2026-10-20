@@ -28,6 +28,7 @@ import { useMeshTopology } from '../hooks/useMeshTopology.js';
 import { useGnssStatus } from '../hooks/useGnssStatus.js';
 import { useBLOSStatus } from '../hooks/useBLOSStatus.js';
 import { useNetworkInterfaces } from '../hooks/useNetworkInterfaces.js';
+import { useHardwareBattery } from '../hooks/useHardwareBattery.js';
 import { pushSparklineSample, useSparklineSamples } from '../services/sparklineStore.js';
 import { classifyAlerts, findLostPeers } from './dashboardAlerts.js';
 import { batteryView } from './dashboardBattery.js';
@@ -411,6 +412,9 @@ export default function DashboardPage() {
   // shows every interface (incl. wlan AP + halow mesh) with its real
   // role instead of only the curated WAN/LAN/MESH/BAT/Tailscale rollup.
   const ifaceSnapshot = useNetworkInterfaces(IFACE_POLL_MS);
+  // INA228 telemetry from the hardware manager: low-battery level and the
+  // stale / absent flags. Null when the daemon runs no hardware manager.
+  const hwBattery = useHardwareBattery(DASH_POLL_MS);
   const interfaces = useMemo(
     () => ifaceSnapshot?.interfaces ?? [],
     [ifaceSnapshot],
@@ -563,7 +567,10 @@ export default function DashboardPage() {
   const tempClass = !tempAvailable ? '' : cpuTemp >= 85 ? 'crit' : cpuTemp >= 70 ? 'warn' : '';
   const tempLabel = tempAvailable ? `${cpuTemp.toFixed(1)} °C` : '—';
 
-  const battery = batteryView(data?.battery);
+  const dashBattery = data?.battery;
+  const battery = useMemo(() => batteryView(dashBattery, hwBattery), [dashBattery, hwBattery]);
+  const batteryState = battery?.state ?? null;
+  const batteryCurrent = battery?.current ?? null;
 
   const alerts = useMemo(
     () => classifyAlerts({ mesh: meshData, lostPeers, delta }),
@@ -777,6 +784,12 @@ export default function DashboardPage() {
               <div className="kv"><span className="k">Firmware</span><span className="v">{data?.deviceInfo?.firmware || '—'}</span></div>
               <div className="kv"><span className="k">Arch</span><span className="v">{data?.deviceInfo?.architecture || '—'}</span></div>
               <div className="kv"><span className="k">Temp</span><span className={`v ${tempClass}`}>{tempLabel}</span></div>
+              {batteryState ? (
+                <div className="kv"><span className="k">Battery</span><span className={`v ${batteryState.level}`}>{batteryState.label}</span></div>
+              ) : null}
+              {batteryCurrent ? (
+                <div className="kv"><span className="k">Batt Current</span><span className="v">{batteryCurrent}</span></div>
+              ) : null}
             </div>
           </div>
         </div>

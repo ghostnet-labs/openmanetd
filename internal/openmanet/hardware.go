@@ -49,6 +49,7 @@ func startHardwareManager(ctx context.Context, cfg *config.Config) *hardware.Man
 		Store:                 &hardware.FileStore{Path: hc.RecoveryStateFile},
 		Watchdogs:             hardware.DevWatchdogOpener{},
 		Shutdowner:            hardware.ExecShutdowner{},
+		Comms:                 newCommsGuard(log),
 		BoardID:               boardID,
 		WatchdogIdentity:      hc.WatchdogIdentity,
 		FaultInputs:           hc.FaultInputs,

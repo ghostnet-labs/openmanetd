@@ -327,6 +327,7 @@ type Config struct {
 	CommsAudioAGCControl                      string
 	onChangeCallbacks                         []func(*Config)
 	Hardware                                  HardwareConfig
+	Chanmig                                   ChanmigConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
 	MeshTopologyDeltaSampleInterval           int
@@ -982,6 +983,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	}
 
 	c.Hardware = c.loadHardware()
+	c.Chanmig = c.loadChanmig()
 }
 
 // loadHardware reads the hardware section, applying defaults. The caller

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	v1 "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1"
 	dashboardconnect "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1/dashboardv1connect"
 	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
+	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/util/board"
@@ -173,12 +175,68 @@ func (m *mockQuickActionExecutor) RestartNetwork(_ context.Context) error    { r
 func (m *mockQuickActionExecutor) RestartOpenmanetd(_ context.Context) error { return m.openmanetErr }
 
 type mockBatteryProvider struct {
+	mu     sync.Mutex // protects calls
 	status *system.BatteryStatus
 	err    error
+	calls  int
 }
 
 func (m *mockBatteryProvider) GetBatteryStatus() (*system.BatteryStatus, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.calls++
+
 	return m.status, m.err
+}
+
+func (m *mockBatteryProvider) getCalls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.calls
+}
+
+// fakeHardwareStatus implements HardwareStatusReader.
+type fakeHardwareStatus struct {
+	mu     sync.Mutex // protects the fields below
+	status hardware.Status
+	calls  int
+}
+
+func (f *fakeHardwareStatus) Status() hardware.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+
+	return f.status
+}
+
+func (f *fakeHardwareStatus) getCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.calls
+}
+
+// fakeMonitorReader implements hardware.MonitorReader with a fixed reading.
+type fakeMonitorReader struct {
+	mu      sync.Mutex // protects reading
+	reading system.MonitorReading
+}
+
+func (f *fakeMonitorReader) ReadMonitor(bool) (system.MonitorReading, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.reading, nil
+}
+
+// makeHardwareBattery returns a manager status whose battery block holds
+// the given reading.
+func makeHardwareBattery(b hardware.BatteryStatus) *fakeHardwareStatus {
+	return &fakeHardwareStatus{status: hardware.Status{Battery: b}}
 }
 
 // --- Tests ---
@@ -317,6 +375,151 @@ func TestDashboardService_GetDashboardStatus_Battery(t *testing.T) {
 			assert.Equal(t, tt.want.CellCount, resp.Battery.CellCount)
 		})
 	}
+}
+
+func TestDashboardService_GetDashboardStatus_HardwareBattery(t *testing.T) {
+	monitor := &system.BatteryStatus{
+		Present: true, VoltageVolts: 7.6, CurrentAmps: 0.2, PowerWatts: 1.5,
+		ChargePercent: 55, CellCount: 2,
+	}
+	v1Reading := hardware.BatteryStatus{
+		Present: true, BusMV: 11400, CurrentMA: 850, PowerMW: 9690,
+		SeriesCells: 3, Level: hardware.BatteryLevelNormal, AbsentReason: hardware.AbsentReasonNone,
+	}
+	stale := v1Reading
+	stale.Stale = true
+
+	unknownPack := v1Reading
+	unknownPack.SeriesCells = 0
+
+	tests := []struct {
+		name         string
+		hw           *fakeHardwareStatus
+		battery      *mockBatteryProvider
+		want         *v1.BatteryStatus
+		monitorReads int
+	}{
+		{
+			name:    "V1 pack: manager telemetry, charge unknown, monitor not read",
+			hw:      makeHardwareBattery(v1Reading),
+			battery: &mockBatteryProvider{status: monitor},
+			want: &v1.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: 0.85, PowerWatts: 9.69,
+				ChargePercent: -1, CellCount: 3,
+			},
+		},
+		{
+			name:    "stale reading keeps last-good values",
+			hw:      makeHardwareBattery(stale),
+			battery: &mockBatteryProvider{status: monitor},
+			want: &v1.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: 0.85, PowerWatts: 9.69,
+				ChargePercent: -1, CellCount: 3,
+			},
+		},
+		{
+			name:    "unknown pack takes the charge estimate from the monitor",
+			hw:      makeHardwareBattery(unknownPack),
+			battery: &mockBatteryProvider{status: monitor},
+			want: &v1.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: 0.85, PowerWatts: 9.69,
+				ChargePercent: 55, CellCount: 2,
+			},
+			monitorReads: 1,
+		},
+		{
+			name:    "unknown pack and monitor read failure leaves charge unknown",
+			hw:      makeHardwareBattery(unknownPack),
+			battery: &mockBatteryProvider{err: errors.New("i2c read failed")},
+			want: &v1.BatteryStatus{
+				Present: true, VoltageVolts: 11.4, CurrentAmps: 0.85, PowerWatts: 9.69,
+				ChargePercent: -1, CellCount: 0,
+			},
+			monitorReads: 1,
+		},
+		{
+			name: "manager has no reading yet: falls back to the monitor",
+			hw: makeHardwareBattery(hardware.BatteryStatus{
+				AbsentReason: hardware.AbsentReasonNone, Level: hardware.BatteryLevelUnknown,
+			}),
+			battery:      &mockBatteryProvider{status: monitor},
+			want:         &v1.BatteryStatus{Present: true, VoltageVolts: 7.6, CurrentAmps: 0.2, PowerWatts: 1.5, ChargePercent: 55, CellCount: 2},
+			monitorReads: 1,
+		},
+		{
+			name: "manager reports no monitor and the fallback has none either",
+			hw: makeHardwareBattery(hardware.BatteryStatus{
+				AbsentReason: hardware.AbsentReasonNoMonitor,
+			}),
+			battery:      &mockBatteryProvider{status: &system.BatteryStatus{ChargePercent: -1}},
+			want:         &v1.BatteryStatus{ChargePercent: -1},
+			monitorReads: 1,
+		},
+		{
+			name: "monitor unreachable and fallback read fails: absent",
+			hw: makeHardwareBattery(hardware.BatteryStatus{
+				AbsentReason: hardware.AbsentReasonMonitorUnreachable, BusMV: 11400,
+			}),
+			battery:      &mockBatteryProvider{err: errors.New("i2c read failed")},
+			want:         &v1.BatteryStatus{ChargePercent: -1},
+			monitorReads: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestDashboardService()
+			svc.Battery = tt.battery
+			svc.Hardware = tt.hw
+
+			resp, err := svc.GetDashboardStatus(context.Background(), &emptypb.Empty{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Battery)
+			assert.Equal(t, tt.want.Present, resp.Battery.Present)
+			assert.InDelta(t, tt.want.VoltageVolts, resp.Battery.VoltageVolts, 0.001)
+			assert.InDelta(t, tt.want.CurrentAmps, resp.Battery.CurrentAmps, 0.001)
+			assert.InDelta(t, tt.want.PowerWatts, resp.Battery.PowerWatts, 0.001)
+			assert.InDelta(t, tt.want.ChargePercent, resp.Battery.ChargePercent, 0.001)
+			assert.Equal(t, tt.want.CellCount, resp.Battery.CellCount)
+			assert.Equal(t, 1, tt.hw.getCalls(), "manager status read once")
+			assert.Equal(t, tt.monitorReads, tt.battery.getCalls())
+		})
+	}
+}
+
+// TestDashboardService_GetDashboardStatus_RealHardwareManager feeds the
+// dashboard from a real, telemetry-only hardware manager (actuation stays
+// off) sampling a fake INA228.
+func TestDashboardService_GetDashboardStatus_RealHardwareManager(t *testing.T) {
+	mgr := hardware.New(hardware.Options{
+		Log:     zerolog.Nop(),
+		BoardID: board.GhostnetV1,
+		Battery: &fakeMonitorReader{reading: system.MonitorReading{
+			Present: true, BusMillivolts: 11800, CurrentMilliamp: 420, HasCurrent: true,
+			PowerMicrowatts: 4_956_000, HasPower: true,
+		}},
+		SeriesCells: 3,
+	})
+	t.Cleanup(mgr.Close)
+	mgr.Step(context.Background())
+	require.True(t, mgr.Status().Battery.Present)
+
+	monitor := &mockBatteryProvider{status: &system.BatteryStatus{Present: true, VoltageVolts: 1, ChargePercent: 1}}
+	svc := newTestDashboardService()
+	svc.Battery = monitor
+	svc.Hardware = mgr
+
+	resp, err := svc.GetDashboardStatus(context.Background(), &emptypb.Empty{})
+	require.NoError(t, err)
+
+	b := resp.GetBattery()
+	assert.True(t, b.GetPresent())
+	assert.InDelta(t, 11.8, b.GetVoltageVolts(), 0.001)
+	assert.InDelta(t, 0.42, b.GetCurrentAmps(), 0.001)
+	assert.InDelta(t, 4.956, b.GetPowerWatts(), 0.001)
+	assert.InDelta(t, -1, b.GetChargePercent(), 0.001)
+	assert.Equal(t, uint32(3), b.GetCellCount())
+	assert.Zero(t, monitor.getCalls(), "the manager replaces the monitor read")
 }
 
 func TestDashboardService_GetDashboardStatus_NetworkSummary(t *testing.T) {
