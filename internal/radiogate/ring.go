@@ -8,7 +8,7 @@ import (
 )
 
 // RingSize bounds the admission decision history.
-const RingSize = 32
+const RingSize = 64
 
 // Record is one admission evaluation. Records are immutable once added:
 // Recent returns shallow copies whose slices must not be modified.
