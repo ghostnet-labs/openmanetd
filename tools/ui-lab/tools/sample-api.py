@@ -46,6 +46,7 @@ def rpc(method,b):
  if method=='GetRadioCapacity':return dict(capacity=dict(generatedAt=now,inventoryUpdatedAt=now,gateMode='CAPACITY_GATE_MODE_ADVISORY',phys=[dict(name='phy0',wiphy='phy0',bands=['BAND_2_4_GHZ'],available=True),dict(name='phy1',wiphy='phy1',bands=['BAND_HALOW'],isHalow=True,available=True)]))
  if method=='ListAdmissionDecisions':return dict(decisions=[dict(decidedAt=now,gateMode='CAPACITY_GATE_MODE_ADVISORY',outcome='ADMISSION_OUTCOME_REJECT',reason='ADMISSION_REASON_UNQUALIFIED_ONLY',explanation='Sample decision: no PHY is qualified in the sandbox',physicalQualification='PHYSICAL_QUALIFICATION_NOT_EVALUATED')][:b.get('limit',64)])
  if method=='ListPathDecisions':return dict(decisions=[])
+ if method=='GetChannelMigrationStatus':return dict(status=dict(generatedAt=now,enabled=True,nodeId='1',meshId='1',clockSynced=True,phase='MIGRATION_PHASE_STABLE',currentPlan=dict(version='2',signerId='1',issuedAt=now,activateAt=now,assignments=[dict(band='BAND_HALOW',channel=42,widthMhz=2)]),bands=[dict(band='BAND_HALOW',operating=dict(band='BAND_HALOW',channel=42,widthMhz=2),target=dict(band='BAND_HALOW',channel=42,widthMhz=2),mode='BAND_MODE_SETTLED',modeSince=now)],peers=[dict(nodeId='2',lastSeen=now),dict(nodeId='3',lastSeen=now)]))
  raise NotImplementedError(method)
 
 class Handler(BaseHTTPRequestHandler):

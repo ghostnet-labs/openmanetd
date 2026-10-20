@@ -254,6 +254,16 @@
   color: var(--dim);
 }
 
+/* channel migration (GHO-52) ------------------------------------------- */
+.chanmig-panel .chanmig-sub {
+  margin: 14px 0 6px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* mobile ----------------------------------------------------------------- */
 @media (max-width: 768px) {
   .settings-wireless-list {

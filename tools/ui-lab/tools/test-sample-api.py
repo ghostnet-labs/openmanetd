@@ -19,4 +19,7 @@ class SampleBackendTests(unittest.TestCase):
   cap=api.rpc('GetRadioCapacity',{})['capacity'];self.assertEqual(cap['gateMode'],'CAPACITY_GATE_MODE_ADVISORY');self.assertTrue(any(p.get('isHalow') for p in cap['phys']))
   self.assertEqual(len(api.rpc('ListAdmissionDecisions',dict(limit=1))['decisions']),1);self.assertIn('Sample',api.rpc('ListAdmissionDecisions',{})['decisions'][0]['explanation'])
   self.assertEqual(api.rpc('ListPathDecisions',dict(limit=5))['decisions'],[])
+ def test_channel_migration_is_read_only_sample(self):
+  st=api.rpc('GetChannelMigrationStatus',{})['status'];self.assertTrue(st['enabled']);self.assertEqual(st['phase'],'MIGRATION_PHASE_STABLE');self.assertEqual(len(st['peers']),2)
+  with self.assertRaises(NotImplementedError):api.rpc('ProposeChannelPlan',{})
 if __name__=='__main__':unittest.main()
