@@ -13,15 +13,19 @@ const {
   mockGetBLOSStatus,
   mockListBLOSPeers,
   mockListNetworkInterfaces,
+  mockGetHardwareStatus,
 } = vi.hoisted(() => ({
   mockGetDashboardStatus: vi.fn(),
   mockGetGNSSStatus: vi.fn(),
   mockGetBLOSStatus: vi.fn(),
   mockListBLOSPeers: vi.fn(),
   mockListNetworkInterfaces: vi.fn(),
+  mockGetHardwareStatus: vi.fn(),
 }));
 
 vi.mock('@connectrpc/connect', () => ({
+  Code: { FailedPrecondition: 9, Unimplemented: 12 },
+  ConnectError: class ConnectError extends Error {},
   createClient: () => ({
     // All services share a single mock object — only the methods the page
     // calls need to be populated.
@@ -30,11 +34,15 @@ vi.mock('@connectrpc/connect', () => ({
     getBLOSStatus: mockGetBLOSStatus,
     listBLOSPeers: mockListBLOSPeers,
     listNetworkInterfaces: mockListNetworkInterfaces,
+    getHardwareStatus: mockGetHardwareStatus,
   }),
 }));
 vi.mock('../../services/connectClient.js', () => ({ transport: {} }));
 vi.mock('../../gen/openmanet/dashboard/v1/dashboard_service_pb.js', () => ({
   DashboardService: {},
+}));
+vi.mock('../../gen/openmanet/hardware/v1/hardware_service_pb.js', () => ({
+  HardwareService: {},
 }));
 vi.mock('../../gen/openmanet/gnss/v1/gnss_service_pb.js', () => ({
   GNSSService: {},
@@ -78,6 +86,8 @@ beforeEach(() => {
   mockGetBLOSStatus.mockResolvedValue({ blosEnabled: true });
   mockListBLOSPeers.mockResolvedValue({ peers: [] });
   mockListNetworkInterfaces.mockResolvedValue({ interfaces: [] });
+  // No hardware manager battery block: the BATT row uses the dashboard data.
+  mockGetHardwareStatus.mockResolvedValue({ status: {} });
   // The module mock's default is consumed by the first test that sets
   // neighbors; re-arm it so later tests never inherit another test's mesh.
   fetchMeshStatus.mockResolvedValue({
