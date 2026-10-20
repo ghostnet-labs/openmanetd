@@ -84,6 +84,22 @@ func TestService_NilDefault(t *testing.T) {
 	}
 }
 
+func TestService_Transmitting(t *testing.T) {
+	SetDefault(nil)
+	assert.False(t, Default().Transmitting(), "nil service is not transmitting")
+	assert.False(t, (&Service{}).Transmitting(), "service without a runtime is not transmitting")
+
+	svc := newTestService(t, []McastPortConfig{{Address: "239.1.2.3", Port: 5004}})
+	assert.False(t, svc.Transmitting())
+
+	svc.Rt.Broadcasting.Store(true)
+	assert.True(t, svc.Transmitting())
+	assert.True(t, Default().Transmitting(), "visible through the published default")
+
+	svc.Rt.Broadcasting.Store(false)
+	assert.False(t, svc.Transmitting())
+}
+
 func TestService_EnableTalkGroupAndStates(t *testing.T) {
 	svc := newTestService(t, []McastPortConfig{
 		{Address: "239.1.1.1", Port: 5004},

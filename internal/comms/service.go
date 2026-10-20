@@ -379,6 +379,18 @@ func (s *Service) ActiveTalkGroup() int {
 	return int(s.Rt.ActiveChannel.Load())
 }
 
+// Transmitting reports whether a PTT transmission is in progress (from the
+// press until the release, including the start-tone settle window). It is
+// false when comms is not running. Lock-free, so it is safe to call from any
+// goroutine.
+func (s *Service) Transmitting() bool {
+	if s == nil || s.Rt == nil {
+		return false
+	}
+
+	return s.Rt.Broadcasting.Load()
+}
+
 // Events returns the talk group event registry, or nil when comms is not
 // running.
 func (s *Service) Events() *talkgroup.Registry {

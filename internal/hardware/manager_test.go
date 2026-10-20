@@ -494,6 +494,66 @@ func TestLadder_HubSkippedWhilePTTActive(t *testing.T) {
 	}
 }
 
+// TestLadder_HubResetProceedsAfterPTTEnds pins the comms guard contract
+// across incidents: a hub reset is skipped while PTT is keyed (the ladder
+// moves on to the power cycle, which leaves the audio hub alone), and once
+// the transmit ends the next incident pulses the hub as normal.
+func TestLadder_HubResetProceedsAfterPTTEnds(t *testing.T) {
+	rig := newRig(t, func(_ *hardware.Options, r *testRig) { r.comms.transmit = true })
+
+	hubEvents := func() []hardware.Event {
+		var out []hardware.Event
+
+		for _, e := range rig.chronological(hardware.RadioHaLow) {
+			if e.Step == hardware.StepResetHub {
+				out = append(out, e)
+			}
+		}
+
+		return out
+	}
+	hubPulses := func() int {
+		n := 0
+
+		for _, s := range rig.lines().getSets() {
+			if s.name == hardware.LineUSBHubResetN && s.asserted {
+				n++
+			}
+		}
+
+		return n
+	}
+
+	// Incident 1, PTT keyed: the hub step is skipped.
+	rig.bus.setPresent(hardware.RadioHaLow, false, false)
+	rig.step()
+	rig.run(50*time.Second, time.Second)
+
+	hub := hubEvents()
+	require.Len(t, hub, 1)
+	assert.Equal(t, hardware.ResultSkipped, hub[0].Result)
+	assert.Contains(t, hub[0].Detail, "PTT")
+	assert.Zero(t, hubPulses(), "hub never pulsed while PTT is keyed")
+	assert.Zero(t, rig.comms.getBeforeCalls())
+
+	// The radio comes back after the power cycle, PTT is released, and
+	// the radio stays up long enough for the ladder to reset.
+	rig.bus.setPresent(hardware.RadioHaLow, true, true)
+	rig.comms.setTransmit(false)
+	rig.run(15*time.Minute, 5*time.Second)
+	require.Equal(t, hardware.StateUp, rig.radio(hardware.RadioHaLow).State)
+
+	// Incident 2, PTT idle: the hub reset runs.
+	rig.bus.setPresent(hardware.RadioHaLow, false, false)
+	rig.run(3*time.Minute, time.Second)
+
+	hub = hubEvents()
+	require.Len(t, hub, 2)
+	assert.Equal(t, hardware.ResultSucceeded, hub[1].Result)
+	assert.Equal(t, 1, hubPulses(), "hub pulsed once PTT ended")
+	assert.Equal(t, 1, rig.comms.getBeforeCalls(), "comms told before the hub reset")
+}
+
 func TestLadder_RecoversAfterDeviceReset(t *testing.T) {
 	rig := newRig(t, func(_ *hardware.Options, r *testRig) { r.bus.restoreOnReset = true })
 	rig.step()
