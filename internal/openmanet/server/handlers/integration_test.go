@@ -31,6 +31,7 @@ import (
 	niv1 "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1"
 	niconnect "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1/network_interfacev1connect"
 	radioconnect "github.com/openmanet/openmanetd/internal/api/openmanet/radio/v1/radiov1connect"
+	chanmigconnect "github.com/openmanet/openmanetd/internal/api/openmanet/chanmig/v1/chanmigv1connect"
 	serviceproto "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1"
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupv1 "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1"
@@ -185,6 +186,13 @@ func newTestServer(t *testing.T) *httptest.Server {
 	}, handlerOpt))
 
 	mux.Handle(radioconnect.NewRadioServiceHandler(newIntegrationRadioService(t), handlerOpt))
+
+	// A real coordinator channel-migration node over no-op radio,
+	// transport and store fakes.
+	mux.Handle(chanmigconnect.NewChannelMigrationServiceHandler(&handlers.ChannelMigrationService{
+		Log:  zerolog.Nop(),
+		Node: newTestChanmigNode(t, true),
+	}, handlerOpt))
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

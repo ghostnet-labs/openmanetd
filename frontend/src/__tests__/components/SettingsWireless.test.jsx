@@ -8,7 +8,7 @@ import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/re
 const {
   mockListRadios, mockGetRadioStatus, mockGetRadioSettings, mockUpdateRadioSettings,
   mockListConnectedClients, mockListMeshPeers, mockGetMeshJoinQR, mockApplyMeshJoin,
-  mockGetRadioCapacity, mockListAdmissionDecisions,
+  mockGetRadioCapacity, mockListAdmissionDecisions, mockGetChannelMigrationStatus,
 } = vi.hoisted(() => ({
   mockListRadios: vi.fn(),
   mockGetRadioStatus: vi.fn(),
@@ -20,6 +20,7 @@ const {
   mockApplyMeshJoin: vi.fn(),
   mockGetRadioCapacity: vi.fn(),
   mockListAdmissionDecisions: vi.fn(),
+  mockGetChannelMigrationStatus: vi.fn(),
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -37,6 +38,7 @@ vi.mock('@connectrpc/connect', async (importOriginal) => {
       applyMeshJoin: mockApplyMeshJoin,
       getRadioCapacity: mockGetRadioCapacity,
       listAdmissionDecisions: mockListAdmissionDecisions,
+      getChannelMigrationStatus: mockGetChannelMigrationStatus,
     }),
   };
 });
@@ -56,6 +58,8 @@ beforeEach(() => {
   // The Radio capacity panel is always rendered too.
   mockGetRadioCapacity.mockResolvedValue({ capacity: { gateMode: 2, phys: [] } });
   mockListAdmissionDecisions.mockResolvedValue({ decisions: [] });
+  // So is the Channel migration panel.
+  mockGetChannelMigrationStatus.mockResolvedValue({ status: { enabled: false } });
 });
 
 afterEach(() => {
@@ -71,6 +75,7 @@ afterEach(() => {
   mockApplyMeshJoin.mockReset();
   mockGetRadioCapacity.mockReset();
   mockListAdmissionDecisions.mockReset();
+  mockGetChannelMigrationStatus.mockReset();
 });
 
 const RADIO_AP = {
@@ -194,6 +199,19 @@ describe('TestSettingsWirelessRadioCapacity', () => {
       expect(screen.getByText('No admission decisions yet.')).toBeTruthy();
     });
     expect(mockListAdmissionDecisions).toHaveBeenCalledWith({ limit: 10 });
+  });
+
+  it('shows the Channel migration panel next to Radio capacity', async () => {
+    mockListRadios.mockResolvedValue({ radios: [] });
+    const { container } = render(<SettingsWireless />);
+    await waitFor(() => {
+      expect(screen.getByText('Channel migration')).toBeTruthy();
+      expect(screen.getByText('Channel migration disabled.')).toBeTruthy();
+    });
+    const panels = [...container.querySelectorAll('.lat-panel')];
+    const cap = panels.findIndex((p) => p.classList.contains('radio-capacity'));
+    expect(panels[cap + 1].classList.contains('chanmig-panel')).toBe(true);
+    expect(mockGetChannelMigrationStatus).toHaveBeenCalledWith({});
   });
 });
 

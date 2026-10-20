@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -37,7 +38,13 @@ var (
 	ErrKeyFormat = errors.New("chanmig/platform: bad key file")
 	// ErrKeyPermissions reports a private key readable by group or others.
 	ErrKeyPermissions = errors.New("chanmig/platform: private key file must not be group or world accessible")
+	// ErrKeyFileExists reports that InstallPublicKeys found a public key
+	// file already in place; it is never overwritten.
+	ErrKeyFileExists = errors.New("chanmig/platform: public key file already exists")
 )
+
+// installedKeysHeader starts every key file InstallPublicKeys writes.
+const installedKeysHeader = "# OpenMANET channel-migration plan-authority public keys (installed from a mesh join code)\n"
 
 // LoadPublicKeys reads the trusted plan-authority public keys from path.
 // The file holds either PEM "PUBLIC KEY" blocks (as written by
@@ -231,4 +238,89 @@ func readKeyFile(path string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// InstallPublicKeys writes keys to path, in the base64 format
+// LoadPublicKeys reads, only if no file exists there yet: the file is
+// written to a temporary file in the same directory, fsynced, given mode
+// 0644 and then hard-linked into place, so a concurrent writer or an
+// existing file is never replaced (ErrKeyFileExists) and a crash never
+// leaves a partial key file.
+func InstallPublicKeys(path string, keys []ed25519.PublicKey) error {
+	if len(keys) == 0 || len(keys) > maxPublicKeys {
+		return fmt.Errorf("%w: %d keys, want 1..%d", ErrKeyFormat, len(keys), maxPublicKeys)
+	}
+
+	size := len(installedKeysHeader)
+
+	for _, k := range keys {
+		if len(k) != ed25519.PublicKeySize {
+			return fmt.Errorf("%w: %d-byte public key", ErrKeyFormat, len(k))
+		}
+
+		size += base64.StdEncoding.EncodedLen(len(k)) + 1
+	}
+
+	if _, err := os.Lstat(path); err == nil {
+		return ErrKeyFileExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	buf := make([]byte, 0, size)
+	buf = append(buf, installedKeysHeader...)
+
+	for _, k := range keys {
+		buf = base64.StdEncoding.AppendEncode(buf, k)
+		buf = append(buf, '\n')
+	}
+
+	return linkNewFile(path, buf, 0o644)
+}
+
+// linkNewFile creates path holding data with mode perm, failing with
+// ErrKeyFileExists instead of replacing an existing file.
+func linkNewFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // G301: the key directory holds public keys; the private key file carries its own 0600
+		return fmt.Errorf("create key directory: %w", err)
+	}
+
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temporary key file: %w", err)
+	}
+
+	tmpName := tmp.Name()
+
+	defer func() {
+		_ = tmp.Close()        // closed below on success; this covers the error paths
+		_ = os.Remove(tmpName) // the link (if any) keeps the data; drop the temporary name
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return fmt.Errorf("write temporary key file: %w", err)
+	}
+
+	if err := tmp.Chmod(perm); err != nil {
+		return fmt.Errorf("chmod temporary key file: %w", err)
+	}
+
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("sync temporary key file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temporary key file: %w", err)
+	}
+
+	if err := os.Link(tmpName, path); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return ErrKeyFileExists
+		}
+
+		return fmt.Errorf("install key file: %w", err)
+	}
+
+	return syncDir(dir)
 }

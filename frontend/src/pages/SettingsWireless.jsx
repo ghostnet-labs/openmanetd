@@ -14,6 +14,7 @@ import MeshJoinQR from '../components/MeshJoinQR.jsx';
 import QrScanInput from '../components/QrScanInput.jsx';
 import DataTable from '../components/DataTable.jsx';
 import RadioCapacityPanel from './RadioCapacityPanel.jsx';
+import ChannelMigrationPanel from './ChannelMigrationPanel.jsx';
 import { applyMeshJoin } from '../services/meshJoinApi.js';
 import { checkMeshCredentials, htModeForBandwidth, bandwidthMhzForHTMode } from '../utils/meshJoin.js';
 import './SettingsWireless.css';
@@ -782,6 +783,8 @@ export default function SettingsWireless() {
           </div>
 
           <RadioCapacityPanel />
+
+          <ChannelMigrationPanel />
 
           {radios.length === 0 ? (
             <div className="lat-panel"><div className="lat-empty">No radios detected.</div></div>

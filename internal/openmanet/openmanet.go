@@ -290,6 +290,7 @@ func Start(staticFS fs.FS) {
 	// classifier through the cache also folds its Interfaces() walk
 	// into the one the handlers already share.
 	apiServer.Hardware = hardwareAPI(hwManager)
+	apiServer.Chanmig = chanmigAPI(chanmigSvc)
 
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider

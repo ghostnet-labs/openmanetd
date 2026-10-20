@@ -861,3 +861,82 @@ auth:
 	assert.Contains(t, content, "setup:")
 	assert.Contains(t, content, "auth:")
 }
+
+func TestPersistChanmigMeshIDIfUnset_writesWhenUnset(t *testing.T) {
+	cfg := setupTestConfigFromYAML(t, `
+# operator comment
+chanmig:
+  enable: false
+blos:
+  enable: true
+`)
+
+	wrote, err := cfg.PersistChanmigMeshIDIfUnset(3)
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	assert.Equal(t, uint64(3), cfg.GetChanmig().MeshID)
+
+	data, err := os.ReadFile(cfg.GetConfigFilePath())
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "meshId: 3")
+	assert.Contains(t, string(data), "# operator comment")
+	assert.True(t, cfg.GetEnableBLOS(), "other keys are preserved")
+
+	reread := rereadConfig(t, cfg.GetConfigFilePath())
+	assert.Equal(t, uint64(3), reread.GetChanmig().MeshID)
+}
+
+func TestPersistChanmigMeshIDIfUnset_createsSectionAndKeepsLargeIDs(t *testing.T) {
+	cfg := setupTestConfigFromYAML(t, `
+blos:
+  enable: false
+`)
+
+	const id = uint64(18446744073709551000)
+
+	wrote, err := cfg.PersistChanmigMeshIDIfUnset(id)
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	assert.Equal(t, id, cfg.GetChanmig().MeshID)
+
+	reread := rereadConfig(t, cfg.GetConfigFilePath())
+	assert.Equal(t, id, reread.GetChanmig().MeshID)
+}
+
+func TestPersistChanmigMeshIDIfUnset_keepsExistingID(t *testing.T) {
+	cfg := setupTestConfigFromYAML(t, `
+chanmig:
+  meshId: 9
+`)
+
+	before, err := os.ReadFile(cfg.GetConfigFilePath())
+	require.NoError(t, err)
+
+	wrote, err := cfg.PersistChanmigMeshIDIfUnset(3)
+	require.NoError(t, err)
+	assert.False(t, wrote)
+	assert.Equal(t, uint64(9), cfg.GetChanmig().MeshID)
+
+	after, err := os.ReadFile(cfg.GetConfigFilePath())
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "the file is not rewritten")
+}
+
+func TestPersistChanmigMeshIDIfUnset_noConfigFile(t *testing.T) {
+	cfg := NewWithoutWatch(viper.New())
+
+	wrote, err := cfg.PersistChanmigMeshIDIfUnset(3)
+	require.Error(t, err)
+	assert.False(t, wrote)
+}
+
+// rereadConfig loads a fresh Config from path, as a restart would.
+func rereadConfig(t *testing.T, path string) *Config {
+	t.Helper()
+
+	v := viper.New()
+	v.SetConfigFile(path)
+	require.NoError(t, v.ReadInConfig())
+
+	return NewWithoutWatch(v)
+}

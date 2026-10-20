@@ -224,7 +224,20 @@ type MeshJoinPayload struct {
 	SourceHostname string           `protobuf:"bytes,1,opt,name=source_hostname,json=sourceHostname,proto3" json:"source_hostname,omitempty"`
 	Halow          *MeshCredentials `protobuf:"bytes,2,opt,name=halow,proto3" json:"halow,omitempty"`
 	// Present only when the source node runs a 2.4 GHz mesh backhaul.
-	Backhaul      *MeshCredentials `protobuf:"bytes,3,opt,name=backhaul,proto3" json:"backhaul,omitempty"`
+	Backhaul *MeshCredentials `protobuf:"bytes,3,opt,name=backhaul,proto3" json:"backhaul,omitempty"`
+	// Channel-migration plan-authority Ed25519 public keys trusted by the
+	// source node, each the 32-byte raw key; at most 8, more than one only
+	// during a key rotation. A joining node that runs channel migration
+	// verifies channel plans against these keys (see
+	// openmanet.chanmig.v1.ChannelMigrationStatus.trusted_keys). Empty when
+	// the source node does not run channel migration; the joining node then
+	// keeps its own trusted keys. Never carries a private key.
+	PlanAuthorityPublicKeys [][]byte `protobuf:"bytes,4,rep,name=plan_authority_public_keys,json=planAuthorityPublicKeys,proto3" json:"plan_authority_public_keys,omitempty"`
+	// Channel-migration mesh ID of the source node (chanmig.meshId). A joining
+	// node needs it, together with plan_authority_public_keys, to accept that
+	// mesh's channel plans. Unset when the source node does not run channel
+	// migration.
+	ChanmigMeshId *uint64 `protobuf:"varint,5,opt,name=chanmig_mesh_id,json=chanmigMeshId,proto3,oneof" json:"chanmig_mesh_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,6 +291,20 @@ func (x *MeshJoinPayload) GetBackhaul() *MeshCredentials {
 		return x.Backhaul
 	}
 	return nil
+}
+
+func (x *MeshJoinPayload) GetPlanAuthorityPublicKeys() [][]byte {
+	if x != nil {
+		return x.PlanAuthorityPublicKeys
+	}
+	return nil
+}
+
+func (x *MeshJoinPayload) GetChanmigMeshId() uint64 {
+	if x != nil && x.ChanmigMeshId != nil {
+		return *x.ChanmigMeshId
+	}
+	return 0
 }
 
 // GetMeshJoinQRResponse carries the payload three ways: decoded for the
@@ -540,11 +567,15 @@ const file_openmanet_mesh_join_v1_mesh_join_proto_rawDesc = "" +
 	"encryption\x12;\n" +
 	"\rbandwidth_mhz\x18\x04 \x01(\rB\x16\xbaH\x13*\x110\x010\x020\x040\b0\x140(0P0\xa0\x01R\fbandwidthMhz\x12!\n" +
 	"\achannel\x18\x05 \x01(\rB\a\xbaH\x04*\x02 \x00R\achannel\x12;\n" +
-	"\fcountry_code\x18\x06 \x01(\tB\x18\xbaH\x15r\x13\x18\x032\x0f^([A-Z]{2,3})?$R\vcountryCode\"\xcf\x01\n" +
+	"\fcountry_code\x18\x06 \x01(\tB\x18\xbaH\x15r\x13\x18\x032\x0f^([A-Z]{2,3})?$R\vcountryCode\"\xdf\x02\n" +
 	"\x0fMeshJoinPayload\x120\n" +
 	"\x0fsource_hostname\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x18?R\x0esourceHostname\x12E\n" +
 	"\x05halow\x18\x02 \x01(\v2'.openmanet.mesh_join.v1.MeshCredentialsB\x06\xbaH\x03\xc8\x01\x01R\x05halow\x12C\n" +
-	"\bbackhaul\x18\x03 \x01(\v2'.openmanet.mesh_join.v1.MeshCredentialsR\bbackhaul\"\x8f\x01\n" +
+	"\bbackhaul\x18\x03 \x01(\v2'.openmanet.mesh_join.v1.MeshCredentialsR\bbackhaul\x12M\n" +
+	"\x1aplan_authority_public_keys\x18\x04 \x03(\fB\x10\xbaH\r\x92\x01\n" +
+	"\x10\b\x18\x01\"\x04z\x02h R\x17planAuthorityPublicKeys\x12+\n" +
+	"\x0fchanmig_mesh_id\x18\x05 \x01(\x04H\x00R\rchanmigMeshId\x88\x01\x01B\x12\n" +
+	"\x10_chanmig_mesh_id\"\x8f\x01\n" +
 	"\x15GetMeshJoinQRResponse\x12A\n" +
 	"\apayload\x18\x01 \x01(\v2'.openmanet.mesh_join.v1.MeshJoinPayloadR\apayload\x12!\n" +
 	"\fpayload_text\x18\x02 \x01(\tR\vpayloadText\x12\x10\n" +
@@ -618,6 +649,7 @@ func file_openmanet_mesh_join_v1_mesh_join_proto_init() {
 	if File_openmanet_mesh_join_v1_mesh_join_proto != nil {
 		return
 	}
+	file_openmanet_mesh_join_v1_mesh_join_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

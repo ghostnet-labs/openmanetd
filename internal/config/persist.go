@@ -467,3 +467,59 @@ func setGNSSConfig(doc *yaml.Node, enable, sendAsNMEA, sendAsCoT bool, cotUID, s
 
 	return nil
 }
+
+// PersistChanmigMeshIDIfUnset writes chanmig.meshId to the YAML config file
+// and refreshes the in-memory config, but only when no non-zero mesh ID is
+// configured yet. It reports whether it wrote. The check and the write
+// happen under the persist lock, so two callers cannot both set it. A
+// running chanmig node keeps the mesh ID it started with until restart.
+func (c *Config) PersistChanmigMeshIDIfUnset(meshID uint64) (bool, error) {
+	c.persistMu.Lock()
+	defer c.persistMu.Unlock()
+
+	c.mu.RLock()
+	current := c.Chanmig.MeshID
+	c.mu.RUnlock()
+
+	if current != 0 {
+		return false, nil
+	}
+
+	filePath := c.v.ConfigFileUsed()
+	if filePath == "" {
+		return false, fmt.Errorf("no config file path configured")
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false, fmt.Errorf("reading config file: %w", err)
+	}
+
+	var doc yaml.Node
+
+	if err = yaml.Unmarshal(data, &doc); err != nil {
+		return false, fmt.Errorf("parsing config file: %w", err)
+	}
+
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return false, fmt.Errorf("unexpected YAML structure: expected a mapping document")
+	}
+
+	chanmig := findOrCreateMapping(doc.Content[0], "chanmig")
+	setScalarWithTag(chanmig, "meshId", strconv.FormatUint(meshID, 10), "!!int")
+
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return false, fmt.Errorf("marshaling config: %w", err)
+	}
+
+	//nolint:gosec // config file permissions match the original file
+	if err = os.WriteFile(filePath, out, 0644); err != nil {
+		return false, fmt.Errorf("writing config file: %w", err)
+	}
+
+	c.v.Set("chanmig.meshId", meshID)
+	c.reload()
+
+	return true, nil
+}

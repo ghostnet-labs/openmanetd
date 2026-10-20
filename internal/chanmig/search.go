@@ -16,7 +16,7 @@ func (n *Node) enterSearch(eff *effects, now time.Time) {
 
 	for _, bs := range n.bands {
 		bs.candidates = n.candidates(bs, bs.candidates[:0])
-		bs.mode = modeSearching
+		bs.mode = BandSearching
 		bs.switchAt = time.Time{}
 		n.search.steps = max(n.search.steps, len(bs.candidates))
 		n.tuneTo(eff, bs, bs.candidates[0])
@@ -149,7 +149,7 @@ func (n *Node) exitSearch(eff *effects, found *bandState, peerBehind bool, now t
 	n.lastSearch = now.Sub(n.search.started)
 
 	for _, bs := range n.bands {
-		bs.mode = modeSettled
+		bs.mode = BandSettled
 		bs.modeSince = now
 		bs.switchAt = time.Time{}
 

@@ -10,6 +10,7 @@ import (
 	connectcors "connectrpc.com/cors"
 	"connectrpc.com/validate"
 	blosconnect "github.com/openmanet/openmanetd/internal/api/openmanet/blos/v1/blosv1connect"
+	chanmigconnect "github.com/openmanet/openmanetd/internal/api/openmanet/chanmig/v1/chanmigv1connect"
 	commsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/comms/v1/commsv1connect"
 	dashboardconnect "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1/dashboardv1connect"
 	gnssconnect "github.com/openmanet/openmanetd/internal/api/openmanet/gnss/v1/gnssv1connect"
@@ -72,6 +73,10 @@ type APIServer struct {
 	// false. Keep it an interface value that is nil, not a typed nil
 	// pointer, so the handler can detect the disabled case.
 	Hardware handlers.HardwareManager
+	// Chanmig is the running channel-migration node; nil when chanmig is
+	// disabled or failed to start. Like Hardware it must be a nil
+	// interface, not a typed nil pointer.
+	Chanmig handlers.ChannelMigrator
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -296,14 +301,28 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Inventory: radioInventory,
 	}, connect.WithInterceptors(validateInterceptor)))
 
+	// ChannelMigrationService (GHO-52) reports the channel-migration
+	// node's state and, on coordinators, signs new channel plans. With
+	// chanmig disabled the status RPC reports enabled=false. Session-gated
+	// (not in isAPISkipPath); ProposeChannelPlan also records the caller
+	// and refuses calls without one when auth is enabled.
+	api.Handle(chanmigconnect.NewChannelMigrationServiceHandler(&handlers.ChannelMigrationService{
+		Log:            cfg.Log.With().Str("service", "chanmig").Logger(),
+		Node:           cfg.Chanmig,
+		RequireSession: cfg.AuthEnabled,
+	}, connect.WithInterceptors(validateInterceptor)))
+
 	// MeshJoinService shares this node's mesh credentials as a QR code
 	// and joins the node from a scanned code. It reads the same UCI
-	// wireless tree the wifi service does. Session-gated like every
-	// other settings RPC (not in isAPISkipPath).
+	// wireless tree the wifi service does. With chanmig enabled the QR
+	// also carries the plan-authority public keys and mesh ID; a join
+	// installs received ones only where none exist yet. Session-gated
+	// like every other settings RPC (not in isAPISkipPath).
 	api.Handle(meshjoinconnect.NewMeshJoinServiceHandler(&handlers.MeshJoinService{
 		Log:          cfg.Log.With().Str("service", "mesh_join").Logger(),
 		ConfigReader: wifiSvc.ConfigReader,
 		Radios:       wifiSvc,
+		ChanmigTrust: &handlers.ConfigChanmigTrust{Cfg: cfg.Cfg},
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

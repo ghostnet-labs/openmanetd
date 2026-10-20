@@ -207,14 +207,39 @@ type Status struct {
 	Phase      Phase
 }
 
-type bandMode uint8
+// BandMode is one band's migration state.
+type BandMode uint8
 
+// Band modes reported by Snapshot.
 const (
-	modeSettled bandMode = iota
-	modeVerifying
-	modeFallback
-	modeSearching
+	// BandSettled means the band is not verifying, falling back or
+	// searching.
+	BandSettled BandMode = iota
+	// BandVerifying means the band switched while it had peers and waits
+	// to hear one on the new assignment.
+	BandVerifying
+	// BandFallback means no peer was heard on the new assignment and the
+	// band returned to its previous one.
+	BandFallback
+	// BandSearching means the band sweeps its search list.
+	BandSearching
 )
+
+// String returns the band mode name.
+func (m BandMode) String() string {
+	switch m {
+	case BandSettled:
+		return "settled"
+	case BandVerifying:
+		return "verifying"
+	case BandFallback:
+		return "fallback"
+	case BandSearching:
+		return "searching"
+	default:
+		return "unknown"
+	}
+}
 
 type bandState struct {
 	modeSince  time.Time
@@ -227,7 +252,7 @@ type bandState struct {
 	op         Assignment
 	prev       Assignment
 	switchTo   Assignment
-	mode       bandMode
+	mode       BandMode
 	failed     bool
 }
 
@@ -411,7 +436,7 @@ func (n *Node) Start(ctx context.Context) error {
 	var eff effects
 
 	for _, bs := range n.bands {
-		bs.mode = modeSettled
+		bs.mode = BandSettled
 		bs.modeSince = now
 		n.tuneTo(&eff, bs, n.target(bs))
 	}
@@ -642,7 +667,7 @@ func (n *Node) schedule(now time.Time) time.Time {
 
 	for _, bs := range n.bands {
 		a, ok := p.Assignment(bs.cfg.Initial.Band)
-		if !ok || bs.mode == modeSearching {
+		if !ok || bs.mode == BandSearching {
 			continue
 		}
 
@@ -738,8 +763,8 @@ func (n *Node) retryRadios(eff *effects, now time.Time) {
 
 		bs.retryAt = now.Add(n.cfg.Timing.RadioRetry)
 
-		if bs.mode != modeSearching {
-			bs.mode = modeSettled
+		if bs.mode != BandSearching {
+			bs.mode = BandSettled
 			bs.modeSince = now
 		}
 
@@ -759,10 +784,10 @@ func (n *Node) tickBand(eff *effects, bs *bandState, now time.Time) {
 		bs.prev = bs.op
 		bs.switchAt = time.Time{}
 		bs.modeSince = now
-		bs.mode = modeSettled
+		bs.mode = BandSettled
 
 		if hadPeers {
-			bs.mode = modeVerifying
+			bs.mode = BandVerifying
 			bs.deadline = now.Add(t.VerifyBound)
 		}
 
@@ -774,29 +799,29 @@ func (n *Node) tickBand(eff *effects, bs *bandState, now time.Time) {
 	heard := !bs.lastPeer.Before(bs.modeSince)
 
 	switch bs.mode {
-	case modeVerifying:
+	case BandVerifying:
 		n.tickVerifying(eff, bs, heard, now)
-	case modeFallback:
+	case BandFallback:
 		if heard {
-			bs.mode = modeSettled
+			bs.mode = BandSettled
 		} else if !now.Before(bs.deadline) {
-			bs.mode = modeSettled
+			bs.mode = BandSettled
 			bs.modeSince = now
 			n.tuneTo(eff, bs, n.target(bs))
 		}
-	case modeSettled:
+	case BandSettled:
 		n.correctDrift(eff, bs, now)
-	case modeSearching:
+	case BandSearching:
 	}
 }
 
 func (n *Node) tickVerifying(eff *effects, bs *bandState, heard bool, now time.Time) {
 	switch {
 	case heard:
-		bs.mode = modeSettled
+		bs.mode = BandSettled
 	case !now.Before(bs.deadline):
 		n.stats.Fallbacks++
-		bs.mode = modeFallback
+		bs.mode = BandFallback
 		bs.modeSince = now
 		bs.deadline = now.Add(n.cfg.Timing.FallbackBound)
 		n.tuneTo(eff, bs, bs.prev)
@@ -1060,7 +1085,7 @@ func (n *Node) derivedPhase() Phase {
 	pending := false
 
 	for _, bs := range n.bands {
-		if bs.mode == modeVerifying || bs.mode == modeFallback {
+		if bs.mode == BandVerifying || bs.mode == BandFallback {
 			return PhaseMigrating
 		}
 

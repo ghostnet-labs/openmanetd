@@ -383,3 +383,31 @@ func TestAPIAuthMiddleware_RadioServiceRequiresSession(t *testing.T) {
 		})
 	}
 }
+
+// TestAPIAuthMiddleware_ChannelMigrationServiceRequiresSession pins that
+// the channel-migration status and propose RPCs are never on the skip list.
+func TestAPIAuthMiddleware_ChannelMigrationServiceRequiresSession(t *testing.T) {
+	store := auth.NewSessionStore(time.Hour, 16)
+	mw := auth.NewAPIAuthMiddleware(store, true)
+
+	for _, path := range []string{
+		"/openmanet.chanmig.v1.ChannelMigrationService/GetChannelMigrationStatus",
+		"/openmanet.chanmig.v1.ChannelMigrationService/ProposeChannelPlan",
+	} {
+		t.Run(path, func(t *testing.T) {
+			called := false
+			handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.False(t, called, "channel-migration RPCs must not bypass auth")
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		})
+	}
+}

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"os"
@@ -35,15 +37,11 @@ const (
 type MeshJoinService struct {
 	Log          zerolog.Logger
 	ConfigReader network.ConfigReader
-	// Radios writes radio settings under the wifi service's UCI lock.
-	// nil disables ApplyMeshJoin (CodeUnavailable).
-	Radios RadioApplier
-	// Hostname can be overridden for tests; nil falls back to os.Hostname.
-	Hostname func() (string, error)
-	// LoadRegDB / RegDBPath mirror SetupService: nil / "" fall back to
-	// morseregdb.Load and morseregdb.DefaultPath.
-	LoadRegDB func(path string) (*morseregdb.DB, error)
-	RegDBPath string
+	Radios       RadioApplier
+	ChanmigTrust ChanmigTrust
+	Hostname     func() (string, error)
+	LoadRegDB    func(path string) (*morseregdb.DB, error)
+	RegDBPath    string
 }
 
 // meshIface is one enabled mesh-mode wifi-iface joined with its radio.
@@ -109,6 +107,8 @@ func (s *MeshJoinService) GetMeshJoinQR(_ context.Context, _ *emptypb.Empty) (*m
 	}
 
 	payload.SourceHostname = hostname
+
+	s.addChanmigTrust(payload)
 
 	// Defense-in-depth: validate the fully assembled payload against the
 	// proto's buf.validate constraints before encoding, so a QR is never
@@ -253,6 +253,8 @@ func (s *MeshJoinService) ApplyMeshJoin(ctx context.Context, req *meshjoinv1.App
 	}
 
 	s.Log.Info().Int("radios", len(targets)).Msg("Mesh join applied")
+
+	s.installChanmigTrust(payload)
 
 	return &meshjoinv1.ApplyMeshJoinResponse{Radios: results}, nil
 }
@@ -475,6 +477,71 @@ func (s *MeshJoinService) buildSettings(tgt joinTarget) (*wificonfigv1.RadioSett
 	}
 
 	return cur, nil
+}
+
+// addChanmigTrust adds the channel-migration keys and mesh ID to payload
+// when chanmig is enabled. A key file that cannot be read is logged and
+// left out: sharing the mesh credentials matters more than the plan keys.
+func (s *MeshJoinService) addChanmigTrust(payload *meshjoinv1.MeshJoinPayload) {
+	if s.ChanmigTrust == nil {
+		return
+	}
+
+	trust, ok, err := s.ChanmigTrust.JoinTrust()
+	if err != nil {
+		s.Log.Warn().Err(err).Msg("Leaving channel-migration keys out of QR payload")
+
+		return
+	}
+
+	if !ok {
+		return
+	}
+
+	keys := make([][]byte, 0, len(trust.Keys))
+
+	for _, k := range trust.Keys {
+		// The payload requires unique keys; a key file may repeat one.
+		if !slices.ContainsFunc(keys, func(b []byte) bool { return bytes.Equal(b, k) }) {
+			keys = append(keys, bytes.Clone(k))
+		}
+	}
+
+	payload.PlanAuthorityPublicKeys = keys
+
+	if trust.HasMeshID {
+		payload.ChanmigMeshId = &trust.MeshID
+	}
+}
+
+// installChanmigTrust adopts the channel-migration keys and mesh ID of a
+// joined mesh after its radios were applied. The join has already
+// succeeded, so a failure here is logged rather than returned.
+func (s *MeshJoinService) installChanmigTrust(payload *meshjoinv1.MeshJoinPayload) {
+	raw := payload.GetPlanAuthorityPublicKeys()
+	if s.ChanmigTrust == nil || len(raw) == 0 {
+		return
+	}
+
+	trust := JoinTrust{Keys: make([]ed25519.PublicKey, 0, len(raw))}
+	for _, k := range raw {
+		trust.Keys = append(trust.Keys, ed25519.PublicKey(k))
+	}
+
+	if payload.ChanmigMeshId != nil {
+		trust.MeshID, trust.HasMeshID = payload.GetChanmigMeshId(), true
+	}
+
+	res, err := s.ChanmigTrust.InstallJoinTrust(trust)
+	if err != nil {
+		s.Log.Warn().Err(err).Str("key_file", res.KeyFile).Msg("Failed to adopt channel-migration trust from mesh join")
+
+		return
+	}
+
+	s.Log.Info().Str("key_file", res.KeyFile).Int("keys", len(trust.Keys)).Bool("keys_written", res.KeysWritten).
+		Bool("mesh_id_set", res.MeshIDSet).Uint64("mesh_id", trust.MeshID).
+		Msg("Channel-migration trust from mesh join processed (existing keys and mesh ID are kept; applies after restart)")
 }
 
 func (s *MeshJoinService) hostname() (string, error) {

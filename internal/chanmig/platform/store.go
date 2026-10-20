@@ -232,12 +232,12 @@ func writeFileAtomic(path string, data []byte) error {
 func syncDir(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
-		return fmt.Errorf("open plan store directory: %w", err)
+		return fmt.Errorf("open directory %s: %w", dir, err)
 	}
 	defer d.Close()
 
 	if err := d.Sync(); err != nil {
-		return fmt.Errorf("sync plan store directory: %w", err)
+		return fmt.Errorf("sync directory %s: %w", dir, err)
 	}
 
 	return nil

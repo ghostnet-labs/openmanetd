@@ -17,6 +17,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/mgmt"
 	"github.com/openmanet/openmanetd/internal/network"
+	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/util/logger"
 )
 
@@ -281,6 +282,17 @@ func chanmigTiming(base chanmig.Timing, o config.ChanmigTiming) chanmig.Timing {
 	set(&base.Stagger, o.Stagger)
 
 	return base
+}
+
+// chanmigAPI returns the running node as the handler interface, or a true
+// nil interface (not a typed nil pointer) when chanmig is not running, so
+// the status RPC reports enabled=false.
+func chanmigAPI(svc *platform.Service) handlers.ChannelMigrator {
+	if svc == nil {
+		return nil
+	}
+
+	return svc.Node()
 }
 
 // waitChanmig waits, bounded, for the service's loops to exit after ctx is

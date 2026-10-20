@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
 	"errors"
 	"net"
@@ -12,12 +13,16 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdlayher/wifi"
 	"github.com/openmanet/openmanetd/internal/blos"
+	"github.com/openmanet/openmanetd/internal/chanmig"
 	"github.com/openmanet/openmanetd/internal/comms/control/alsa"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
+	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/pathsel"
 	"github.com/openmanet/openmanetd/internal/radiogate"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 )
@@ -696,4 +701,177 @@ func (f *fakePathDecisionLister) lastArgs() (string, pathsel.Class, int, int) {
 	defer f.mu.Unlock()
 
 	return f.lastDest, f.lastClass, f.lastLimit, f.calls
+}
+
+// ── Channel migration ─────────────────────────────────────────────────────────
+
+// fakeChannelMigrator implements handlers.ChannelMigrator.
+type fakeChannelMigrator struct {
+	mu              sync.Mutex // protects the fields below
+	snap            chanmig.Snapshot
+	proposed        chanmig.SignedPlan
+	proposeErr      error
+	lastAssignments []chanmig.Assignment
+	lastLead        time.Duration
+	proposeCalls    int
+}
+
+func (f *fakeChannelMigrator) Snapshot() chanmig.Snapshot {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.snap
+}
+
+func (f *fakeChannelMigrator) Propose(_ context.Context, as []chanmig.Assignment, lead time.Duration) (chanmig.SignedPlan, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.proposeCalls++
+
+	f.lastAssignments = append([]chanmig.Assignment(nil), as...)
+	f.lastLead = lead
+
+	if f.proposeErr != nil {
+		return chanmig.SignedPlan{}, f.proposeErr
+	}
+
+	return f.proposed, nil
+}
+
+func (f *fakeChannelMigrator) lastProposal() ([]chanmig.Assignment, time.Duration, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.lastAssignments, f.lastLead, f.proposeCalls
+}
+
+// chanmigTestNow is the fixed clock of the channel-migration node fakes.
+func chanmigTestNow() time.Time { return time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC) }
+
+// fakeChanmigClock is a fixed, disciplined clock.
+type fakeChanmigClock struct{}
+
+func (fakeChanmigClock) Now() time.Time { return chanmigTestNow() }
+func (fakeChanmigClock) Synced() bool   { return true }
+
+// fakeChanmigIO stands in for the transport, radio and plan store of a
+// real chanmig.Node; it accepts everything and records the last save.
+type fakeChanmigIO struct {
+	mu      sync.Mutex // protects the fields below
+	records [][]byte
+}
+
+func (f *fakeChanmigIO) Broadcast(context.Context, chanmig.Band, []byte) error { return nil }
+func (f *fakeChanmigIO) SetChannel(context.Context, chanmig.Assignment) error  { return nil }
+
+func (f *fakeChanmigIO) Load(context.Context) ([][]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.records, nil
+}
+
+func (f *fakeChanmigIO) Save(_ context.Context, records [][]byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.records = records
+
+	return nil
+}
+
+// chanmigTestKey is the deterministic plan-authority key of the tests.
+func chanmigTestKey() ed25519.PrivateKey {
+	return ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
+}
+
+// newTestChanmigNode returns a started chanmig.Node managing HaLow
+// (allowed 1, 2, 3 at 1 MHz) and 5 GHz (36 and 44 at 80 MHz), mesh 0x0E1A,
+// node ID 7. A coordinator holds the signer for chanmigTestKey.
+func newTestChanmigNode(t *testing.T, coordinator bool) *chanmig.Node {
+	t.Helper()
+
+	key := chanmigTestKey()
+
+	pub, ok := key.Public().(ed25519.PublicKey)
+	require.True(t, ok)
+
+	verifier, err := chanmig.NewVerifier(0x0E1A, pub)
+	require.NoError(t, err)
+
+	halow := func(ch uint16) chanmig.Assignment {
+		return chanmig.Assignment{Band: chanmig.BandHaLow, Channel: ch, WidthMHz: 1}
+	}
+	wifi5 := func(ch uint16) chanmig.Assignment {
+		return chanmig.Assignment{Band: chanmig.Band5G, Channel: ch, WidthMHz: 80}
+	}
+
+	io := &fakeChanmigIO{}
+	cfg := chanmig.Config{
+		Clock:     fakeChanmigClock{},
+		Transport: io,
+		Radio:     io,
+		Store:     io,
+		Verifier:  verifier,
+		Log:       zerolog.Nop(),
+		Bands: []chanmig.BandConfig{
+			{Initial: halow(1), Allowed: []chanmig.Assignment{halow(1), halow(2), halow(3)}},
+			{Initial: wifi5(36), Allowed: []chanmig.Assignment{wifi5(36), wifi5(44)}},
+		},
+		Timing: chanmig.DefaultTiming(),
+		ID:     7,
+	}
+
+	if coordinator {
+		cfg.Signer, err = chanmig.NewSigner(7, key)
+		require.NoError(t, err)
+	}
+
+	node, err := chanmig.New(cfg)
+	require.NoError(t, err)
+	require.NoError(t, node.Start(t.Context()))
+
+	return node
+}
+
+// fakeChanmigTrust implements handlers.ChanmigTrust.
+type fakeChanmigTrust struct {
+	mu         sync.Mutex // protects the fields below
+	trust      handlers.JoinTrust
+	installed  []handlers.JoinTrust
+	trustErr   error
+	installErr error
+	enabled    bool
+}
+
+func (f *fakeChanmigTrust) JoinTrust() (handlers.JoinTrust, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.trustErr != nil {
+		return handlers.JoinTrust{}, false, f.trustErr
+	}
+
+	return f.trust, f.enabled, nil
+}
+
+func (f *fakeChanmigTrust) InstallJoinTrust(t handlers.JoinTrust) (handlers.JoinTrustResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.installed = append(f.installed, t)
+
+	if f.installErr != nil {
+		return handlers.JoinTrustResult{KeyFile: "/fake"}, f.installErr
+	}
+
+	return handlers.JoinTrustResult{KeyFile: "/fake", KeysWritten: true}, nil
+}
+
+func (f *fakeChanmigTrust) installs() []handlers.JoinTrust {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]handlers.JoinTrust(nil), f.installed...)
 }
