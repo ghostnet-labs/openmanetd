@@ -31,6 +31,19 @@ bandwidth in MHz, channel and regulatory country. `OPENMANET1:` is the
 format version; a node reports "newer OpenMANET build" when it sees a
 higher number.
 
+When channel migration is enabled on the source (`chanmig.enable`), the
+payload also carries its trusted plan-authority Ed25519 public keys
+(`plan_authority_public_keys`, at most 8, never a private key) and its
+`chanmig_mesh_id`. An unreadable key file leaves them out; the QR still
+works. On a successful `ApplyMeshJoin` the joining node writes the keys to
+`chanmig.publicKeyFile` only when that file does not exist yet (mode
+0644, atomic, never overwritten) and sets `chanmig.meshId` in its config
+only when none is configured. The outcome is logged; a failure there does
+not fail the join. The running chanmig node picks the new trust up after an
+openmanetd restart (with `chanmig.enable: true`);
+`ChannelMigrationService.GetChannelMigrationStatus` then lists the trusted
+key fingerprints in use, for comparing nodes by eye.
+
 The QR is the credential. Anyone who can photograph the screen can join
 the mesh — the same trust as reading the passphrase off the settings page.
 The payload is never logged and the WebUI never stores it.

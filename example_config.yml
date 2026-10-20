@@ -115,7 +115,11 @@ sysupgrade:
 # exchange Ed25519-signed channel plans over alfred (data type 104, needs
 # alfred.enable) and retune radios by rewriting channel/htmode of the band's
 # wifi-device in /etc/config/wireless, then running reload_config.
-# Keys are provisioned out of band (there is no network distribution):
+# Keys are provisioned out of band (there is no network distribution), or by
+# a mesh join QR code: a node with chanmig enabled shares its public key(s)
+# and meshId in the code, and a joining node writes them to publicKeyFile
+# when that file does not exist yet and sets meshId when it is unset (never
+# overwriting either; restart openmanetd, with enable: true, to use them):
 #   every node:        publicKeyFile  - PEM "PUBLIC KEY" or base64 raw key(s)
 #   coordinators only: privateKeyFile - PEM PKCS#8 or base64 seed, mode 0600
 #   openssl genpkey -algorithm ed25519 -out authority.key
