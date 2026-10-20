@@ -194,3 +194,82 @@ func TestTrustsKey(t *testing.T) {
 	assert.False(t, platform.TrustsKey([]ed25519.PublicKey{pub2}, pub1))
 	assert.False(t, platform.TrustsKey(nil, pub1))
 }
+
+func TestInstallPublicKeys_writesLoadableFile(t *testing.T) {
+	k1, _ := genKey(t)
+	k2, _ := genKey(t)
+	dir := filepath.Join(t.TempDir(), "chanmig")
+	path := filepath.Join(dir, "authority.pub")
+
+	require.NoError(t, platform.InstallPublicKeys(path, []ed25519.PublicKey{k1, k2}))
+
+	keys, err := platform.LoadPublicKeys(path)
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+	assert.True(t, keys[0].Equal(k1))
+	assert.True(t, keys[1].Equal(k2))
+
+	fi, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), fi.Mode().Perm())
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "no temporary file is left behind")
+}
+
+func TestInstallPublicKeys_neverOverwrites(t *testing.T) {
+	k1, _ := genKey(t)
+	path := filepath.Join(t.TempDir(), "authority.pub")
+	require.NoError(t, os.WriteFile(path, []byte("existing\n"), 0o600))
+
+	err := platform.InstallPublicKeys(path, []ed25519.PublicKey{k1})
+	require.ErrorIs(t, err, platform.ErrKeyFileExists)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "existing\n", string(data))
+
+	dir := t.TempDir()
+	require.ErrorIs(t, platform.InstallPublicKeys(dir, []ed25519.PublicKey{k1}), platform.ErrKeyFileExists,
+		"a directory at the path is not replaced either")
+}
+
+func TestInstallPublicKeys_rejectsBadInput(t *testing.T) {
+	k, _ := genKey(t)
+	path := filepath.Join(t.TempDir(), "authority.pub")
+
+	nine := make([]ed25519.PublicKey, 9)
+	for i := range nine {
+		nine[i] = k
+	}
+
+	tests := []struct {
+		name string
+		keys []ed25519.PublicKey
+	}{
+		{name: "none", keys: nil},
+		{name: "too many", keys: nine},
+		{name: "short key", keys: []ed25519.PublicKey{k[:31]}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.ErrorIs(t, platform.InstallPublicKeys(path, tc.keys), platform.ErrKeyFormat)
+			assert.NoFileExists(t, path)
+		})
+	}
+
+	eight := nine[:8]
+	require.NoError(t, platform.InstallPublicKeys(path, eight))
+}
+
+func TestInstallPublicKeys_statError(t *testing.T) {
+	k, _ := genKey(t)
+	file := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+
+	err := platform.InstallPublicKeys(filepath.Join(file, "authority.pub"), []ed25519.PublicKey{k})
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, platform.ErrKeyFileExists)
+}
