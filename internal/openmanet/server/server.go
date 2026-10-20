@@ -201,6 +201,7 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Services:    dashServices,
 		Actions:     &system.InitDActionExecutor{},
 		Battery:     system.NewCachedBatteryProvider(dashBattery, nil),
+		Hardware:    cfg.Hardware,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(gnssconnect.NewGNSSServiceHandler(&handlers.GNSSService{

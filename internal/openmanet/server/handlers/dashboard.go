@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	v1 "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1"
 	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
+	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/mgmt"
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/system"
@@ -57,9 +58,19 @@ type DashboardService struct {
 	Services    system.ServiceChecker
 	Actions     system.QuickActionExecutor
 	Battery     system.BatteryProvider
+	// Hardware is the V1 hardware manager, or nil when it is disabled.
+	// When its INA228 telemetry is present it feeds the battery section
+	// in place of Battery.
+	Hardware HardwareStatusReader
 
 	// MonitoredServices overrides the default service list.
 	MonitoredServices []string
+}
+
+// HardwareStatusReader is the subset of the hardware manager the dashboard
+// reads.
+type HardwareStatusReader interface {
+	Status() hardware.Status
 }
 
 // WifiStationProvider abstracts WiFi mesh station info for the dashboard.
@@ -269,9 +280,53 @@ func (d *DashboardService) buildSystemResources() (*v1.SystemResources, error) {
 	return res, errors.Join(errs...)
 }
 
-// buildBattery reports the battery monitor, or an absent battery when the
-// device has none or the read fails.
+// buildBattery reports the hardware manager's INA228 telemetry when the
+// manager runs and has a reading (last-good values are kept while stale).
+// Otherwise it falls back to the battery monitor, and reports an absent
+// battery when the device has none or the read fails.
 func (d *DashboardService) buildBattery() *v1.BatteryStatus {
+	if d.Hardware != nil {
+		if hb := d.Hardware.Status().Battery; hb.Present {
+			return d.hardwareBattery(&hb)
+		}
+	}
+
+	return d.monitorBattery()
+}
+
+// millisPerUnit converts the manager's milli-unit integers (mV, mA, mW).
+const millisPerUnit = 1000
+
+// hardwareBattery converts the hardware manager's battery block. The
+// manager estimates no state of charge: with a known pack (V1 3S) the
+// charge stays unknown, matching the V1 battery profile, whose INA228
+// measures the charger/system bus. With no known pack the estimate comes
+// from the battery monitor, as before.
+func (d *DashboardService) hardwareBattery(hb *hardware.BatteryStatus) *v1.BatteryStatus {
+	out := &v1.BatteryStatus{
+		Present:       true,
+		VoltageVolts:  float32(hb.BusMV) / millisPerUnit,
+		CurrentAmps:   float32(hb.CurrentMA) / millisPerUnit,
+		PowerWatts:    float32(hb.PowerMW) / millisPerUnit,
+		ChargePercent: -1,
+		CellCount:     hb.SeriesCells,
+	}
+
+	if hb.SeriesCells != 0 {
+		return out
+	}
+
+	if mon := d.monitorBattery(); mon.GetPresent() {
+		out.ChargePercent = mon.GetChargePercent()
+		out.CellCount = mon.GetCellCount()
+	}
+
+	return out
+}
+
+// monitorBattery reads the battery monitor, or reports an absent battery
+// when the device has none or the read fails.
+func (d *DashboardService) monitorBattery() *v1.BatteryStatus {
 	absent := &v1.BatteryStatus{ChargePercent: -1}
 
 	if d.Battery == nil {
