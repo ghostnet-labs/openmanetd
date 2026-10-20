@@ -314,12 +314,15 @@ func NewAPIServer(cfg APIServer) *APIServer {
 
 	// MeshJoinService shares this node's mesh credentials as a QR code
 	// and joins the node from a scanned code. It reads the same UCI
-	// wireless tree the wifi service does. Session-gated like every
-	// other settings RPC (not in isAPISkipPath).
+	// wireless tree the wifi service does. With chanmig enabled the QR
+	// also carries the plan-authority public keys and mesh ID; a join
+	// installs received ones only where none exist yet. Session-gated
+	// like every other settings RPC (not in isAPISkipPath).
 	api.Handle(meshjoinconnect.NewMeshJoinServiceHandler(&handlers.MeshJoinService{
 		Log:          cfg.Log.With().Str("service", "mesh_join").Logger(),
 		ConfigReader: wifiSvc.ConfigReader,
 		Radios:       wifiSvc,
+		ChanmigTrust: &handlers.ConfigChanmigTrust{Cfg: cfg.Cfg},
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

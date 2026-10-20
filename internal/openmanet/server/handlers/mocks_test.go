@@ -18,6 +18,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
+	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/pathsel"
 	"github.com/openmanet/openmanetd/internal/radiogate"
 	"github.com/rs/zerolog"
@@ -832,4 +833,45 @@ func newTestChanmigNode(t *testing.T, coordinator bool) *chanmig.Node {
 	require.NoError(t, node.Start(t.Context()))
 
 	return node
+}
+
+// fakeChanmigTrust implements handlers.ChanmigTrust.
+type fakeChanmigTrust struct {
+	mu         sync.Mutex // protects the fields below
+	trust      handlers.JoinTrust
+	installed  []handlers.JoinTrust
+	trustErr   error
+	installErr error
+	enabled    bool
+}
+
+func (f *fakeChanmigTrust) JoinTrust() (handlers.JoinTrust, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.trustErr != nil {
+		return handlers.JoinTrust{}, false, f.trustErr
+	}
+
+	return f.trust, f.enabled, nil
+}
+
+func (f *fakeChanmigTrust) InstallJoinTrust(t handlers.JoinTrust) (handlers.JoinTrustResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.installed = append(f.installed, t)
+
+	if f.installErr != nil {
+		return handlers.JoinTrustResult{KeyFile: "/fake"}, f.installErr
+	}
+
+	return handlers.JoinTrustResult{KeyFile: "/fake", KeysWritten: true}, nil
+}
+
+func (f *fakeChanmigTrust) installs() []handlers.JoinTrust {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]handlers.JoinTrust(nil), f.installed...)
 }
