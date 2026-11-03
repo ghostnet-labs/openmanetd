@@ -237,6 +237,30 @@ func channelEdges(cfg *Config) (pass, stop, peakDev float64, err error) {
 	return 0, 0, 0, fmt.Errorf("analog: unsupported channel spacing %d Hz", cfg.ChannelSpacingHz)
 }
 
+// Reset returns the demodulator to its initial state (squelch closed,
+// filters empty, partial PCM block dropped) so it can be reused on a new
+// capture without reallocating. It does not allocate.
+func (d *Demodulator) Reset() {
+	d.chain.Reset()
+	d.audioLP.Reset()
+	d.resampler.Reset()
+	d.voiceHP.x1, d.voiceHP.x2, d.voiceHP.y1, d.voiceHP.y2 = 0, 0, 0, 0
+	d.decBuf, d.resBuf, d.pcm = d.decBuf[:0], d.resBuf[:0], d.pcm[:0]
+	d.prev, d.deState, d.open = 0, 0, false
+	d.level = 0
+
+	if d.noiseHP != nil {
+		d.noiseHP.Reset()
+		d.level = 4 // closed: see initNoiseSquelch
+	}
+}
+
+// Mode returns the demodulation mode.
+func (d *Demodulator) Mode() Mode { return d.cfg.Mode }
+
+// ChannelSpacingHz returns the channel filter's spacing.
+func (d *Demodulator) ChannelSpacingHz() int { return d.cfg.ChannelSpacingHz }
+
 // Open reports the current squelch state.
 func (d *Demodulator) Open() bool { return d.open }
 

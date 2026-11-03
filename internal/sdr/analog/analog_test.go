@@ -283,3 +283,44 @@ func BenchmarkNFM_Write16k(b *testing.B) {
 		d.Write(iqs[:16384])
 	}
 }
+
+// TestDemodulator_Reset reuses a demodulator after a strong signal: the
+// squelch is closed again, a noise-only capture keeps it closed, and the
+// same signal reproduces the same PCM as a fresh demodulator.
+func TestDemodulator_Reset(t *testing.T) {
+	for _, mode := range []analog.Mode{analog.ModeNFM, analog.ModeAM} {
+		t.Run(map[analog.Mode]string{analog.ModeNFM: "nfm", analog.ModeAM: "am"}[mode], func(t *testing.T) {
+			cfg := analog.Config{SampleRate: rtlRate, Mode: mode}
+
+			sig := fmTone(rtlRate, 0.3, 1000, 2000, 25, 12500, 7)
+			if mode == analog.ModeAM {
+				sig = amTone(rtlRate, 0.3, 1000, 0.6, 0.1, 30, 25000, 7)
+			}
+
+			fresh := run(t, cfg, sig)
+
+			c := &capture{}
+			d, err := analog.New(cfg, c.emit)
+			require.NoError(t, err)
+			assert.Equal(t, mode, d.Mode())
+
+			d.Write(sig)
+			require.True(t, d.Open())
+
+			d.Reset()
+			assert.False(t, d.Open())
+
+			c.pcm, c.opens = nil, nil
+
+			for i := 0; i < len(sig); i += 10_000 {
+				d.Write(sig[i:min(i+10_000, len(sig))])
+			}
+
+			assert.Equal(t, fresh.pcm, c.pcm)
+			assert.Equal(t, fresh.opens, c.opens)
+
+			allocs := testing.AllocsPerRun(10, d.Reset)
+			assert.Zero(t, allocs)
+		})
+	}
+}

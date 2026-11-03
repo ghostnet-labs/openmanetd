@@ -199,6 +199,12 @@ func NewRealFIR(taps []float32) *RealFIR {
 	return &RealFIR{taps: rev, hist: make([]float32, 2*n)}
 }
 
+// Reset clears the filter history.
+func (r *RealFIR) Reset() {
+	clear(r.hist)
+	r.pos = 0
+}
+
 // Step pushes one sample and returns one filtered output.
 func (r *RealFIR) Step(x float32) float32 {
 	n := len(r.taps)

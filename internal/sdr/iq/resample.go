@@ -22,6 +22,12 @@ func NewResampler(inRate, outRate float64) (*Resampler, error) {
 	return &Resampler{step: inRate / outRate}, nil
 }
 
+// Reset clears the interpolation history.
+func (r *Resampler) Reset() {
+	r.hist = [4]float32{}
+	r.pos = 0
+}
+
 // Push consumes one input sample and appends zero or more outputs to dst.
 func (r *Resampler) Push(dst []float32, x float32) []float32 {
 	r.hist[0], r.hist[1], r.hist[2], r.hist[3] = r.hist[1], r.hist[2], r.hist[3], x
