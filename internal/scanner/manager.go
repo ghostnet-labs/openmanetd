@@ -101,6 +101,7 @@ type Manager struct { //nolint:govet // fieldalignment: lifeMu and mu stay above
 	lastRecv    time.Time
 	tuneFailed  time.Time
 	tunedKey    string
+	tunedSerial string
 	needsRetune bool
 
 	// tableOnce lazily decodes the embedded site table when sites is nil.
@@ -336,7 +337,8 @@ func (m *Manager) shutdown() {
 	}
 
 	m.selector.Reset()
-	m.tunedKey, m.needsRetune, m.lastRecv, m.tuneFailed = "", false, time.Time{}, time.Time{}
+	m.tunedKey, m.tunedSerial, m.needsRetune = "", "", false
+	m.lastRecv, m.tuneFailed = time.Time{}, time.Time{}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -450,8 +452,15 @@ func (m *Manager) updateSelection(ctx context.Context, cfg config.ScannerConfig,
 		key = site.Key
 	}
 
-	changed := key != m.tunedKey || m.needsRetune
-	if changed && !m.tuneFailed.IsZero() && now.Sub(m.tuneFailed) < tuneRetry && key == m.tunedKey {
+	tuner, serial, _ := controlTuner(cfg)
+	if site == nil {
+		serial = ""
+	}
+
+	same := key == m.tunedKey && serial == m.tunedSerial
+
+	changed := !same || m.needsRetune
+	if changed && !m.tuneFailed.IsZero() && now.Sub(m.tuneFailed) < tuneRetry && same {
 		changed = false
 	}
 
@@ -463,7 +472,7 @@ func (m *Manager) updateSelection(ctx context.Context, cfg config.ScannerConfig,
 		return
 	}
 
-	m.retune(ctx, sel, now)
+	m.retune(ctx, sel, tuner, serial, now)
 }
 
 // buildSelectionLocked refreshes m.selection for site (nil clears it),
@@ -477,9 +486,11 @@ func (m *Manager) buildSelectionLocked(site *sites.Site, reason sites.Reason, cf
 		return nil
 	}
 
+	_, _, usable := controlTuner(cfg)
+
 	sel := m.selection
-	if sel == nil || sel.Site.Key != site.Key {
-		plan := sites.PlanTuner(site, cmpOr(cfg.WideUsableHz, config.DefaultScannerWideUsableHz))
+	if sel == nil || sel.Site.Key != site.Key || sel.Plan.UsableHz != usable {
+		plan := sites.PlanTuner(site, usable)
 		sel = &Selection{Site: site, Plan: plan, SelectedAt: now}
 	} else {
 		cp := *sel
@@ -499,10 +510,23 @@ func (m *Manager) buildSelectionLocked(site *sites.Site, reason sites.Reason, cf
 	return sel
 }
 
+// controlTuner picks the receiver that decodes the control channel: the
+// wide receiver when its serial is configured, otherwise the scan RTL-SDR.
+// usable is the tuner bandwidth the site plan is built for.
+func controlTuner(cfg config.ScannerConfig) (tuner Tuner, serial string, usable uint64) {
+	if cfg.WideSerial != "" {
+		return TunerWide, cfg.WideSerial, cmpOr(cfg.WideUsableHz, config.DefaultScannerWideUsableHz)
+	}
+
+	scan := cmpOr(cfg.ScanSerial, config.DefaultScannerScanSerial)
+
+	return TunerScan, scan, cmpOr(cfg.RTLUsableHz, config.DefaultScannerRTLUsableHz)
+}
+
 // retune points the decoder at sel (or stops it when sel is nil) and
 // publishes the site change. It runs on the manager goroutine without
 // holding mu across Tune.
-func (m *Manager) retune(ctx context.Context, sel *Selection, now time.Time) {
+func (m *Manager) retune(ctx context.Context, sel *Selection, tuner Tuner, serial string, now time.Time) {
 	newKey := ""
 	if sel != nil {
 		newKey = sel.Site.Key
@@ -511,7 +535,7 @@ func (m *Manager) retune(ctx context.Context, sel *Selection, now time.Time) {
 	siteChanged := newKey != m.tunedKey
 
 	if m.monitor == nil {
-		m.tunedKey, m.needsRetune = newKey, false
+		m.tunedKey, m.tunedSerial, m.needsRetune = newKey, serial, false
 		m.publishSite(sel, now, siteChanged)
 
 		return
@@ -521,10 +545,12 @@ func (m *Manager) retune(ctx context.Context, sel *Selection, now time.Time) {
 	if sel != nil {
 		plan = TunePlan{
 			SiteKey:   sel.Site.Key,
-			ControlHz: sel.Plan.CoveredControl(sel.Site),
+			ControlHz: huntOrder(sel),
 			VoiceHz:   coveredVoice(sel),
 			CenterHz:  sel.Plan.CenterHz,
 			UsableHz:  sel.Plan.UsableHz,
+			Serial:    serial,
+			Tuner:     tuner,
 		}
 	}
 
@@ -552,7 +578,7 @@ func (m *Manager) retune(ctx context.Context, sel *Selection, now time.Time) {
 		m.log.Warn().Err(err).Str("site", newKey).Msg("scanner: tuning control-channel decoder failed")
 	}
 
-	m.tunedKey = newKey
+	m.tunedKey, m.tunedSerial = newKey, serial
 	m.publishSite(sel, now, siteChanged)
 	m.publish(Event{Time: now, Kind: EventControl, Control: cc})
 }
@@ -563,6 +589,20 @@ func (p *TunePlan) firstControl() uint64 {
 	}
 
 	return p.ControlHz[0]
+}
+
+// huntOrder lists the site's control channels, those inside the tuner
+// window first.
+func huntOrder(sel *Selection) []uint64 {
+	out := sel.Plan.CoveredControl(sel.Site)
+
+	for _, f := range sel.Site.ControlHz {
+		if !slices.Contains(out, f) {
+			out = append(out, f)
+		}
+	}
+
+	return out
 }
 
 func coveredVoice(sel *Selection) []uint64 {
@@ -610,7 +650,7 @@ func (m *Manager) decoderStopped() {
 // handleEvent applies one decoder event.
 func (m *Manager) handleEvent(ev any, now time.Time) {
 	switch ev.(type) {
-	case SyncState, SiteStatus, AdjacentSite, VoiceGrant:
+	case SyncState, SiteStatus, AdjacentSite, VoiceGrant, DecoderStatus:
 	default:
 		return // not part of the decoder contract
 	}
@@ -623,18 +663,21 @@ func (m *Manager) handleEvent(ev any, now time.Time) {
 		return // late event after a stop: ignore
 	}
 
-	m.lastEvent = now
-	prevState := m.control.State
+	prevState, prevDetail := m.control.State, m.control.Detail
+
+	if _, ok := ev.(DecoderStatus); !ok {
+		m.lastEvent = now
+	}
 
 	var out Event
 
 	switch e := ev.(type) {
+	case DecoderStatus:
+		m.applyDecoderStatusLocked(e)
 	case SyncState:
-		if m.control.State == ControlHunting || m.control.State == ControlLocked {
-			m.control.State = ControlHunting
-			if e.Locked {
-				m.control.State = ControlLocked
-			}
+		m.control.State, m.control.Detail = ControlHunting, ""
+		if e.Locked {
+			m.control.State = ControlLocked
 		}
 	case SiteStatus:
 		m.control.LastDecode = now
@@ -652,9 +695,10 @@ func (m *Manager) handleEvent(ev any, now time.Time) {
 		out = Event{Time: now, Kind: EventGrant, Grant: g}
 	}
 
-	// Any decoded message implies sync.
-	if !m.control.LastDecode.IsZero() && m.control.LastDecode.Equal(now) && m.control.State == ControlHunting {
-		m.control.State = ControlLocked
+	// Any decoded message implies sync (and a running capture).
+	switch ev.(type) {
+	case SiteStatus, AdjacentSite, VoiceGrant:
+		m.control.State, m.control.Detail = ControlLocked, ""
 	}
 
 	cc := m.control
@@ -664,8 +708,26 @@ func (m *Manager) handleEvent(ev any, now time.Time) {
 		m.publish(out)
 	}
 
-	if cc.State != prevState {
+	if cc.State != prevState || cc.Detail != prevDetail {
 		m.publish(Event{Time: now, Kind: EventControl, Control: cc})
+	}
+}
+
+// applyDecoderStatusLocked maps a DecoderStatus onto the control state.
+// A running capture (nil Err) only moves the state out of a fault or
+// reports the channel being hunted; lock comes from SyncState and decodes.
+func (m *Manager) applyDecoderStatusLocked(e DecoderStatus) {
+	if e.FrequencyHz != 0 {
+		m.control.FrequencyHz = e.FrequencyHz
+	}
+
+	switch {
+	case e.Err != nil && e.Unavailable:
+		m.control.State, m.control.Detail = ControlUnavailable, e.Err.Error()
+	case e.Err != nil:
+		m.control.State, m.control.Detail = ControlError, e.Err.Error()
+	case m.control.State != ControlLocked:
+		m.control.State, m.control.Detail = ControlHunting, ""
 	}
 }
 
@@ -703,22 +765,30 @@ func (m *Manager) refreshReceivers(cfg config.ScannerConfig, now time.Time) {
 	}
 
 	decodeStale := cmpOr(cfg.DecodeStaleAfter, config.DefaultScannerDecodeStaleAfter)
-	wide := receivers.Activity{LastSample: m.lastEvent}
+	dec := receivers.Activity{LastSample: m.lastEvent}
 
 	switch {
 	case m.monitor == nil:
-		wide.Idle = "control-channel decoder not wired"
+		dec.Idle = "control-channel decoder not wired"
 	case m.selection == nil:
-		wide.Idle = "no P25 site selected"
+		dec.Idle = "no P25 site selected"
 	case m.control.State == ControlError:
-		wide.Err = errors.New(m.control.Detail)
+		dec.Err = errors.New(m.control.Detail)
+	case m.control.State == ControlUnavailable:
+		dec.Idle = "decoder unavailable: " + m.control.Detail
 	default:
-		wide.Fresh = !m.lastEvent.IsZero() && now.Sub(m.lastEvent) <= decodeStale
-		wide.Idle = "no decoder output yet"
+		dec.Fresh = !m.lastEvent.IsZero() && now.Sub(m.lastEvent) <= decodeStale
+		dec.Idle = "no decoder output yet"
 	}
 
-	act[receivers.RoleWide] = wide
-	act[receivers.RoleScan] = receivers.Activity{Idle: "conventional/aviation scanning not wired yet"}
+	if tuner, _, _ := controlTuner(cfg); tuner == TunerScan {
+		// No wide receiver: the scan RTL-SDR decodes the control channel.
+		act[receivers.RoleScan] = dec
+		act[receivers.RoleWide] = receivers.Activity{Idle: "no wide receiver serial configured"}
+	} else {
+		act[receivers.RoleWide] = dec
+		act[receivers.RoleScan] = receivers.Activity{Idle: "conventional/aviation scanning not wired yet"}
+	}
 
 	m.receivers = receivers.Assess(claims, m.devices, act)
 	if m.sysErr != nil {

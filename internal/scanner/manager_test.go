@@ -157,6 +157,8 @@ func TestManager_selectsNearestSiteAndTunes(t *testing.T) {
 		VoiceHz:   []uint64{770_500_000, 771_000_000},
 		CenterHz:  770_503_125,
 		UsableHz:  8 * mhz,
+		Serial:    "44a061dc2e395e8f",
+		Tuner:     scanner.TunerWide,
 	}, plans[0])
 
 	// Same site next tick: no retune.
@@ -483,4 +485,109 @@ func TestManager_sitesDefaultTable(t *testing.T) {
 	assert.Len(t, all, 260)
 	assert.False(t, mgr.Status().Enabled)
 	assert.Equal(t, scanner.PositionNone, mgr.Reference().Source)
+}
+
+func TestManager_decoderStatus(t *testing.T) {
+	h := newHarness(t, true, testConfig())
+	h.fix(-112, t0)
+	h.mgr.TickForTest(context.Background(), t0)
+
+	events, cancel, err := h.mgr.Subscribe()
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+
+	missing := scanner.DecoderStatus{Err: errors.New("airspy_rx: executable file not found in $PATH"), Unavailable: true}
+	h.mgr.HandleEventForTest(missing, t0.Add(time.Second))
+	h.mgr.TickForTest(context.Background(), t0.Add(time.Second))
+
+	st := h.mgr.Status()
+	assert.Equal(t, scanner.ControlUnavailable, st.Control.State)
+	assert.Contains(t, st.Control.Detail, "not found")
+	assert.False(t, st.Control.Stale, "an unavailable decoder is not a stale one")
+	assert.Equal(t, receivers.StateStopped, st.Receivers[2].State)
+	assert.Contains(t, st.Receivers[2].Detail, "decoder unavailable")
+	assert.Equal(t, scanner.ControlUnavailable, (<-events).Control.State)
+
+	// The same fault again publishes nothing new.
+	h.mgr.HandleEventForTest(missing, t0.Add(2*time.Second))
+
+	h.mgr.HandleEventForTest(scanner.DecoderStatus{Err: errors.New("source: capture process exited")}, t0.Add(3*time.Second))
+	assert.Equal(t, scanner.ControlError, h.mgr.Status().Control.State)
+	assert.Equal(t, scanner.ControlError, (<-events).Control.State)
+
+	// The capture is back, hunting the second control channel.
+	h.mgr.HandleEventForTest(scanner.DecoderStatus{FrequencyHz: 770_256_250}, t0.Add(4*time.Second))
+	st = h.mgr.Status()
+	assert.Equal(t, scanner.ControlHunting, st.Control.State)
+	assert.Empty(t, st.Control.Detail)
+	assert.Equal(t, uint64(770_256_250), st.Control.FrequencyHz)
+	assert.True(t, st.Control.LastDecode.IsZero(), "a status is not a decode")
+	assert.Equal(t, scanner.ControlHunting, (<-events).Control.State)
+
+	h.mgr.HandleEventForTest(scanner.SyncState{Locked: true}, t0.Add(5*time.Second))
+	assert.Equal(t, scanner.ControlLocked, h.mgr.Status().Control.State)
+
+	// A hunting report while locked keeps the lock.
+	h.mgr.HandleEventForTest(scanner.DecoderStatus{FrequencyHz: 770_256_250}, t0.Add(6*time.Second))
+	assert.Equal(t, scanner.ControlLocked, h.mgr.Status().Control.State)
+
+	// A decode after a fault means the capture is running and in sync.
+	h.mgr.HandleEventForTest(scanner.DecoderStatus{Err: errors.New("exited")}, t0.Add(7*time.Second))
+	h.mgr.HandleEventForTest(scanner.AdjacentSite{Site: 2}, t0.Add(8*time.Second))
+	st = h.mgr.Status()
+	assert.Equal(t, scanner.ControlLocked, st.Control.State)
+	assert.Empty(t, st.Control.Detail)
+}
+
+func TestManager_scanReceiverFallback(t *testing.T) {
+	cfg := testConfig()
+	cfg.WideSerial = ""
+	cfg.RTLUsableHz = 2 * mhz
+
+	h := newHarness(t, true, cfg)
+	h.fix(-112, t0)
+	h.mgr.TickForTest(context.Background(), t0)
+
+	plans := h.mon.getPlans()
+	require.Len(t, plans, 1)
+	assert.Equal(t, scanner.TunerScan, plans[0].Tuner)
+	assert.Equal(t, "scan", plans[0].Serial)
+	assert.Equal(t, uint64(2*mhz), plans[0].UsableHz)
+	assert.Equal(t, []uint64{770_006_250, 770_256_250}, plans[0].ControlHz)
+
+	st := h.mgr.Status()
+	require.NotNil(t, st.Selection)
+	assert.Equal(t, uint64(2*mhz), st.Selection.Plan.UsableHz)
+	require.Len(t, st.Receivers, 5, "the Airspy is listed unassigned")
+	assert.Equal(t, receivers.StateStopped, st.Receivers[3].State)
+	assert.Equal(t, "no decoder output yet", st.Receivers[3].Detail, "the scan receiver carries the decoder")
+
+	h.mgr.HandleEventForTest(scanner.SiteStatus{NAC: 1}, t0.Add(time.Second))
+	h.mgr.TickForTest(context.Background(), t0.Add(2*time.Second))
+	assert.Equal(t, receivers.StateRunning, h.mgr.Status().Receivers[3].State)
+
+	// Configuring the wide serial moves the decoder to the Airspy: same
+	// site, new receiver, so the manager retunes with an 8 MHz plan.
+	cfg.WideSerial = "44a061dc2e395e8f"
+	h.mgr.Apply(cfg)
+	h.mgr.Disable() // Apply started the goroutine; drive ticks by hand
+	h.mgr.MarkEnabledForTest()
+	h.fix(-112, t0.Add(3*time.Second))
+	h.mgr.TickForTest(context.Background(), t0.Add(3*time.Second))
+
+	plans = h.mon.getPlans()
+	require.GreaterOrEqual(t, len(plans), 2)
+	last := plans[len(plans)-1]
+	assert.Equal(t, scanner.TunerWide, last.Tuner)
+	assert.Equal(t, uint64(8*mhz), last.UsableHz)
+}
+
+func TestHuntOrder_inWindowFirst(t *testing.T) {
+	site := &sites.Site{
+		Key: "T", ControlHz: []uint64{860_000_000, 851_012_500, 851_512_500},
+		VoiceHz: []uint64{851_200_000, 851_400_000},
+	}
+	sel := &scanner.Selection{Site: site, Plan: sites.PlanTuner(site, 2*mhz)}
+
+	assert.Equal(t, []uint64{851_012_500, 851_512_500, 860_000_000}, scanner.HuntOrderForTest(sel))
 }

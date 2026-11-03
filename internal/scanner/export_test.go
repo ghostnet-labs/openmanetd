@@ -19,3 +19,6 @@ func (m *Manager) MarkEnabledForTest() {
 
 	m.enabled = true
 }
+
+// HuntOrderForTest exposes the control-channel hunt order for sel.
+func HuntOrderForTest(sel *Selection) []uint64 { return huntOrder(sel) }

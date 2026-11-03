@@ -35,7 +35,7 @@ type SiteStatus struct {
 	NAC              uint32
 }
 
-// AdjacentSite is a neighbour site announced on the control channel. The
+// AdjacentSite is a neighbor site announced on the control channel. The
 // manager counts it as decoder activity only.
 type AdjacentSite struct {
 	ControlChannelHz uint64
@@ -49,13 +49,45 @@ type SyncState struct {
 	Locked bool
 }
 
+// DecoderStatus reports the decoder's health between decodes: which
+// control channel it is hunting on, or why it is not running. A nil Err
+// means the capture is running on FrequencyHz.
+type DecoderStatus struct {
+	// Err is why the capture is not running (process exited, bad
+	// receiver configuration).
+	Err error
+	// FrequencyHz is the control channel being decoded or hunted.
+	FrequencyHz uint64
+	// Unavailable is set with Err when the capture tool is not
+	// installed: the decoder cannot run at all on this node.
+	Unavailable bool
+}
+
+// Tuner names the receiver a TunePlan is for.
+type Tuner uint8
+
+// Tuner values.
+const (
+	// TunerNone is the zero plan: stop the decoder.
+	TunerNone Tuner = iota
+	// TunerWide is the Airspy wide receiver (receivers.wideSerial).
+	TunerWide
+	// TunerScan is the RTL-SDR scan receiver (receivers.scanSerial), used
+	// for the control channel when no wide receiver is configured.
+	TunerScan
+)
+
 // TunePlan tells the decoder where to put the wide tuner and which control
 // channels to hunt. The zero TunePlan stops the decoder.
 type TunePlan struct {
 	// SiteKey is the sites.Site key being monitored.
 	SiteKey string
-	// ControlHz are the control channels inside the window, preferred
-	// first. The decoder hunts across them until it locks.
+	// Serial is the USB serial of the receiver to capture with.
+	Serial string
+	// ControlHz are the site's control channels in hunt order: those
+	// inside the tuner window first (source order), then the rest. The
+	// decoder hunts across them until it locks, moving the tuner for a
+	// channel outside the window.
 	ControlHz []uint64
 	// VoiceHz are the voice channels inside the window.
 	VoiceHz []uint64
@@ -63,14 +95,16 @@ type TunePlan struct {
 	CenterHz uint64
 	// UsableHz is the usable bandwidth the plan was built for.
 	UsableHz uint64
+	// Tuner is the receiver kind Serial names.
+	Tuner Tuner
 }
 
 // ControlChannelMonitor is the P25 control-channel decoder as the manager
 // uses it. Tune is called from the manager goroutine whenever the selected
 // site changes (and with a zero plan on shutdown); it should return once
 // the tuner is retuned, not block until lock. Events delivers VoiceGrant,
-// SiteStatus, AdjacentSite and SyncState values; a closed channel means
-// the decoder stopped.
+// SiteStatus, AdjacentSite, SyncState and DecoderStatus values; a closed
+// channel means the decoder stopped.
 type ControlChannelMonitor interface {
 	Tune(ctx context.Context, plan TunePlan) error
 	Events() <-chan any

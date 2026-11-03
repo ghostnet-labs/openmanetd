@@ -31,6 +31,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/scanner"
+	"github.com/openmanet/openmanetd/internal/scanner/p25mon"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
 	"github.com/openmanet/openmanetd/internal/terminal"
@@ -215,10 +216,11 @@ func Start(staticFS fs.FS) {
 	chanmigSvc := startChanmig(ctx, cfg, manager, log)
 
 	// Scanner (GHO-53): aircraft.json merge, receiver ownership, nearest
-	// P25 site and talkgroup history. Constructed always so the API can
-	// enable it at runtime, but with scanner.enable false (the default) it
-	// owns no goroutine and touches no receiver.
-	scannerMgr := newScannerManager(cfg, gps)
+	// P25 site, control-channel decoding and talkgroup history.
+	// Constructed always so the API can enable it at runtime. With
+	// scanner.enable false (the default) the manager owns no goroutine and
+	// the P25 monitor's one goroutine idles without touching a receiver.
+	scannerMgr, scannerMonDone := newScannerManager(ctx, cfg, gps)
 
 	// Set up session-based authentication when enabled.
 	var (
@@ -355,6 +357,7 @@ func Start(staticFS fs.FS) {
 	waitHardwareManager(hwManager, log)
 	waitChanmig(chanmigSvc, log)
 	scannerMgr.Disable()
+	<-scannerMonDone
 
 	if cfg.GetEnableGNSS() {
 		gps.Close()
@@ -486,15 +489,26 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	go worker.Run(ctx)
 }
 
-// newScannerManager builds the scanner manager and starts it when
+// newScannerManager builds the scanner manager and its P25 control-channel
+// monitor (airspy_rx / rtl_sdr through internal/sdr), starts the monitor's
+// goroutine on ctx (done closes when it exits), and starts the manager when
 // scanner.enable is set. gps may be nil (GNSS disabled); it is passed as a
-// nil interface, never a typed nil pointer. The P25 control-channel
-// decoder (Options.Monitor) is not wired yet, so the control channel
-// reports unavailable.
-func newScannerManager(cfg *config.Config, gps *gpsd.GPSService) *scanner.Manager {
+// nil interface, never a typed nil pointer. A node without the capture
+// tools installed reports the control channel as unavailable.
+func newScannerManager(ctx context.Context, cfg *config.Config, gps *gpsd.GPSService) (*scanner.Manager, <-chan struct{}) {
+	mon := p25mon.New(p25mon.Options{Log: logger.GetLogger("p25mon")})
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		mon.Run(ctx)
+	}()
+
 	opts := scanner.Options{
-		Log: logger.GetLogger("scanner"),
-		UCI: network.NewUCINetworkConfigReader(),
+		Log:     logger.GetLogger("scanner"),
+		UCI:     network.NewUCINetworkConfigReader(),
+		Monitor: mon,
 	}
 	if gps != nil {
 		opts.Position = gps
@@ -507,7 +521,7 @@ func newScannerManager(cfg *config.Config, gps *gpsd.GPSService) *scanner.Manage
 		mgr.Enable()
 	}
 
-	return mgr
+	return mgr, done
 }
 
 // buildTerminalManager constructs the web-terminal manager when the feature
