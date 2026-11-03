@@ -8,6 +8,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// yamlStrTag is the YAML tag forcing a scalar to be written as a string.
+const yamlStrTag = "!!str"
+
 // GetConfigFilePath returns the path of the config file currently in use.
 func (c *Config) GetConfigFilePath() string {
 	return c.v.ConfigFileUsed()
@@ -94,7 +97,7 @@ func findOrCreateMapping(mapping *yaml.Node, key string) *yaml.Node {
 	// Key not found; create it
 	keyNode := &yaml.Node{
 		Kind:  yaml.ScalarNode,
-		Tag:   "!!str",
+		Tag:   yamlStrTag,
 		Value: key,
 	}
 	valueNode := &yaml.Node{
@@ -127,7 +130,7 @@ func setScalarWithTag(mapping *yaml.Node, key string, value string, tag string) 
 	// Key not found; create it
 	keyNode := &yaml.Node{
 		Kind:  yaml.ScalarNode,
-		Tag:   "!!str",
+		Tag:   yamlStrTag,
 		Value: key,
 	}
 	valueNode := &yaml.Node{
@@ -199,7 +202,7 @@ func setCommsConfig(doc *yaml.Node, enable bool, controlSource string) error {
 
 	commsMapping := findOrCreateMapping(root, "comms")
 	setScalarValue(commsMapping, "enable", fmt.Sprintf("%t", enable))
-	setScalarWithTag(commsMapping, "controlSource", controlSource, "!!str")
+	setScalarWithTag(commsMapping, "controlSource", controlSource, yamlStrTag)
 
 	return nil
 }
@@ -458,12 +461,12 @@ func setGNSSConfig(doc *yaml.Node, enable, sendAsNMEA, sendAsCoT bool, cotUID, s
 
 	gnssMapping := findOrCreateMapping(root, "gnss")
 	setScalarValue(gnssMapping, "enable", strconv.FormatBool(enable))
-	setScalarWithTag(gnssMapping, "source", source, "!!str")
+	setScalarWithTag(gnssMapping, "source", source, yamlStrTag)
 
 	sendMapping := findOrCreateMapping(gnssMapping, "sendAsExternalGNSSSource")
 	setScalarValue(sendMapping, "sendAsNMEA", strconv.FormatBool(sendAsNMEA))
 	setScalarValue(sendMapping, "sendAsCoT", strconv.FormatBool(sendAsCoT))
-	setScalarWithTag(sendMapping, "cotUID", cotUID, "!!str")
+	setScalarWithTag(sendMapping, "cotUID", cotUID, yamlStrTag)
 
 	return nil
 }

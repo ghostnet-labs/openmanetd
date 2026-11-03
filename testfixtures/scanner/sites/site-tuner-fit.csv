@@ -1,0 +1,261 @@
+state,system,site,county,lat,lon,n,low,high,span,rtl_sdr_needed,rspduo_dual_fits,wide_tuners_needed,band,phase,encryption
+AZ,Arizona Wireless Integrated Network System (AZ WINS),South Mountain [2-001],Maricopa,33.333,-112.067,8,773.06875,774.81875,1.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Shaw Butte [2-005],Maricopa,33.6,-112.08,8,773.08125,774.83125,1.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),White Tanks Mountain [2-003],Maricopa,33.59,-112.55,8,773.04375,774.79375,1.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Thompson Peak [2-004],Maricopa,33.66,-111.81,8,773.09375,774.84375,1.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Phoenix Headquarters [2-019],Maricopa,33.45,-112.07,8,769.15625,770.90625,1.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Mount Lemmon [2-002],Pima,32.4408,-110.7881,6,769.16875,770.41875,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Tumamoc Hill [2-006],Pima,32.215,-111.005,6,769.19375,770.44375,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Keystone Peak [2-007],Pima,31.88,-111.21,6,769.15625,770.40625,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Mount Elden [2-016],Coconino,35.2414,-111.5975,6,773.34375,774.59375,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Schnebly Hill [2-017],Coconino,34.88,-111.71,6,773.06875,774.31875,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Five Mile Hill [2-028],Coconino,35.2,-111.65,4,769.70625,770.45625,0.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Gray Mountain (ADOT) [2-056],Coconino,35.75,-111.47,4,769.68125,770.43125,0.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Desert View (GCNP) [2-064],Coconino,36.04,-111.83,5,769.15625,770.40625,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Preston Mesa [2-068],Navajo,36.7,-111.1,5,769.19375,770.44375,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Towers Mountain [2-014],Yavapai,34.23,-112.37,6,773.03125,774.28125,1.25,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Mingus Mountain [2-034],Yavapai,34.70121,-112.11801,4,769.68125,770.43125,0.75,1,True,1,700,P25 Phase II,partial
+AZ,Arizona Wireless Integrated Network System (AZ WINS),Yuma E.8th Radio Tower [1-001],Yuma,32.69,-114.62,12,769.09375,771.49375,2.4,2,True,1,700,P25 Phase II,partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast A: Phoenix PD and City Services [2-001],Maricopa,33.45,-112.07,16,771.68125,774.73125,3.05,2,True,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast B: Phoenix Fire and Public Works [1-001],Maricopa,33.45,-112.07,20,770.83125,774.43125,3.6,2,False,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast C: Chandler [1-002],Maricopa,33.31,-111.84,16,769.10625,772.85625,3.75,2,False,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast F: Tempe [2-005],Maricopa,33.43,-111.94,16,771.16875,774.41875,3.25,2,False,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast G: West Valley [5-001],Maricopa,33.53,-112.3,18,769.31875,772.86875,3.55,2,False,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,Simulcast H: Scottsdale [3-001],Maricopa,33.49,-111.93,12,769.09375,771.84375,2.75,2,True,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,South Mountain High [4-001],Maricopa,33.333,-112.067,10,769.30625,771.55625,2.25,2,True,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,Regional Wireless Cooperative (RWC) - Phoenix,North Mountain High [4-002],Maricopa,33.59,-112.08,10,769.28125,771.53125,2.25,2,True,1,700,P25 Phase II (RR db; wiki says Phase I),partial
+AZ,TOPAZ Regional Wireless Cooperative (TRWC) - Mesa,Mesa Simulcast [3-001],Maricopa,33.42,-111.83,16,852.075,854.0875,2.0125,2,True,1,800,P25 Phase II,partial
+AZ,TOPAZ Regional Wireless Cooperative (TRWC) - Mesa,Thompson Peak [3-004],Maricopa,33.66,-111.81,11,851.1125,853.9625,2.85,2,True,1,800,P25 Phase II,partial
+AZ,Pima County Wireless Integrated Network (PCWIN) - Tucson,Simulcast A (Metro Tucson) [1-001],Pima,32.22,-110.97,14,851.075,853.9,2.825,2,True,1,800,P25 Phase II,partial
+AZ,Pima County Wireless Integrated Network (PCWIN) - Tucson,Simulcast B (Metro Tucson) [1-002],Pima,32.22,-110.97,14,851.1875,853.925,2.7375,2,True,1,800,P25 Phase II,partial
+AZ,Pima County Wireless Integrated Network (PCWIN) - Tucson,North Simulcast (NW Tucson) [1-003],Pima,32.34,-111.01,7,851.0375,853.45,2.4125,2,True,1,800,P25 Phase II,partial
+AZ,Flagstaff NAU ASU P25,Riley Hall [1-001],Coconino,35.19,-111.65,11,854.7125,860.4625,5.75,3,False,1,800,P25 Phase II,partial
+AZ,Flagstaff NAU ASU P25,Mount Elden [1-002],Coconino,35.2414,-111.5975,10,854.9875,860.4375,5.45,3,False,1,800,P25 Phase II,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Arapahoe Admin (Littleton) [RFSS1-001],Arapahoe,39.615,-105.017,21,770.71875,858.3875,87.6688,6,False,2,mixed,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Lookout Mountain [1-008],Jefferson,39.732,-105.237,21,851.1125,858.6375,7.525,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Conifer Mountain [1-002],Jefferson,39.52,-105.3,14,851.35,858.0125,6.6625,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Thorodin [1-005],Gilpin,39.88,-105.42,17,851.125,857.0375,5.9125,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Mestaa'ehehe [1-006],Clear Creek,39.68,-105.5,19,851.1625,859.6375,8.475,5,False,2,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Smoky Hill [1-007],Arapahoe,39.6,-104.75,18,769.58125,857.5125,87.9313,5,False,2,mixed,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),DRDC CF [1-009],Denver,39.78,-104.85,11,851.15,858.1625,7.0125,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Denver Tx Building (DTB) [1-020],Denver,39.74,-104.99,13,770.28125,853.7375,83.4562,5,False,2,mixed,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),State Capitol [1-071],Denver,39.739,-104.985,12,769.30625,774.90625,5.6,3,False,1,700,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Auraria Campus [1-070],Denver,39.745,-105.005,12,769.15625,773.78125,4.625,2,False,1,700,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Chevron Plaza Tower [1-064],Arapahoe,39.62,-104.9,18,769.25625,859.9125,90.6562,7,False,3,mixed,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Douglas Co North Simulcast [1-052],Douglas,39.5,-104.9,21,770.86875,859.6875,88.8188,6,False,3,mixed,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Boulder Simulcast [3-004],Boulder,40.015,-105.27,18,769.20625,774.89375,5.6875,3,False,1,700,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Horsetooth Mountain (Fort Collins) [3-062],Larimer,40.53,-105.17,15,851.175,855.9375,4.7625,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Colorado Springs Simulcast [4-028],El Paso,38.83,-104.82,18,851.875,859.0125,7.1375,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Cheyenne Mountain [6-048],El Paso,38.7425,-104.8647,13,851.05,858.0875,7.0375,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Mount Pittsburg [4-018],El Paso,38.83,-104.82,14,851.2875,858.2375,6.95,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Fountain Valley [4-011],El Paso,38.68,-104.7,9,852.1125,859.9875,7.875,4,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Quail Loop [6-039],El Paso,38.83,-104.82,8,856.3875,859.8375,3.45,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Calhan [4-014],El Paso,39.03,-104.3,8,851.125,857.9125,6.7875,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Pueblo Simulcast [6-001],Pueblo,38.25,-104.61,12,851.1875,853.9875,2.8,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Grand Mesa [2-001],Mesa,39.03,-108.03,10,851.2375,854.6875,3.45,2,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Whitewater [2-012],Mesa,38.99,-108.45,8,851.1625,854.3125,3.15,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Black Ridge [2-022],Mesa,39.02,-108.75,8,851.225,854.2875,3.0625,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Redlands [2-056],Mesa,39.07,-108.63,7,851.275,853.95,2.675,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Grand Junction Water Plant [2-089],Mesa,39.07,-108.55,8,851.1125,854.3375,3.225,2,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Lee's Point [2-043],Mesa,39.07,-108.55,5,851.6625,853.15,1.4875,1,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Rabbit Valley [2-094],Mesa,39.19,-108.99,6,851.3875,852.825,1.4375,1,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Collbran [2-098],Mesa,39.24,-107.96,6,855.4875,859.4875,4.0,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Craig [2-091],Moffat,40.515,-107.546,7,851.2625,854.1125,2.85,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Cedar Mountain [2-021],Moffat,40.55,-107.62,7,851.4625,854.4875,3.025,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Juniper Mountain [2-025],Moffat,40.43,-108.12,6,851.625,854.6875,3.0625,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Vermillion Bluffs [2-016],Moffat,40.8,-108.5,5,851.1125,852.8125,1.7,1,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Harper Hill [2-039],Moffat,40.52,-107.55,5,852.6375,853.825,1.1875,1,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Bakers Peak [2-041],Moffat,40.95,-107.65,5,851.1625,853.85,2.6875,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Cortez [5-001],Montezuma,37.35,-108.59,6,851.0625,856.2125,5.15,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Dolores [5-008],Montezuma,37.47,-108.5,6,851.2125,853.5125,2.3,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Ute Mountain [5-074],Montezuma,37.28,-108.78,6,851.2,855.2125,4.0125,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Abajo Peak (Utah) [5-002],"San Juan, UT",37.84,-109.46,6,852.1375,854.9625,2.825,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Mount Egnar [5-079],San Miguel,37.92,-108.93,6,851.4875,854.9875,3.5,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Rico [5-048],Dolores,37.69,-108.03,5,851.4625,853.9625,2.5,2,True,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+CO,State of Colorado Digital Trunked Radio System (CO DTRS),Smelter Mountain (Durango) [5-023],La Plata,37.26,-107.89,8,851.2375,858.2625,7.025,3,False,1,800,P25 Phase I (RR); Phase II TDMA on some talkgroups,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Chinese Peak,Bannock,42.86,-112.38,13,769.08125,775.48125,6.4,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Sedgewick Peak (Lava Hot Springs),Bannock,42.5158,-111.9225,6,769.11875,773.40625,4.2875,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Ada County Simulcast (Boise),Ada,43.615,-116.2,18,769.25625,774.88125,5.625,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),East Butte (Midway),Bingham,43.5,-112.66,7,772.16875,774.96875,2.8,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Blackfoot,Bingham,43.19,-112.35,9,769.54375,775.91875,6.375,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Shafer Butte (Boise),Boise,43.78,-116.08,18,769.09375,774.66875,5.575,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Parma,Canyon,43.785,-116.94,6,769.86875,773.93125,4.0625,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Marsing (Ion Hill),Owyhee,43.55,-116.81,8,769.11875,774.90625,5.7875,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Nampa,Canyon,43.54,-116.56,8,769.30625,774.43125,5.125,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Caldwell,Canyon,43.66,-116.69,8,769.60625,774.18125,4.575,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Bennett Mtn (Mountain Home),Elmore,43.33,-115.45,4,769.21875,774.59375,5.375,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Boise (Warm Springs Ave) 800,Ada,43.6,-116.17,4,857.9625,859.4375,1.475,1,True,1,800,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Boise (Hwy 55) 800,Ada,43.68,-116.28,8,851.45,853.975,2.525,2,True,1,800,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Victor,Teton,43.6,-111.11,4,771.26875,774.49375,3.225,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Mica Peak (Post Falls),Kootenai,47.58,-117.08,8,769.11875,774.16875,5.05,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Canfield Mtn (Coeur d'Alene),Kootenai,47.71,-116.71,9,769.28125,774.38125,5.1,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Hoodoo Mtn (Blanchard),Bonner,48.07,-116.85,6,769.55625,774.68125,5.125,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Mason Butte (Worley),Kootenai,47.4,-116.92,6,769.51875,774.65625,5.1375,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Bellevue,Blaine,43.46,-114.26,5,769.61875,774.14375,4.525,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Ketchum,Blaine,43.68,-114.36,5,769.36875,773.94375,4.575,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Sun Valley,Blaine,43.7,-114.35,5,770.00625,774.49375,4.4875,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Killarney Mtn (Harrison),Kootenai,47.53,-116.55,6,769.28125,773.38125,4.1,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Schweitzer Peak,Bonner,48.37,-116.62,6,769.78125,774.49375,4.7125,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Lewiston,Nez Perce,46.42,-117.02,6,769.35625,774.90625,5.55,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Mt Spokane (WA),"Spokane, WA",47.92,-117.11,6,769.61875,774.91875,5.3,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Montpelier,Bear Lake,42.32,-111.3,4,770.00625,773.68125,3.675,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Site 33,Minidoka,42.75,-113.5,1,769.16875,769.16875,0.0,1,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),West Twin,Latah,46.86,-116.92,4,770.43125,773.84375,3.4125,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Snowbank Mountain,Valley,44.43,-116.13,5,769.44375,773.54375,4.1,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Sawtelle Peak (Island Park),Fremont,44.56,-111.43,4,769.15625,773.78125,4.625,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Kinport Peak (Pocatello),Bannock,42.83,-112.4,6,770.28125,772.96875,2.6875,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Relay Ridge (Driggs),Teton,43.75,-111.25,6,769.40625,773.55625,4.15,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Iona Butte (Idaho Falls),Bonneville,43.53,-111.93,6,769.20625,774.58125,5.375,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Soda Springs,Caribou,42.65,-111.6,5,769.29375,772.19375,2.9,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Arimo,Bannock,42.56,-112.17,5,769.26875,771.80625,2.5375,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Mt. Harrison (Albion/Burley),Cassia,42.33,-113.64,6,769.34375,772.63125,3.2875,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Flat Top Butte (Jerome),Jerome,42.79,-114.3,6,771.65625,774.70625,3.05,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Shelley Butte,Bingham,43.38,-112.12,5,770.61875,774.70625,4.0875,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Rockland,Power,42.57,-112.87,5,769.59375,774.23125,4.6375,2,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Inkom,Bannock,42.8,-112.25,5,771.96875,774.64375,2.675,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Hell Hole Ridge (Montpelier),Bear Lake,42.28,-111.12,5,769.85625,773.43125,3.575,2,True,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Malad Repeater Site,Oneida,42.19,-112.25,6,769.85625,774.48125,4.625,3,False,1,700,P25 Phase I,partial
+ID,Idaho Cooperative Agencies Wireless Interoperable Network (ICAWIN),Lava Hill,Bannock,42.62,-112.01,4,772.41875,774.38125,1.9625,1,True,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Idaho Falls,Bonneville,43.49,-112.03,7,769.25625,774.65625,5.4,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Iona Butte,Bonneville,43.53,-111.93,7,769.50625,774.41875,4.9125,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Kelly Mtn (Ririe),Madison,43.6,-111.62,6,769.36875,774.15625,4.7875,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Maple Grove (Swan Valley),Bonneville,43.45,-111.4,5,770.58125,773.64375,3.0625,2,True,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Black Mtn (Swan Valley),Bonneville,43.4,-111.5,4,769.75625,773.41875,3.6625,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Menan Butte,Madison,43.77,-111.98,7,769.79375,774.74375,4.95,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Big Bend Ridge (Ashton),Fremont,44.13,-111.35,5,769.61875,774.68125,5.0625,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Sawtelle Pk (Island Park),Fremont,44.56,-111.43,5,770.05625,774.64375,4.5875,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Relay Ridge,Madison,43.75,-111.25,4,769.83125,773.74375,3.9125,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Rexburg,Madison,43.83,-111.79,5,769.09375,774.24375,5.15,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Monida Pass,Clark,44.56,-112.3,3,770.33125,774.69375,4.3625,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Rigby,Jefferson,43.67,-111.91,6,769.59375,773.20625,3.6125,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Pine Creek (Swan Valley),Bonneville,43.47,-111.25,4,770.01875,774.01875,4.0,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Radar Hill (Dubois),Clark,44.18,-112.23,4,769.85625,773.66875,3.8125,2,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),East Butte,Bonneville,43.5,-112.66,6,770.08125,773.95625,3.875,2,True,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Terreton,Jefferson,43.84,-112.43,4,769.34375,774.20625,4.8625,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),St Anthony,Fremont,43.97,-111.68,5,769.11875,774.14375,5.025,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Monteview,Jefferson,43.97,-112.53,4,771.10625,774.48125,3.375,2,True,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Ririe,Bonneville,43.63,-111.77,1,769.31875,769.31875,0.0,1,True,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Sugar City,Madison,43.87,-111.75,6,769.53125,774.45625,4.925,3,False,1,700,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Cress Creek (Ririe) 800,Madison,43.65,-111.7,6,856.0375,858.7625,2.725,2,True,1,800,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Rexburg (Main St) 800,Madison,43.83,-111.79,7,855.7125,859.4375,3.725,2,True,1,800,P25 Phase I,partial
+ID,Eastern Idaho Cooperative Agencies Wireless Interoperable Network (EICAWIN),Rexburg Bench 800,Madison,43.81,-111.73,7,854.0375,859.7625,5.725,3,False,1,800,P25 Phase I,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Sandia Crest (ABQ Metro) [1-004],Bernalillo,35.21,-106.45,19,769.16875,774.84375,5.675,2,False,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Albuquerque Simulcast [1-011],Bernalillo,35.08,-106.65,12,769.45625,774.78125,5.325,2,False,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Albuquerque Landfill [1-010],Bernalillo,35.0,-106.7,12,769.15625,774.80625,5.65,2,False,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Cedro Peak (ABQ East Mtn) [1-006],Bernalillo,35.05,-106.36,7,769.20625,774.83125,5.625,2,False,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Whispering Pines [1-013],Bernalillo,35.17,-106.4,6,770.44375,774.53125,4.0875,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Rio Rancho Simulcast [1-021],Sandoval,35.23,-106.66,6,769.19375,770.70625,1.5125,1,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Los Lunas VRECC [1-015],Valencia,34.81,-106.73,6,769.65625,774.79375,5.1375,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Tesuque Peak [1-003],Santa Fe,35.7856,-105.7819,6,769.90625,774.81875,4.9125,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Santa Fe Simulcast [1-043],Santa Fe,35.687,-105.94,9,854.1375,859.2375,5.1,3,False,1,800,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Espanola [1-056],Rio Arriba,35.99,-106.08,4,769.19375,769.96875,0.775,1,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),A Mountain (Las Cruces) [3-016],Dona Ana,32.29,-106.72,6,769.16875,774.84375,5.675,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Aiden Hills [3-027],Dona Ana,32.32,-106.78,6,769.15625,774.55625,5.4,2,False,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Chaparral [3-030],Dona Ana,32.04,-106.4,4,769.94375,774.80625,4.8625,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Sunland Park [3-036],Dona Ana,31.8,-106.58,4,769.45625,770.15625,0.7,1,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Rincon [3-035],Dona Ana,32.66,-107.06,2,770.44375,770.90625,0.4625,1,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),"Ciniza (Gallup area, nearest to Farmington listed) [1-050]",McKinley,35.49,-108.53,3,769.90625,774.56875,4.6625,2,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),Coyote West [1-052],Rio Arriba,36.17,-106.62,2,770.20625,770.95625,0.75,1,True,1,700,P25 Phase II,partial
+NM,New Mexico Digital Trunked Radio System (NM DTRS),San Antonio Mtn [1-078],Rio Arriba,36.86,-106.02,3,769.21875,773.09375,3.875,2,True,1,700,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Las Vegas Simulcast (sysid 22B),Clark,36.17,-115.14,18,854.6125,859.3375,4.725,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Mesquite Tank (sysid 22B),Clark,36.8,-114.07,8,851.0875,857.9625,6.875,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Apex Peak (sysid 22B),Clark,36.33,-114.93,7,854.8625,860.7375,5.875,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Angel Peak (sysid 22B),Clark,36.32,-115.57,9,851.8875,858.4625,6.575,4,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Sloan (sysid 22B),Clark,35.95,-115.2,13,851.075,860.2375,9.1625,4,False,2,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Coyote Springs (sysid 22B),Clark,36.83,-114.98,8,851.0375,857.0125,5.975,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"West Mountain, UT (sysid 22B)","Washington, UT",37.1,-113.6,4,854.8375,856.2875,1.45,1,True,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,Washoe County Simulcast (sysid 307),Washoe,39.53,-119.81,4,769.35625,772.73125,3.375,2,True,1,700,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Cold Springs, NW Reno (sysid 309)",Washoe,39.68,-119.98,8,851.25,853.8,2.55,2,True,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"McClellan Peak, Carson City (sysid 309)",Washoe,39.2,-119.7,9,851.55,857.05,5.5,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Ophir Peak, Virginia City (sysid 309)",Storey,39.3,-119.65,10,854.8625,859.8125,4.95,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"West Wendover, I-80 MP 407 (sysid 309)",Elko,40.74,-114.07,5,855.2125,859.7375,4.525,3,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Twin Peaks, NNW of Elko (sysid 309)",Elko,40.95,-115.85,8,857.2875,860.9125,3.625,2,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Elko Mountain, NE of Elko (sysid 309)",Elko,40.95,-115.6,8,851.225,859.9375,8.7125,3,False,2,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Secret Pass, US-93 S of Wells (sysid 309)",Elko,40.85,-115.2,4,851.0375,854.9625,3.925,2,True,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Ellen D Mountain, US-93 W of Contact (sysid 309; nearest Jackpot)",Elko,41.75,-114.85,5,854.1125,858.2375,4.125,2,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Pennsylvania Hill, S of Owyhee (sysid 309)",Elko,41.85,-116.1,7,856.9875,860.9375,3.95,2,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Border Inn, US-50 at NV-UT border (sysid 309)",White Pine,39.05,-114.05,6,856.2625,859.4625,3.2,2,True,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Buster Mountain, W of Ely (sysid 309)",White Pine,39.25,-115.1,7,851.45,855.7125,4.2625,2,False,1,800,P25 Phase II,partial
+NV,Nevada Shared Radio System (NSRS P25) incl. Washoe County Regional Communications System,"Kimberly Mountain, WNW of Ely (sysid 309)",White Pine,39.3,-115.05,5,856.4375,859.7625,3.325,2,True,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),LV Simulcast (233),Clark,36.17,-115.14,11,851.25,855.7125,4.4625,3,False,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Apex Peak (221),Clark,36.33,-114.93,12,852.1625,859.9375,7.775,4,False,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Angel Peak (223),Clark,36.32,-115.57,12,851.325,859.0375,7.7125,3,False,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Arden Peak (222),Clark,36.0,-115.25,6,856.2125,859.4625,3.25,2,True,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Lake Las Vegas (231),Clark,36.11,-114.92,5,851.775,859.9625,8.1875,3,False,2,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Hoover Dam (236),Clark,36.02,-114.74,6,851.4375,853.7875,2.35,2,True,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Pahrump (234),Nye,36.21,-115.98,6,851.0875,853.4625,2.375,2,True,1,800,P25 Phase II,partial
+NV,Southern Nevada Area Communications Council (SNACC),Pahrump VHF Simulcast (235),Nye,36.21,-115.98,5,154.785,159.165,4.38,2,True,1,VHF,P25 Phase II,partial
+NV,Las Vegas Metropolitan Police Department (LVMPD),LV Simulcast (101),Clark,36.17,-115.14,13,769.10625,771.98125,2.875,2,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Frenchman Mountain (102),Clark,36.18,-115.0,14,772.08125,774.91875,2.8375,2,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Apex Peak (103),Clark,36.33,-114.93,8,772.99375,774.84375,1.85,1,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Logandale (105),Clark,36.6,-114.48,3,771.54375,774.18125,2.6375,2,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Virgin Peak (106),Clark,36.62,-114.11,4,770.25625,771.63125,1.375,1,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Mesquite Tank (107),Clark,36.8,-114.07,4,770.55625,772.68125,2.125,2,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Mesquite Airport (126),Clark,36.83,-114.06,3,770.61875,771.71875,1.1,1,True,1,700,P25 Phase II,full
+NV,Las Vegas Metropolitan Police Department (LVMPD),Sloan (117),Clark,35.95,-115.2,12,769.50625,774.39375,4.8875,3,False,1,700,P25 Phase II,full
+UT,Utah Communications Authority (UCA) P25,Salt Lake County Simulcast [sysid/RFSS-site/NAC: 00A 10-10 NAC 3F2],Salt Lake,40.7,-111.9,24,769.26875,774.83125,5.5625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Mahogany (Magna) [sysid/RFSS-site/NAC: 01E 33-033 NAC BD5],Salt Lake,40.69,-112.1,24,769.11875,774.64375,5.525,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,North Salt Lake Simulcast [sysid/RFSS-site/NAC: 01E 10-010 NAC BC2],Davis,40.85,-111.91,24,769.15625,774.68125,5.525,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Albion Basin [sysid/RFSS-site/NAC: 00A 3-003 NAC 067],Salt Lake,40.58,-111.61,6,769.19375,774.34375,5.15,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Parley's Canyon [sysid/RFSS-site/NAC: 00A 27-027 NAC 403],Salt Lake,40.73,-111.75,8,769.25625,774.45625,5.2,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Shawshank [sysid/RFSS-site/NAC: 00A 29-029 NAC 405],Salt Lake,40.5,-111.9,10,771.14375,774.43125,3.2875,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Scotts Peak [sysid/RFSS-site/NAC: 00A 33-033 NAC 409],Salt Lake,40.6,-111.57,7,769.09375,774.71875,5.625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Davis County Simulcast [sysid/RFSS-site/NAC: 014 10-010 NAC 7DA],Davis,41.0,-111.92,16,769.18125,774.84375,5.6625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Francis Peak [sysid/RFSS-site/NAC: 014 47-047 NAC 7FD],Davis,41.03,-111.84,11,769.20625,773.91875,4.7125,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Weber County Simulcast [sysid/RFSS-site/NAC: 014 24-024 NAC 7E8],Weber,41.22,-111.97,16,769.25625,773.38125,4.125,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Mount Ogden [sysid/RFSS-site/NAC: 014 71-071 NAC 815],Weber,41.2,-111.88,15,769.08125,774.56875,5.4875,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Herd Mountain [sysid/RFSS-site/NAC: 014 55-055 NAC 805],Weber,41.28,-111.8,5,771.83125,774.16875,2.3375,2,True,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Powder Mountain [sysid/RFSS-site/NAC: 014 87-087 NAC 825],Weber,41.37,-111.78,5,769.78125,771.70625,1.925,1,True,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Utah County Simulcast [sysid/RFSS-site/NAC: 01E 16-016 NAC BC8],Utah,40.23,-111.66,21,769.43125,774.73125,5.3,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,BYU Kimball Towers [sysid/RFSS-site/NAC: 01E 5-005 NAC 131],Utah,40.25,-111.65,16,769.58125,774.84375,5.2625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,West Mountain [sysid/RFSS-site/NAC: 01E 45-045 NAC BE5],Utah,40.08,-111.8,15,769.69375,774.81875,5.125,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,East Bench [sysid/RFSS-site/NAC: 01E 21-021 NAC BCD],Utah,40.3,-111.63,13,769.65625,774.65625,5.0,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,American Fork Canyon [sysid/RFSS-site/NAC: 01E 1-001 NAC 12D],Utah,40.44,-111.7,6,771.13125,774.84375,3.7125,2,True,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Nelson Peak [sysid/RFSS-site/NAC: 01E 33-033 NAC BD9],Tooele,40.55,-112.35,24,769.29375,774.88125,5.5875,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Box Elder County Simulcast [sysid/RFSS-site/NAC: 00A 22-022 NAC 3FE],Box Elder,41.51,-112.02,15,769.68125,774.81875,5.1375,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Wasatch County Simulcast (Heber) [sysid/RFSS-site/NAC: 014 18-018 NAC 7E2],Wasatch,40.51,-111.41,12,769.34375,774.24375,4.9,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Lewis Peak (Park City area) [sysid/RFSS-site/NAC: 014 59-059 NAC 80B],Summit,40.7,-111.6,11,769.50625,774.65625,5.15,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Clayton Peak [sysid/RFSS-site/NAC: 014 33-033 NAC 7F1],Wasatch,40.59,-111.56,10,769.59375,774.53125,4.9375,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Cache County Simulcast (Logan) [sysid/RFSS-site/NAC: 00A 16-016 NAC 3F8],Cache,41.73,-111.83,11,770.05625,774.59375,4.5375,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Newton Hill [sysid/RFSS-site/NAC: 00A 9-009 NAC 06D],Cache,41.88,-111.97,12,769.09375,774.71875,5.625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,St. George Simulcast [sysid/RFSS-site/NAC: 028 10-010 NAC FAA],Washington,37.1,-113.58,12,770.43125,774.48125,4.05,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Toquerville Heights [sysid/RFSS-site/NAC: 028 105-105 NAC 1F9],Washington,37.25,-113.28,8,769.26875,774.43125,5.1625,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Utah Hill [sysid/RFSS-site/NAC: 028 109-109 NAC 1FD],Washington,37.08,-113.82,8,771.40625,774.69375,3.2875,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Iron Mountain (Cedar City) [sysid/RFSS-site/NAC: 028 71-071 NAC FE5],Iron,37.62,-113.4,8,771.41875,774.84375,3.425,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Windy Ridge [sysid/RFSS-site/NAC: 028 123-123 NAC 209],Iron,37.7,-113.1,8,769.76875,774.79375,5.025,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Asphalt Ridge (Vernal) [sysid/RFSS-site/NAC: 014 3-003 NAC 0CB],Uintah,40.42,-109.6,7,771.19375,774.89375,3.7,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Little Mountain [sysid/RFSS-site/NAC: 014 61-061 NAC 80D],Uintah,40.5,-109.6,7,769.80625,773.68125,3.875,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Price Dispatch Center [sysid/RFSS-site/NAC: 028 73-073 NAC FE7],Carbon,39.6,-110.81,7,769.28125,772.53125,3.25,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Ford Ridge [sysid/RFSS-site/NAC: 028 47-047 NAC FCD],Carbon,39.65,-110.95,7,769.15625,774.79375,5.6375,3,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Grand County EOC (Moab) [sysid/RFSS-site/NAC: 028 51-051 NAC FD3],Grand,38.57,-109.55,6,771.14375,773.70625,2.5625,2,True,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Bald Mesa [sysid/RFSS-site/NAC: 028 3-003 NAC 193],Grand,38.47,-109.3,7,770.81875,774.69375,3.875,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Monroe Peak (Richfield) [sysid/RFSS-site/NAC: 028 81-081 NAC FEF],Sevier,38.54,-112.08,8,770.31875,774.71875,4.4,2,False,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+UT,Utah Communications Authority (UCA) P25,Salina [sysid/RFSS-site/NAC: 028 129-129 NAC 20F],Sevier,38.96,-111.86,6,769.85625,772.49375,2.6375,2,True,1,700,"P25 Phase II (TDMA voice, FDMA CC)",partial
+WY,WyoLink,Medicine Butte (Evanston),Uinta,41.22,-110.86,5,154.1225,155.1375,1.015,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,First Divide,Uinta,41.25,-110.75,5,152.06,155.6625,3.6025,2,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Church Buttes,Uinta,41.43,-110.12,5,151.3625,156.21,4.8475,2,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Aspen Mountain (Rock Springs),Sweetwater,41.5,-109.2,6,150.83,169.9875,19.1575,4,False,2,VHF,P25 Phase I,partial
+WY,WyoLink,Rock Springs 800,Sweetwater,41.59,-109.22,5,854.9625,855.9875,1.025,1,True,1,800,P25 Phase I,partial
+WY,WyoLink,Green River,Sweetwater,41.53,-109.47,5,151.04,154.6725,3.6325,2,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,14 Mile Hill,Sweetwater,41.73,-109.25,5,154.7625,155.31,0.5475,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Delaney Rim,Sweetwater,41.6,-108.2,5,151.0475,151.835,0.7875,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Oyster Ridge (Kemmerer),Lincoln,41.75,-110.6,5,153.7475,170.8625,17.115,3,False,2,VHF,P25 Phase I,partial
+WY,WyoLink,Sage Junction,Lincoln,42.1,-110.95,5,150.98,152.51,1.53,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Narrows Hill,Lincoln,42.2,-110.75,5,151.07,156.1575,5.0875,3,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Salt River Pass,Lincoln,42.52,-110.92,5,151.2575,170.3625,19.105,3,False,2,VHF,P25 Phase I,partial
+WY,WyoLink,Hell Hole (ID),"Bear Lake, ID",42.28,-111.12,5,171.3125,172.6625,1.35,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Hogsback Ridge,Sublette,42.3,-110.2,6,155.0775,155.895,0.8175,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Snow King (Jackson),Teton,43.47,-110.76,5,150.89,155.535,4.645,3,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Jackson 800,Teton,43.48,-110.76,5,854.9625,855.9625,1.0,1,True,1,800,P25 Phase I,partial
+WY,WyoLink,Cheyenne VHF,Laramie,41.14,-104.82,7,161.825,170.3625,8.5375,2,True,2,VHF,P25 Phase I,partial
+WY,WyoLink,Fox Farm 800 (Cheyenne),Laramie,41.1,-104.78,7,852.2625,853.75,1.4875,1,True,1,800,P25 Phase I,partial
+WY,WyoLink,Hwy85 South (Cheyenne),Laramie,41.05,-104.8,7,154.07,155.985,1.915,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Laramie,Albany,41.31,-105.59,5,151.2125,155.2725,4.06,2,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Rawlins,Carbon,41.79,-107.24,5,151.1525,156.06,4.9075,2,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Casper Mountain 800,Natrona,42.73,-106.32,12,854.9875,859.7125,4.725,3,False,1,800,P25 Phase I,partial
+WY,WyoLink,Casper Mountain VHF,Natrona,42.73,-106.32,9,152.51,171.5375,19.0275,3,False,2,VHF,P25 Phase I,partial
+WY,WyoLink,Gillette City Park 800,Campbell,44.29,-105.5,4,851.2,853.0875,1.8875,1,True,1,800,P25 Phase I,partial
+WY,WyoLink,Gillette VHF,Campbell,44.29,-105.5,5,154.1375,156.21,2.0725,2,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Sheridan,Sheridan,44.8,-106.96,5,151.3175,156.1575,4.84,2,False,1,VHF,P25 Phase I,partial
+WY,WyoLink,Riverton,Fremont,43.02,-108.38,5,154.7625,156.225,1.4625,1,True,1,VHF,P25 Phase I,partial
+WY,WyoLink,Lander,Fremont,42.83,-108.73,6,151.4825,155.2125,3.73,2,True,1,VHF,P25 Phase I,partial
