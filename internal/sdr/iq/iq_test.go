@@ -268,6 +268,32 @@ func TestShifter_movesToneToBaseband(t *testing.T) {
 	assert.Zero(t, allocs)
 }
 
+// TestShifter_matchesReference checks every output sample against the
+// exact mixing product for chunk sizes that exercise the four-lane loop
+// and its remainder, with phase continuity across calls.
+func TestShifter_matchesReference(t *testing.T) {
+	const rate, offset = 2_048_000.0, -312_500.0
+
+	for _, chunk := range []int{1, 2, 3, 4, 5, 7, 4096} {
+		s := iq.NewShifter(offset, rate)
+		src := tone(20_000, 40_000, rate)
+
+		var out []complex64
+		for i := 0; i < len(src); i += chunk {
+			out = append(out, s.Mix(nil, src[i:min(i+chunk, len(src))])...)
+		}
+
+		var worst float64
+
+		for i, x := range src {
+			want := complex128(x) * cmplx.Rect(1, -2*math.Pi*offset*float64(i)/rate)
+			worst = max(worst, cmplx.Abs(complex128(out[i])-want))
+		}
+
+		assert.Less(t, worst, 1e-5, "chunk %d", chunk)
+	}
+}
+
 func TestResampler_toneFrequency(t *testing.T) {
 	const in, out = 44_100.0, 8000.0
 
@@ -352,5 +378,18 @@ func BenchmarkConverter_CU8(b *testing.B) {
 
 	for b.Loop() {
 		dst = c.Convert(dst, raw)
+	}
+}
+
+func BenchmarkShifter_Mix(b *testing.B) {
+	s := iq.NewShifter(250e3, 2_048_000)
+	src := tone(32768, 1000, 2_048_000)
+	dst := make([]complex64, len(src))
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(src) * 8))
+
+	for b.Loop() {
+		dst = s.Mix(dst, src)
 	}
 }
