@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openmanet/go-alfred"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ import (
 	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
 	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
 	"github.com/openmanet/openmanetd/internal/meshsim"
+	"github.com/openmanet/openmanetd/internal/mgmt"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 )
 
@@ -93,23 +95,83 @@ func alfredSock(m *meshsim.Mesh, node string) string {
 // topologyService wires MeshTopologyService the way server.go does, minus
 // the snapshot cache, so every call reads live batctl and batadv-vis
 // output from inside the node's namespace.
-func topologyService(m *meshsim.Mesh, node string) *handlers.MeshTopologyService {
+func topologyService(m *meshsim.Mesh, node string, neighbors batmanadv.MeshNeighborsProvider) *handlers.MeshTopologyService {
 	return &handlers.MeshTopologyService{
-		Log:             zerolog.Nop(),
-		VisProvider:     batmanadv.BatadvVisProvider{Args: []string{"-u", alfredSock(m, node)}},
-		OrigProvider:    &batmanadv.BatctlOriginatorTopologyProvider{BatHostsPath: m.BatHostsPath()},
-		ParseBatHosts:   batmanadv.ParseBatHostsFile,
-		GetMeshGateways: batmanadv.GetMeshGateways,
-		BatHostsPath:    m.BatHostsPath(),
-		BatInterface:    meshsim.BatIface,
+		Log:               zerolog.Nop(),
+		VisProvider:       batmanadv.BatadvVisProvider{Args: []string{"-u", alfredSock(m, node)}},
+		OrigProvider:      &batmanadv.BatctlOriginatorTopologyProvider{BatHostsPath: m.BatHostsPath()},
+		NeighborsProvider: neighbors,
+		ParseBatHosts:     batmanadv.ParseBatHostsFile,
+		GetMeshGateways:   batmanadv.GetMeshGateways,
+		BatHostsPath:      m.BatHostsPath(),
+		BatInterface:      meshsim.BatIface,
 	}
 }
 
-func getTopology(m *meshsim.Mesh, node string) (*meshtopov1.MeshTopology, error) {
+// alfredClient opens a go-alfred client on the node's alfred socket.
+func alfredClient(t *testing.T, m *meshsim.Mesh, node string) *alfred.Client {
+	t.Helper()
+
+	c, err := alfred.NewClient(alfred.WithSocketPath(alfredSock(m, node)))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() }) // best effort at test end
+
+	return c
+}
+
+// gossipPublishers builds openmanetd's mesh-neighbors publisher for every
+// node, each bound to that node's alfred. On BATMAN_V this gossip is the
+// only adjacency source: batadv-vis reads just the BATMAN_IV TQ attribute
+// and publishes no neighbors.
+func gossipPublishers(t *testing.T, m *meshsim.Mesh, names ...string) map[string]*mgmt.MeshNeighborsWorker {
+	t.Helper()
+
+	out := make(map[string]*mgmt.MeshNeighborsWorker, len(names))
+	for _, n := range names {
+		out[n] = &mgmt.MeshNeighborsWorker{
+			Config: &mgmt.ManagementConfig{Log: zerolog.Nop(), BatInterface: meshsim.BatIface},
+			Client: alfredClient(t, m, n),
+		}
+	}
+
+	return out
+}
+
+// publishGossip publishes each node's neighbor table from inside its
+// namespace, as the daemon's ticker does on a real node.
+func publishGossip(m *meshsim.Mesh, workers map[string]*mgmt.MeshNeighborsWorker) error {
+	for name, w := range workers {
+		if err := m.Do(name, w.PublishOnce); err != nil {
+			return fmt.Errorf("%s publish mesh-neighbors: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// gossipReader starts the daemon's mesh-neighbors snapshotter on the
+// node's alfred, as openmanetd wires it for the topology handler.
+func gossipReader(t *testing.T, m *meshsim.Mesh, node string) *batmanadv.MeshNeighborsSnapshotter {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	s := &batmanadv.MeshNeighborsSnapshotter{
+		Log:      zerolog.Nop(),
+		Client:   alfredClient(t, m, node),
+		Interval: 250 * time.Millisecond,
+	}
+	s.Start(ctx)
+
+	return s
+}
+
+func getTopology(m *meshsim.Mesh, node string, neighbors batmanadv.MeshNeighborsProvider) (*meshtopov1.MeshTopology, error) {
 	var topo *meshtopov1.MeshTopology
 
 	err := m.Do(node, func() error {
-		res, err := topologyService(m, node).GetMeshTopology(context.Background(), &emptypb.Empty{})
+		res, err := topologyService(m, node, neighbors).GetMeshTopology(context.Background(), &emptypb.Empty{})
 		if err != nil {
 			return err
 		}
@@ -164,6 +226,9 @@ func TestMesh_topologyRPC(t *testing.T) {
 		m.Eventually(convergeTimeout, "a learns 3 originators", originatorCount(m, "a", 3))
 		startAlfred(t, m, names...)
 
+		publishers := gossipPublishers(t, m, names...)
+		neighbors := gossipReader(t, m, "a")
+
 		var topo *meshtopov1.MeshTopology
 
 		// Nodes render under their canonical MAC: bat0's for the serving
@@ -182,7 +247,11 @@ func TestMesh_topologyRPC(t *testing.T) {
 		m.Eventually(purgeTimeout, "topology shows the whole line", func() error {
 			var err error
 
-			topo, err = getTopology(m, "a")
+			if err := publishGossip(m, publishers); err != nil {
+				return err
+			}
+
+			topo, err = getTopology(m, "a", neighbors)
 			if err != nil {
 				return err
 			}
