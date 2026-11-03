@@ -24,6 +24,36 @@ jobs:
           repository: ghostnet-labs/docs
           ref: 75f2913eb89745fc4ddc64d27248c7dba64c5393
           persist-credentials: false
+      - name: Check out the runner policy
+        uses: actions/checkout@v4
+        with:
+          repository: ghostnet-labs/docs
+          ref: 3b3c3c3e4017649b24d1ceeb6fb0e3e2209b21d9
+          path: runner-policy
+          sparse-checkout: |
+            project/scripts/check_runners.py
+            project/ci/runner-allowlist.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Check out this change's workflows
+        uses: actions/checkout@v4
+        with:
+          path: change
+          sparse-checkout: .github/workflows
+          persist-credentials: false
+      - name: Check the runner policy
+        # Parses the workflow files only; nothing from the change is executed.
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || {
+            python3 -m venv "$RUNNER_TEMP/runner-policy-venv"
+            "$RUNNER_TEMP/runner-policy-venv/bin/pip" install --quiet pyyaml==6.0.2
+            PATH="$RUNNER_TEMP/runner-policy-venv/bin:$PATH"
+          }
+          python3 runner-policy/project/scripts/check_runners.py --repo "$REPO_NAME" \
+            --workflows change/.github/workflows \
+            --allowlist runner-policy/project/ci/runner-allowlist.json
       - name: Verify merge policy regression suite
         run: python3 -m unittest discover -s project/tests -v
       - name: Wait for applicable current-head tests
