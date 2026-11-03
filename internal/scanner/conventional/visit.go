@@ -196,6 +196,16 @@ func deemphasis(m analog.Mode) time.Duration {
 	return 0
 }
 
+// DemodMode is the demodulation the scanner uses for c: AM in the
+// 108-137 MHz aviation band, NFM elsewhere.
+func DemodMode(c *sites.Channel) sites.ChannelMode {
+	if kindFor(c).mode == analog.ModeAM {
+		return sites.ModeAM
+	}
+
+	return sites.ModeNFM
+}
+
 // kindFor chooses the demodulator: AM in the aviation band, NFM
 // elsewhere, with the channel's filter width.
 func kindFor(c *sites.Channel) demodKind {

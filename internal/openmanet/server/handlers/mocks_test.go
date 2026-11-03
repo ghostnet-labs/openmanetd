@@ -898,6 +898,44 @@ type fakeScannerManager struct {
 	subErr    error
 	applied   []config.ScannerConfig
 	cancels   int
+	conv      scanner.ConventionalStatus
+	audio     chan scanner.AudioFrame
+	audioErr  error
+	audioKeys []string
+	// audioCancels counts SubscribeAudio cancels.
+	audioCancels int
+}
+
+func (f *fakeScannerManager) Conventional() scanner.ConventionalStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.conv
+}
+
+func (f *fakeScannerManager) SubscribeAudio(key string) (<-chan scanner.AudioFrame, func(), error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.audioKeys = append(f.audioKeys, key)
+
+	if f.audioErr != nil {
+		return nil, nil, f.audioErr
+	}
+
+	return f.audio, func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		f.audioCancels++
+	}, nil
+}
+
+func (f *fakeScannerManager) getAudioCancels() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.audioCancels
 }
 
 func (f *fakeScannerManager) Enabled() bool {

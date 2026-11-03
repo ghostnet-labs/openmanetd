@@ -34,6 +34,8 @@ type ScannerManager interface {
 	Grants(limit int) ([]scanner.Grant, int)
 	Subscribe() (<-chan scanner.Event, func(), error)
 	Apply(cfg config.ScannerConfig)
+	Conventional() scanner.ConventionalStatus
+	SubscribeAudio(channelKey string) (<-chan scanner.AudioFrame, func(), error)
 }
 
 // ScannerConfigStore reads and persists the scanner config section
@@ -51,6 +53,9 @@ type ScannerService struct {
 	// Manager is the scanner manager. It is always constructed by the
 	// daemon (it owns no goroutines while disabled); nil only in tests.
 	Manager ScannerManager
+	// NewOpusEncoder builds an 8 kHz mono Opus encoder for one StreamAudio
+	// stream; nil serves PCM only.
+	NewOpusEncoder func() (ScannerAudioEncoder, error)
 }
 
 // GetScannerStatus reports receivers, position, site and decoder state.
@@ -82,6 +87,7 @@ func (s *ScannerService) GetScannerStatus(
 	res.DecoderUnavailable = st.Control.State == scanner.ControlUnavailable
 	res.DecodeStale = st.Control.Stale
 	res.AircraftStale = st.AircraftStale
+	res.Conventional = scannerConvStatusToProto(s.Manager.Conventional())
 
 	if st.Selection != nil {
 		res.SelectedSite = scannerSelectionToProto(st.Selection, st.Control.FrequencyHz)

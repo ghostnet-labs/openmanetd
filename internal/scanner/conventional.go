@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/openmanet/openmanetd/internal/scanner/sites"
@@ -10,6 +11,10 @@ import (
 // The types below are the consumer-side contract with the conventional
 // (analog FM / aviation AM) scanner that runs on the scan RTL-SDR
 // (internal/scanner/conventional, wired in by the daemon).
+
+// ErrTooManyAudioStreams is returned by SubscribeAudio when the
+// conventional scanner's audio stream limit is reached.
+var ErrTooManyAudioStreams = errors.New("too many scanner audio streams")
 
 // AudioFrameSamples is the PCM length of one AudioFrame: 20 ms at 8 kHz.
 const AudioFrameSamples = 160

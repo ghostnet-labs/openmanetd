@@ -58,7 +58,7 @@ const (
 
 // ErrTooManyAudioSubscribers is returned by SubscribeAudio when
 // MaxAudioSubscribers streams are open.
-var ErrTooManyAudioSubscribers = errors.New("too many scanner audio streams")
+var ErrTooManyAudioSubscribers = scanner.ErrTooManyAudioStreams
 
 // errPlanChanged ends a capture because Scan installed a new plan.
 var errPlanChanged = errors.New("conventional: plan changed")
