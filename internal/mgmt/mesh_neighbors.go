@@ -95,6 +95,13 @@ func (w *MeshNeighborsWorker) StartSend() {
 	}
 }
 
+// PublishOnce publishes the current neighbor table once, outside the
+// ticker. batctl runs in the caller's network namespace, which lets the
+// virtual mesh tests publish from inside each simulated node.
+func (w *MeshNeighborsWorker) PublishOnce() error {
+	return w.sendOnce(w.Client)
+}
+
 // sendOnce performs a single publish iteration using production data
 // sources. Separated from the ticker so tests can drive it directly.
 func (w *MeshNeighborsWorker) sendOnce(client alfredClient) error {
