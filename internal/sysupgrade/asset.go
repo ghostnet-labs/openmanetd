@@ -32,21 +32,46 @@ var validSysupgradeSuffixes = []string{
 	"sysupgrade.tar",
 }
 
+// Hardware describes the device an asset is matched for.
+type Hardware struct {
+	// BoardName is /etc/board.json model.id, e.g. "bcm2711,mm8108-usb".
+	BoardName string
+	// Target is DISTRIB_TARGET, e.g. "bcm27xx/bcm2711" or "x86/64".
+	Target string
+	// EFI reports whether the device booted through UEFI. Only x86
+	// targets use it, to pick between the BIOS and EFI combined images.
+	EFI bool
+}
+
 // MatchAsset returns the asset that should be flashed onto a device
-// described by boardName + target. If a manifest is present, its
-// boards[boardName] entry is the authoritative answer. Otherwise the
-// substring heuristic is applied.
+// described by boardName + target, for a device that did not boot
+// through UEFI. See MatchAssetFor.
+func MatchAsset(boardName, target string, manifest *Manifest, assets []Asset) (Asset, error) {
+	return MatchAssetFor(Hardware{BoardName: boardName, Target: target}, manifest, assets)
+}
+
+// MatchAssetFor returns the asset that should be flashed onto hw. If a
+// manifest is present, its boards[board_name] entry is the authoritative
+// answer. Otherwise x86 targets use the x86 rule and every other target
+// uses the substring heuristic.
 //
 // The heuristic requires:
 //  1. filename ends with a known sysupgrade suffix,
 //  2. all dot-and-comma-replaced board_name tokens appear,
 //  3. all slash-replaced target tokens appear.
 //
+// x86 board names come from DMI (any PC model), so they never appear in
+// the image name, and x86 sysupgrade images are the combined disk
+// images. The x86 rule requires the target tokens and the
+// "-squashfs-combined.img.gz" suffix, or "-squashfs-combined-efi.img.gz"
+// when hw.EFI is set. ext4 images are skipped: sysupgrade capability
+// requires squashfs.
+//
 // Exactly one match is required; zero → ErrNoMatchingAsset, two or more
 // → ErrAmbiguousAsset.
-func MatchAsset(boardName, target string, manifest *Manifest, assets []Asset) (Asset, error) {
+func MatchAssetFor(hw Hardware, manifest *Manifest, assets []Asset) (Asset, error) {
 	if manifest != nil {
-		if name, ok := manifest.Boards[boardName]; ok && name != "" {
+		if name, ok := manifest.Boards[hw.BoardName]; ok && name != "" {
 			for _, a := range assets {
 				if a.Name == name {
 					return a, nil
@@ -57,7 +82,39 @@ func MatchAsset(boardName, target string, manifest *Manifest, assets []Asset) (A
 		}
 	}
 
-	return heuristicMatch(boardName, target, assets)
+	if isX86Target(hw.Target) {
+		return x86Match(hw, assets)
+	}
+
+	return heuristicMatch(hw.BoardName, hw.Target, assets)
+}
+
+// isX86Target reports whether DISTRIB_TARGET names the x86 platform
+// ("x86/64", "x86/generic", ...).
+func isX86Target(target string) bool {
+	return strings.HasPrefix(strings.ToLower(target), "x86/")
+}
+
+// x86Match picks the combined squashfs image for an x86 target.
+func x86Match(hw Hardware, assets []Asset) (Asset, error) {
+	suffix := "-squashfs-combined.img.gz"
+	if hw.EFI {
+		suffix = "-squashfs-combined-efi.img.gz"
+	}
+
+	targetTokens := tokenizeTarget(hw.Target)
+	candidates := make([]Asset, 0, 1)
+
+	for _, a := range assets {
+		lower := strings.ToLower(a.Name)
+		if !strings.HasSuffix(lower, suffix) || !containsAll(lower, targetTokens) {
+			continue
+		}
+
+		candidates = append(candidates, a)
+	}
+
+	return pickOne(candidates)
 }
 
 // heuristicMatch implements the substring fallback. Tokens are
@@ -87,6 +144,11 @@ func heuristicMatch(boardName, target string, assets []Asset) (Asset, error) {
 		candidates = append(candidates, a)
 	}
 
+	return pickOne(candidates)
+}
+
+// pickOne returns the single candidate, or the error for zero or many.
+func pickOne(candidates []Asset) (Asset, error) {
 	switch len(candidates) {
 	case 0:
 		return Asset{}, ErrNoMatchingAsset

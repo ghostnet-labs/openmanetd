@@ -71,10 +71,11 @@ func newSetupService(t *testing.T, cfg *config.Config, reader *fakeConfigReader,
 	t.Helper()
 
 	return &handlers.SetupService{
-		Cfg:        cfg,
-		Log:        zerolog.Nop(),
-		UCI:        reader,
-		Interfaces: ifaces,
+		Cfg:           cfg,
+		Log:           zerolog.Nop(),
+		UCI:           reader,
+		Interfaces:    ifaces,
+		DeviceProduct: func() string { return "" }, // keep tests off the host's /etc/device_info
 	}
 }
 
@@ -380,6 +381,48 @@ func TestGetSetupStatus_AlreadyConfigured_NonFactoryHostname(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, resp.GetAlreadyConfigured(), "non-factory hostname must flag already_configured")
+}
+
+// TestGetSetupStatus_FactoryHostnamePerBoard pins that the generated
+// first-boot hostname (DEVICE_PRODUCT plus a MAC-derived suffix) reads as
+// a factory hostname on every board, not only the Pi boards' BCM27xx
+// names. Before this, a fresh x86_64, Venice or NanoPC node reported
+// already_configured, so the wizard was optional instead of offered.
+func TestGetSetupStatus_FactoryHostnamePerBoard(t *testing.T) {
+	cases := []struct {
+		name     string
+		product  string
+		hostname string
+		want     bool // already_configured
+	}{
+		{name: "x86_64 factory", product: "x86_64", hostname: "x86_64-3456", want: false},
+		{name: "Venice factory", product: "Venice", hostname: "Venice-1a2b", want: false},
+		{name: "HaLowLink2 three-digit suffix", product: "HaLowLink2", hostname: "HaLowLink2-a1b", want: false},
+		{name: "no MAC, random suffix", product: "x86_64", hostname: "x86_64-z9f3", want: false},
+		{name: "Pi factory without device_info", product: "", hostname: "BCM2711-97d6", want: false},
+		{name: "renamed x86 node", product: "x86_64", hostname: "relay-north", want: true},
+		{name: "product with operator suffix", product: "x86_64", hostname: "x86_64-bench", want: true},
+		{name: "other board's factory name", product: "Venice", hostname: "x86_64-3456", want: true},
+		{name: "Generic product is not a prefix", product: "Generic", hostname: "Generic-1a2b", want: true},
+		{name: "unknown product", product: "", hostname: "x86_64-3456", want: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := setupBLOSTestConfig(t, "setup:\n  enabled: true\n")
+
+			reader := newSetupReader()
+			reader.data["system"]["@system[0]"]["hostname"] = []string{tc.hostname}
+
+			svc := newSetupService(t, cfg, reader, &fakeInterfaceProvider{})
+			svc.DeviceProduct = func() string { return tc.product }
+
+			resp, err := svc.GetSetupStatus(context.Background(), &emptypb.Empty{})
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, resp.GetAlreadyConfigured())
+		})
+	}
 }
 
 // TestGetSetupStatus_FactoryDefaults_NotAlreadyConfigured pins the

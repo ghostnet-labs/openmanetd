@@ -569,3 +569,39 @@ func TestManager_Subscribe_DropsSlowSubscribers(t *testing.T) {
 		}
 	}
 }
+
+func TestManager_ListAvailableUpdates_x86PicksImageForBootMode(t *testing.T) {
+	releases := []Release{{Tag: "v1.9.0", Assets: []Asset{
+		makeAsset("openmanet-1.9.0-x86-64-generic-squashfs-combined.img.gz", "u-bios", 1),
+		makeAsset("openmanet-1.9.0-x86-64-generic-squashfs-combined-efi.img.gz", "u-efi", 1),
+	}}}
+
+	tests := []struct {
+		name string
+		efi  bool
+		want string
+	}{
+		{name: "BIOS", efi: false, want: "u-bios"},
+		{name: "EFI", efi: true, want: "u-efi"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := makeManagerWith(t, &fakeReleasesFetcher{releases: releases}, &fakeRunner{}, "1.8.0", func(o *Options) {
+				o.Board = &fakeBoardProvider{board: &board.Board{Model: board.Model{ID: "protectli-vp2430"}}}
+				o.Firmware = &fakeFirmwareProvider{info: &system.FirmwareInfo{
+					Description:  "OpenMANET 1.8.0",
+					Distribution: "OpenMANET",
+					Target:       "x86/64",
+					OpenMANETVer: "1.8.0",
+				}}
+				o.EFIBoot = func() bool { return tc.efi }
+			})
+
+			updates, _, err := mgr.ListAvailableUpdates(context.Background(), true, false)
+			require.NoError(t, err)
+			require.Len(t, updates, 1)
+			assert.Equal(t, tc.want, updates[0].MatchedAsset.DownloadURL)
+		})
+	}
+}
