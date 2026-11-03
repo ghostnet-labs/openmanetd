@@ -55,6 +55,51 @@ On the synthetic signals, the decoder gets every TSBK through at 12 dB or
 more CNR (in 12.5 kHz) with carrier errors tested from -0.9 to +2 kHz and an 80 ppm clock
 error. At 10 dB, about 97% of TSBKs pass. The first frame after start can
 be missed while the loops pull in (about 100 symbols).
+## Conventional scan (internal/scanner/conventional)
+
+The scan RTL-SDR (`scanner.receivers.scanSerial`, default `scan`) sweeps
+analog channels. Those are the GHO-60 conventional, interop and weather rows
+plus aviation, all embedded in `sites.dat.gz` as `C` records. The manager
+selects every channel within `scanner.conventional.radiusKm` of the fix
+(default 80 km, at most 500). It also always includes the nationwide `US`
+channels and 121.5 MHz, keeping one entry per frequency.
+
+```
+plan (channels, sorted) -> greedy weighted window cover (always-on x3, <=12 windows, <=8 ch each)
+  per window: rtl_sdr -f center -s 2048000 --source.Source--> []complex64
+    -> settle 50 ms -> per channel: Shifter (offset) -> analog.Demodulator
+       (AM 108-137 MHz, NFM elsewhere) -> 8 kHz int16 PCM, 160-sample blocks
+    -> dwell 1 s; hold while squelch open + 2 s, at most 30 s -> next window
+  squelch-open blocks -> AudioFrame -> StreamAudio (PCM s16le or Opus)
+```
+
+- **Ownership.** The scan RTL-SDR belongs to either the P25 decoder or the
+  conventional scanner, never to both. With no wide receiver
+  (`scanner.receivers.wideSerial`), P25 keeps the scan tuner and the panel
+  shows `RECEIVER_BUSY`. Before tuning the scan tuner for P25, the manager
+  stops the conventional capture and waits for `WaitIdle`. Before handing
+  the tuner back, it waits for `p25mon.WaitReleased`.
+- **Listening** pins the scan to the windows that hold the subscribed
+  channels. Streams are capped at 4, and further requests get
+  `ResourceExhausted`. Subscriber channels hold 10 frames (200 ms), and a
+  slow client loses frames rather than blocking the capture. Only 8 kHz
+  audio leaves the node, never IQ.
+- **Wide tuner rate.** `scanner.tuner.wideSampleRate` is optional and must
+  be one of 2500000, 3000000, 6000000 or 10000000. Airspy Mini supports
+  6/3 MS/s and Airspy R2 supports 10/2.5 MS/s. A set rate caps the usable
+  P25 span at 80% of the rate. Any other value is ignored and logged as a
+  config problem when the scanner is enabled.
+
+| Benchmark (amd64, 4 vCPU) | Time | Allocs |
+|-----------|------|--------|
+| `conventional` consume, 8 channels, 32768 samples at 2.048 MS/s (16 ms) | ~4.1 ms | 0 |
+| `iq.Shifter.Mix`, 32768 samples | ~110 us | 0 |
+
+Eight channels therefore take about 25% of one amd64 core. Fixtures are in
+`testfixtures/sdr/conventional/`: one synthesized AM aviation capture and one
+NFM capture, each with a live channel and a quiet one. They run end to end
+through the real scanner, the manager and the `StreamAudio` handler,
+including an Opus decode.
 
 ## Verified against reference source
 
@@ -126,6 +171,28 @@ here; the first over-the-air recording should still become a fixture.
    deviation, measured as noise RMS above the voice band) and
    `DefaultCarrierSquelchDBFS` (-45 dBFS) were set on synthetic noise. Set
    them against real noise floors at the gains used in the field.
+
+10. **Conventional retune cost.** Every window visit restarts `rtl_sdr`, so
+   USB open, tuner init and PLL lock cost roughly 100-300 ms on top of the
+   50 ms settle. Measure the time between visits on a CM5. If it eats too
+   much of the 1 s dwell, keep one `rtl_tcp` process and retune it over
+   its control socket instead (follow-up).
+11. **Conventional squelch levels.** The NFM noise squelch and the AM
+   -45 dBFS carrier squelch (item 9) also gate conventional audio and the
+   LIVE / last-heard state. RTL-SDR AGC and gain change the AM dBFS
+   reference, so set the level per receiver with real traffic.
+12. **Conventional CPU on target.** The 8-channel figure above is amd64.
+   `Shifter.Mix` and the decimation chains use float64 and float32
+   arithmetic, which is very slow on soft-float mipsle. Measure on CM5
+   (arm64) and lower `MaxPerWindow` (or the sample rate) if a window cannot
+   keep up in real time. Real-time limit: a 32768-sample block must finish
+   in under 16 ms.
+13. **80% usable window.** Window planning uses `scanner.tuner.rtlUsableHz`
+   (default 2.0 MHz), clamped to 80% of 2.048 MS/s (about 1.64 MHz), and
+   assumes that span is flat enough. The edge
+   guard is 12.5 kHz and the DC guard 20 kHz. Check the R820T roll-off and
+   the DC spike at the gains used; widen the guards if edge channels
+   measure worse.
 
 Out of scope: Phase II TDMA voice, IMBE/AMBE audio (patent-encumbered),
 inbound (ISP) messages, and vendor (non-zero MFID) TSBKs, which are ignored.
