@@ -371,6 +371,7 @@ type Config struct {
 	onChangeCallbacks                         []func(*Config)
 	Radio                                     RadioConfig
 	Hardware                                  HardwareConfig
+	Scanner                                   ScannerConfig
 	Chanmig                                   ChanmigConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
@@ -1028,6 +1029,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 
 	c.Hardware = c.loadHardware()
 	c.Chanmig = c.loadChanmig()
+	c.Scanner = c.loadScanner()
 	c.Radio = c.loadRadio()
 }
 

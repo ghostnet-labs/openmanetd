@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,9 @@ import (
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
+	"github.com/openmanet/openmanetd/internal/scanner"
+	"github.com/openmanet/openmanetd/internal/scanner/conventional"
+	"github.com/openmanet/openmanetd/internal/scanner/p25mon"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
 	"github.com/openmanet/openmanetd/internal/terminal"
@@ -213,6 +217,13 @@ func Start(staticFS fs.FS) {
 	// alfred poll loop, both bound to ctx and joined by waitChanmig.
 	chanmigSvc := startChanmig(ctx, cfg, manager, log)
 
+	// Scanner (GHO-53): aircraft.json merge, receiver ownership, nearest
+	// P25 site, control-channel decoding and talkgroup history.
+	// Constructed always so the API can enable it at runtime. With
+	// scanner.enable false (the default) the manager owns no goroutine and
+	// the P25 monitor's one goroutine idles without touching a receiver.
+	scannerMgr, scannerMonDone := newScannerManager(ctx, cfg, gps)
+
 	// Set up session-based authentication when enabled.
 	var (
 		sessionStore  *auth.SessionStore
@@ -291,6 +302,7 @@ func Start(staticFS fs.FS) {
 	// into the one the handlers already share.
 	apiServer.Hardware = hardwareAPI(hwManager)
 	apiServer.Chanmig = chanmigAPI(chanmigSvc)
+	apiServer.Scanner = scannerMgr
 
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider
@@ -346,6 +358,8 @@ func Start(staticFS fs.FS) {
 
 	waitHardwareManager(hwManager, log)
 	waitChanmig(chanmigSvc, log)
+	scannerMgr.Disable()
+	<-scannerMonDone
 
 	if cfg.GetEnableGNSS() {
 		gps.Close()
@@ -475,6 +489,48 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	}
 
 	go worker.Run(ctx)
+}
+
+// newScannerManager builds the scanner manager, its P25 control-channel
+// monitor (airspy_rx / rtl_sdr through internal/sdr) and the conventional
+// analog scanner on the scan RTL-SDR, starts their goroutines on ctx (done
+// closes when both exit), and starts the manager when
+// scanner.enable is set. gps may be nil (GNSS disabled); it is passed as a
+// nil interface, never a typed nil pointer. A node without the capture
+// tools installed reports the control channel as unavailable.
+func newScannerManager(ctx context.Context, cfg *config.Config, gps *gpsd.GPSService) (*scanner.Manager, <-chan struct{}) {
+	mon := p25mon.New(p25mon.Options{Log: logger.GetLogger("p25mon")})
+	conv := conventional.New(conventional.Options{Log: logger.GetLogger("conventional")})
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		var wg sync.WaitGroup
+
+		wg.Go(func() { conv.Run(ctx) })
+		mon.Run(ctx)
+		wg.Wait()
+	}()
+
+	opts := scanner.Options{
+		Log:          logger.GetLogger("scanner"),
+		UCI:          network.NewUCINetworkConfigReader(),
+		Monitor:      mon,
+		Conventional: conv,
+	}
+	if gps != nil {
+		opts.Position = gps
+	}
+
+	sc := cfg.GetScanner()
+	mgr := scanner.NewManager(opts, sc)
+
+	if sc.Enable {
+		mgr.Enable()
+	}
+
+	return mgr, done
 }
 
 // buildTerminalManager constructs the web-terminal manager when the feature
