@@ -93,6 +93,14 @@ export const ICONS = Object.assign(Object.create(null), {
     </svg>
   ),
 
+  // An antenna mast radiating to both sides.
+  scanner: (
+    <svg {...SVG_PROPS} data-icon="scanner">
+      <path d="M8 7v8M5 15h6M5 4a4 4 0 000 6M11 4a4 4 0 010 6M3 2a7 7 0 000 10M13 2a7 7 0 010 10" />
+      {dot(8, 7, 1.5)}
+    </svg>
+  ),
+
   // Three sliders at different positions.
   settings: (
     <svg {...SVG_PROPS} data-icon="settings">

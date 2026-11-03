@@ -1,0 +1,45 @@
+/* =============================================================================
+ * Scanner.css — aircraft receivers and P25 site monitor page
+ * ============================================================================= */
+
+/* Alerts and the loading line span the whole body grid. */
+.scanner-alerts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scanner-loading {
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.scanner-save-error {
+  margin: 12px 20px 0;
+}
+
+/* Encrypted / emergency chips sit side by side and wrap on narrow cards. */
+.scanner-flags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scanner-toolbar {
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .scanner-save-error {
+    margin: 8px 12px 0;
+  }
+
+  /* Primary mobile actions get a 44px touch target. */
+  .scanner-toolbar .lat-toggle,
+  .scanner-toolbar .lat-btn {
+    min-height: 44px;
+  }
+}

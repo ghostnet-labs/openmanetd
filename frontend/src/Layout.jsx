@@ -21,6 +21,7 @@ const NAV_GROUPS = [
       { to: '/topology',  label: 'Topology',  short: 'Topo',  icon: 'topology' },
       { to: '/gps',       label: 'GPS / GNSS', short: 'GPS',  icon: 'gps' },
       { to: '/blos',      label: 'BLOS',      short: 'BLOS',  icon: 'blos' },
+      { to: '/scanner',   label: 'Scanner',   short: 'Scan',  icon: 'scanner' },
     ],
   },
   {
@@ -56,6 +57,7 @@ const SIGN_OUT_TITLE_LUCI = `${SIGN_OUT_TITLE} (LuCI keeps its own sign-in)`;
 
 const OVERFLOW_TABS = [
   { to: '/blos',     label: 'BLOS',     icon: 'blos' },
+  { to: '/scanner',  label: 'Scanner',  icon: 'scanner' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
