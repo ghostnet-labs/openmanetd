@@ -551,6 +551,32 @@ func (m *Mesh) dumpState() {
 			cancel()
 			m.t.Logf("meshsim: %s batctl %s:\n%s", n.Name, sub, out)
 		}
+
+		m.dumpLogs(n)
+	}
+}
+
+// dumpLogTail is how much of each daemon log dumpState prints.
+const dumpLogTail = 2048
+
+// dumpLogs prints the tail of every log Start wrote for the node, so a
+// daemon that exited (alfred, batadv-vis) leaves its reason in the output.
+func (m *Mesh) dumpLogs(n *Node) {
+	logs, _ := filepath.Glob(filepath.Join(m.dir, n.Name+"-*.log")) // pattern is static; Glob only fails on bad patterns
+
+	for _, path := range logs {
+		b, err := os.ReadFile(path) //nolint:gosec // path is under t.TempDir
+		if err != nil {
+			m.t.Logf("meshsim: %s: %v", path, err)
+
+			continue
+		}
+
+		if len(b) > dumpLogTail {
+			b = b[len(b)-dumpLogTail:]
+		}
+
+		m.t.Logf("meshsim: %s:\n%s", filepath.Base(path), b)
 	}
 }
 

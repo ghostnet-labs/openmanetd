@@ -331,10 +331,10 @@ func mergeMeshTopology(
 	// 5. Build MeshEdge list — originator-derived first, then vis neighbors.
 	edges := buildMeshEdges(visDoc, origSnap.Originators, primaryByMac, segmentByPrimary, gatewayByPrimary, selfMAC, selfPrimary, gossip, renderedPrimaries(nodes), localBlosGwByRemote)
 
-	// 6. With vis adjacency in the graph, walk it from self for true hop
-	// counts and the forwarding tree. The originator table alone names
-	// only the first hop, so it cannot tell two hops from five.
-	if len(origSnap.Originators) > 0 && visHasNeighbors(visDoc) {
+	// 6. With vis or gossip adjacency in the graph, walk it from self for
+	// true hop counts and the forwarding tree. The originator table alone
+	// names only the first hop, so it cannot tell two hops from five.
+	if len(origSnap.Originators) > 0 && (visHasNeighbors(visDoc) || gossipHasRF(gossip)) {
 		applyPathTree(nodes, edges, selfPrimary)
 	}
 
@@ -1009,7 +1009,7 @@ func buildMeshEdges(
 ) []*meshtopov1.MeshEdge {
 	edgeByKey := make(map[string]*meshtopov1.MeshEdge)
 
-	seedOriginatorEdges(edgeByKey, origs, primaryByMac, segmentByPrimary, gatewayByPrimary, knownPrimaries, selfMAC, selfPrimary, gossip, localBlosGwByRemote, visNeighborPublishers(visDoc, primaryByMac))
+	seedOriginatorEdges(edgeByKey, origs, primaryByMac, segmentByPrimary, gatewayByPrimary, knownPrimaries, selfMAC, selfPrimary, gossip, localBlosGwByRemote, adjacencyPublishers(visDoc, primaryByMac, gossip))
 	layerGossipEdges(edgeByKey, gossip, segmentByPrimary, knownPrimaries)
 	layerVisEdges(edgeByKey, visDoc, primaryByMac, segmentByPrimary, knownPrimaries)
 
@@ -1057,7 +1057,7 @@ func seedOriginatorEdges(
 	selfPrimary string,
 	gossip *gossipView,
 	localBlosGwByRemote map[string]string,
-	visPublishers map[string]struct{},
+	adjPublishers map[string]struct{},
 ) {
 	for _, o := range origs {
 		fromPrimary, toPrimary, ok := originatorEdgeEndpoints(o, primaryByMac, selfMAC)
@@ -1067,11 +1067,11 @@ func seedOriginatorEdges(
 
 		// A multi-hop entry only says "toPrimary is reached via
 		// fromPrimary", not that the two are adjacent: on a line a-b-c-d,
-		// a reaches d via b. When toPrimary publishes its own vis
-		// neighbors, those draw its real links; seeding here would add a
+		// a reaches d via b. When toPrimary publishes its own vis or
+		// gossip neighbors, those draw its real links; seeding here would add a
 		// b-d edge that does not exist.
 		if !isDirectOriginator(o) {
-			if _, ok := visPublishers[toPrimary]; ok {
+			if _, ok := adjPublishers[toPrimary]; ok {
 				continue
 			}
 		}
@@ -1368,6 +1368,45 @@ func visNeighborPublishers(visDoc *batmanadv.VisDoc, primaryByMac map[string]str
 		}
 
 		out[resolvePrimary(primaryByMac, strings.ToLower(v.Primary))] = struct{}{}
+	}
+
+	return out
+}
+
+// gossipHasRF reports whether any gossip publisher listed an RF neighbor.
+func gossipHasRF(gossip *gossipView) bool {
+	if gossip == nil {
+		return false
+	}
+
+	for _, rf := range gossip.rfByPrimary {
+		if len(rf) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// adjacencyPublishers returns the canonical primaries whose own links are
+// already drawn from first-hand data: a vis entry with neighbors, or a
+// gossip record with RF neighbors. batadv-vis publishes no neighbors on
+// BATMAN_V (it reads only the BATMAN_IV TQ attribute), so on BATMAN_V
+// meshes gossip is the only adjacency source.
+func adjacencyPublishers(visDoc *batmanadv.VisDoc, primaryByMac map[string]string, gossip *gossipView) map[string]struct{} {
+	out := visNeighborPublishers(visDoc, primaryByMac)
+	if gossip == nil {
+		return out
+	}
+
+	if out == nil {
+		out = make(map[string]struct{}, len(gossip.rfByPrimary))
+	}
+
+	for primary, rf := range gossip.rfByPrimary {
+		if len(rf) > 0 {
+			out[primary] = struct{}{}
+		}
 	}
 
 	return out

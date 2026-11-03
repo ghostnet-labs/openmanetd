@@ -672,6 +672,67 @@ func TestGetMeshTopology_LineUsesVisForHopsAndEdges(t *testing.T) {
 	assert.Equal(t, map[string]int32{a: 0, b: 1, c: 2, d: 3}, hops)
 }
 
+// TestGetMeshTopology_LineUsesGossipForHopsAndEdges is the BATMAN_V
+// version of the line test: batadv-vis publishes no neighbors there (it
+// reads only the BATMAN_IV TQ attribute), so each node's mesh-neighbors
+// gossip is the only adjacency source. The result must match the vis case:
+// no phantom b-d edge and d three hops away.
+func TestGetMeshTopology_LineUsesGossipForHopsAndEdges(t *testing.T) {
+	const (
+		a = "aa:aa:aa:aa:aa:00"
+		b = "bb:bb:bb:bb:bb:00"
+		c = "cc:cc:cc:cc:cc:00"
+		d = "dd:dd:dd:dd:dd:00"
+	)
+
+	vis := &fakeVisProvider{doc: &batmanadv.VisDoc{
+		Vis: []batmanadv.VisNode{{Primary: a}, {Primary: b}, {Primary: c}, {Primary: d}},
+	}}
+	orig := &fakeOrigTopology{snap: &batmanadv.OriginatorTopology{
+		SelfMAC:   a,
+		Algorithm: batmanadv.AlgorithmBATMANV,
+		Originators: []batmanadv.OriginatorEntry{
+			{OrigMAC: b, NextHopMAC: b, HardIfname: "wlh0", Hops: 1},
+			{OrigMAC: c, NextHopMAC: b, HardIfname: "wlh0", Hops: 2},
+			{OrigMAC: d, NextHopMAC: b, HardIfname: "wlh0", Hops: 2},
+		},
+	}}
+
+	gossip := func(self string, peers ...string) *batmanadv.MeshNeighborsRecord {
+		p := &netv1.MeshNeighbors{PrimaryMac: self, Algorithm: 15}
+		for _, peer := range peers {
+			p.Neighbors = append(p.Neighbors, &netv1.MeshNeighbor{Mac: peer, HardIfname: "wlh0", ThroughputKbps: 10000})
+		}
+
+		return &batmanadv.MeshNeighborsRecord{Payload: p, SourceMac: self}
+	}
+
+	svc := newMeshTopologyService(vis, orig, nil)
+	svc.NeighborsProvider = &fakeNeighborsProvider{records: map[string]*batmanadv.MeshNeighborsRecord{
+		a: gossip(a, b),
+		b: gossip(b, a, c),
+		c: gossip(c, b, d),
+		d: gossip(d, c),
+	}}
+
+	resp, err := svc.GetMeshTopology(context.Background(), &emptypb.Empty{})
+	require.NoError(t, err)
+
+	edges := make(map[string]bool, len(resp.GetTopology().GetEdges()))
+	for _, e := range resp.GetTopology().GetEdges() {
+		edges[e.GetFromMac()+"|"+e.GetToMac()] = true
+	}
+
+	assert.Equal(t, map[string]bool{a + "|" + b: true, b + "|" + c: true, c + "|" + d: true}, edges)
+
+	hops := make(map[string]int32, len(resp.GetTopology().GetNodes()))
+	for _, n := range resp.GetTopology().GetNodes() {
+		hops[n.GetMac()] = n.GetHopsFromSelf()
+	}
+
+	assert.Equal(t, map[string]int32{a: 0, b: 1, c: 2, d: 3}, hops)
+}
+
 // TestGetMeshTopology_AlgorithmFromBatmanAdv asserts the algorithm chip
 // reads the batman-adv (originator) algorithm label, never the
 // batadv-vis header, so the UI mirrors what batctl reports.

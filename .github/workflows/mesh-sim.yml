@@ -47,7 +47,30 @@ jobs:
             build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev \
             libopusfile-dev pkg-config portaudio19-dev libhidapi-dev libusb-1.0-0-dev \
             libudev-dev libpam0g-dev
-          sudo modprobe batman_adv
+
+      # The hosted Azure kernel builds batman_adv without BATMAN_V, the
+      # algorithm OpenMANET ships. Build the out-of-tree module (same release
+      # as the firmware's batctl, BATMAN_V on by default) against the running
+      # kernel and load it instead, so both algorithms are tested here.
+      - name: Build batman-adv with BATMAN_V
+        env:
+          BATADV_VERSION: "2025.4"
+          BATADV_SHA256: "62490a8f8b58c02e819216f3e963249984645d3e460156a043b73fc53e24f86d"
+        run: |
+          sudo apt-get install -y --no-install-recommends "linux-headers-$(uname -r)"
+          dir="$RUNNER_TEMP/batman-adv"
+          mkdir -p "$dir"
+          tarball="$dir/batman-adv-$BATADV_VERSION.tar.gz"
+          curl -fsSL --retry 3 -o "$tarball" \
+            "https://downloads.open-mesh.org/batman/releases/batman-adv-$BATADV_VERSION/batman-adv-$BATADV_VERSION.tar.gz"
+          echo "$BATADV_SHA256  $tarball" | sha256sum -c -
+          tar -xzf "$tarball" -C "$dir"
+          make -C "$dir/batman-adv-$BATADV_VERSION" -j"$(nproc)" CONFIG_BATMAN_ADV_BATMAN_V=y
+          sudo modprobe -r batman_adv 2>/dev/null || true
+          # Dependencies the in-tree module would pull in; some are built in.
+          for dep in cfg80211 libcrc32c; do sudo modprobe "$dep" 2>/dev/null || true; done
+          sudo insmod "$dir/batman-adv-$BATADV_VERSION/net/batman-adv/batman-adv.ko"
+          cat /sys/module/batman_adv/version
 
       - name: Show batman-adv support
         run: |
@@ -56,7 +79,6 @@ jobs:
           for algo in BATMAN_IV BATMAN_V; do
             sudo unshare -n sh -c "ip link add bat0 type batadv ra $algo && echo $algo supported" || echo "$algo NOT supported"
           done
-          grep -i batman /boot/config-$(uname -r) || true
 
       - name: Compile Alfred Go Bindings
         run: make alfred
@@ -65,4 +87,4 @@ jobs:
         run: go test -c -tags meshsim -o meshsim.test ./internal/meshsim
 
       - name: Run virtual mesh tests
-        run: sudo MESHSIM_REQUIRE=1 ./meshsim.test -test.v -test.timeout 25m -test.parallel 8
+        run: sudo MESHSIM_REQUIRE=1 MESHSIM_REQUIRE_ALGOS=BATMAN_IV,BATMAN_V ./meshsim.test -test.v -test.timeout 25m -test.parallel 8
