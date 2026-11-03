@@ -27,7 +27,7 @@ rtl_sdr / airspy_rx stdout --source.Source--> []complex64 @ 1-10 MS/s
 ```
 
 ```go
-d := p25.NewDecoder(1_024_000, func(e p25.Event) {
+d, err := p25.NewDecoder(1_024_000, func(e p25.Event) {
 	if g, ok := e.(*p25.GroupVoiceGrant); ok && !g.Encrypted {
 		follow(*g) // copy: events are reused after the callback returns
 	}
@@ -56,32 +56,55 @@ more CNR (in 12.5 kHz) with carrier errors tested from -0.9 to +2 kHz and an 80 
 error. At 10 dB, about 97% of TSBKs pass. The first frame after start can
 be missed while the loops pull in (about 100 symbols).
 
-## Bench questions (unverified against real P25 sites)
+## Verified against reference source
 
-The codecs are pinned against independent known answers where one exists:
-the CRC-16/XMODEM check value; the BCH generator re-derived from GF(64) and
-matched to the published BCH table entry; and a hand-traced trellis output.
-The items below match how other decoders work (OP25, SDRTrunk) but were
-written without the TIA documents at hand. Each one needs a single
-over-the-air capture to confirm.
+These were checked against SDRTrunk v0.6.1, a decoder used on live sites,
+and against airspyone_host `fc61ab6` (`airspy_rx.c`). The reference code was
+read for facts only; nothing was copied. `p25/reference_test.go` holds the
+known answers derived from it.
 
-1. **NID bit order.** The code assumes the codeword is systematic: the 16
-   information bits (NAC then DUID) go out first as the high-order
-   coefficients, then 47 parity bits, then an even-parity bit. The 64th bit
-   is not checked. Capture a known NAC and compare.
-2. **Trellis table orientation and interleave direction.** The code assumes
-   the `[state][input]` word table `2C1F E0D3 97A4 5B68` with the high dibit
-   first, and that received dibit `d` lands at position `table[d]` of the
-   de-interleaved block. Swapping either one would fail every CRC on
-   hardware while the synthetic tests still pass.
-3. **TSBK field offsets and units.** These need checking against
-   TIA-102.AABC: RFSS/NET/ADJ_STS_BCST bit positions; the IDEN_UP tx-offset
-   sign (1 = positive) and its 250 kHz unit; the IDEN_UP_VU/TDMA offset
-   counted in channel spacings; the IDEN_UP_TDMA channel-type to slots table
-   (`1,1,1,2,4,2`); and the GRP_V_CH_GRANT_UPDT_EXP field order (T before R).
-   `FrequencyHz` is taken from channel T.
-4. **Status symbol phase.** The code puts status dibits at on-air index
-   35 mod 36, counted from the first frame sync dibit.
+- **NID.** `EncodeNID(0x260, TDU)` reproduces the 64-bit NID vector in
+  SDRTrunk's `BCH_63_16_11` bit for bit, parity bit included: 16 info bits
+  first, then 47 BCH parity bits and an even-parity bit. Its
+  errored variant decodes back to NAC 0x260 with 6 bits corrected. Further
+  independent pins: the generator is re-derived from GF(64) and matches
+  the published BCH table, and the CRC matches the CRC-16/XMODEM check
+  value.
+- **Trellis.** The `[previous input][input]` word table equals SDRTrunk's
+  `P25_1_2_Node.TRANSITION_MATRIX`, whose rows are annotated with the
+  BAAA constellation points. Symbols are read MSB first and decoded bits
+  are emitted MSB first, as here.
+- **Interleave.** All 196 entries of SDRTrunk's bit-level
+  `DATA_DEINTERLEAVE` match our dibit table, and the direction matches
+  (received position i goes to pattern[i]).
+- **CRC.** SDRTrunk generates its TSBK checksums as CCITT over 80 bits with
+  output inversion, the same as `TSBKCRC`.
+- **Status symbols.** SDRTrunk's framer drops one dibit after every 35 data
+  dibits. It sets its counter to 21 after the 56 FS+NID data dibits, which
+  is on-air index 35 mod 36 from the start of the sync, as here.
+- **TSBK fields.** These all match SDRTrunk's offset tables, units and
+  sign conventions: IDEN_UP (sign bit set = positive, 250 kHz unit),
+  IDEN_UP_VU and IDEN_UP_TDMA (offset in channel spacings), GRP_V_CH_GRANT,
+  GRANT_UPDT, GRANT_UPDT_EXP (downlink channel first, so `FrequencyHz`
+  comes from the downlink), RFSS/NET/ADJ_STS_BCST, and the service option
+  bits (0x80 emergency, 0x40 encrypted). TDMA downlink is
+  base + spacing * floor(n / slots).
+  - *Fixed:* in IDEN_UP_TDMA, channel types 0-2 are FDMA and the bandwidth
+    depends on the type (12.5, 12.5, 6.25, 12.5, 25, 12.5 kHz). Unknown
+    types keep one slot. The previous code marked every IDEN_UP_TDMA entry
+    TDMA at 12.5 kHz.
+- **airspy_rx.** `-s` is parsed with strtoull (decimal, or hex after `0x`),
+  `-t 2` is INT16_IQ, `-r -` writes stdout, and `-f` is MHz via strtod.
+  *Fixed:* `-a` values up to 1,000,000 are read as a rate index, not Hz, so
+  `Validate` now requires an airspy rate above 1 MS/s and a numeric serial.
+
+## Bench questions (still need real hardware)
+
+The numbering follows the earlier list: items 1-4 and the airspy flags are
+now verified against reference source (above). "Verified" means it agrees
+with a decoder that works on air. It is not the same as decoding a capture
+here; the first over-the-air recording should still become a fixture.
+
 5. **Simulcast (LSM/CQPSK).** Many Utah sites are simulcast. The C4FM
    discriminator usually locks on CQPSK control channels, with some frame
    loss. Measure the TSBK CRC pass rate on a UCA simulcast site. If it is
@@ -96,9 +119,9 @@ over-the-air capture to confirm.
    below 256, such as the factory default `00000001`. Confirm that the
    planned `1090` and `978` serials open the right device with several
    dongles attached.
-8. **airspy_rx flags.** Confirm the `-s 0x<serial>` format, that `-a` takes
-   Hz, and the `-t 2` int16 scaling (12-bit samples). The scaling only
-   affects absolute dBFS, which matters for the AM carrier squelch.
+8. **airspy int16 scaling.** The flags are source-verified (see above). The
+   absolute level of `-t 2` samples (12-bit ADC in int16) is not. It only
+   affects dBFS, which matters for the AM carrier squelch.
 9. **Squelch defaults.** `analog.DefaultNoiseSquelch` (0.5 of peak
    deviation, measured as noise RMS above the voice band) and
    `DefaultCarrierSquelchDBFS` (-45 dBFS) were set on synthetic noise. Set
