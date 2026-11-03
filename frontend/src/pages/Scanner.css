@@ -1,0 +1,75 @@
+/* =============================================================================
+ * Scanner.css — aircraft receivers and P25 site monitor page
+ * ============================================================================= */
+
+/* Alerts and the loading line span the whole body grid. */
+.scanner-alerts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scanner-loading {
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.scanner-save-error {
+  margin: 12px 20px 0;
+}
+
+/* Encrypted / emergency chips sit side by side and wrap on narrow cards. */
+.scanner-flags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scanner-toolbar {
+  align-items: center;
+}
+
+/* Conventional panel: scan state as two columns of kv rows. */
+.scanner-conv-kv {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  margin-bottom: 8px;
+}
+
+.scanner-quiet {
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .scanner-conv-kv {
+    column-gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .scanner-conv-kv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The listen button is the panel's primary mobile action. */
+  .scanner-listen {
+    min-height: 44px;
+    min-width: 88px;
+  }
+
+  .scanner-save-error {
+    margin: 8px 12px 0;
+  }
+
+  /* Primary mobile actions get a 44px touch target. */
+  .scanner-toolbar .lat-toggle,
+  .scanner-toolbar .lat-btn {
+    min-height: 44px;
+  }
+}

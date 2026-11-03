@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ import (
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
 	niconnect "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1/network_interfacev1connect"
 	radioconnect "github.com/openmanet/openmanetd/internal/api/openmanet/radio/v1/radiov1connect"
+	scannerconnect "github.com/openmanet/openmanetd/internal/api/openmanet/scanner/v1/scannerv1connect"
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupconnect "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1/setupv1connect"
 	supconnect "github.com/openmanet/openmanetd/internal/api/openmanet/sysupgrade/v1/sysupgradev1connect"
@@ -28,6 +30,7 @@ import (
 	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
 	"github.com/openmanet/openmanetd/internal/blos"
 	"github.com/openmanet/openmanetd/internal/comms"
+	"github.com/openmanet/openmanetd/internal/comms/codec"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
@@ -37,6 +40,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/radiogate"
+	"github.com/openmanet/openmanetd/internal/scanner"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
 	"github.com/openmanet/openmanetd/internal/util/logger"
@@ -77,6 +81,10 @@ type APIServer struct {
 	// disabled or failed to start. Like Hardware it must be a nil
 	// interface, not a typed nil pointer.
 	Chanmig handlers.ChannelMigrator
+	// Scanner is the aircraft / P25 site-monitor manager. The daemon always
+	// constructs it (it owns no goroutines while scanner.enable is false);
+	// nil leaves ScannerService reporting enabled false.
+	Scanner handlers.ScannerManager
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -325,6 +333,17 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		ChanmigTrust: &handlers.ConfigChanmigTrust{Cfg: cfg.Cfg},
 	}, connect.WithInterceptors(validateInterceptor)))
 
+	// ScannerService (GHO-53) reports aircraft receivers, the P25 site the
+	// wide tuner follows and talkgroup activity, and edits the scanner
+	// config. Session-gated (not in isAPISkipPath).
+	// StreamAudio serves 8 kHz PCM, or Opus from the comms codec.
+	api.Handle(scannerconnect.NewScannerServiceHandler(&handlers.ScannerService{
+		Log:            cfg.Log.With().Str("service", "scanner").Logger(),
+		Cfg:            cfg.Cfg,
+		Manager:        cfg.Scanner,
+		NewOpusEncoder: newScannerOpusEncoder,
+	}, connect.WithInterceptors(validateInterceptor)))
+
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{
 		Log:     cfg.Log,
 		Logread: cfg.Logread,
@@ -427,4 +446,23 @@ func withCORS(handler http.Handler) http.Handler {
 
 		wrapped.ServeHTTP(w, r)
 	})
+}
+
+// Scanner Opus settings: 8 kHz narrowband voice at 12 kbit/s, mid
+// complexity (the encoder runs per listening EUD on a small CPU), no loss
+// expected on the local link.
+const (
+	scannerOpusBitrate    = 12_000
+	scannerOpusComplexity = 5
+)
+
+// newScannerOpusEncoder builds the per-stream Opus encoder for
+// ScannerService.StreamAudio.
+func newScannerOpusEncoder() (handlers.ScannerAudioEncoder, error) {
+	enc, err := codec.NewOpusEncoder(scanner.AudioSampleRate, 1, scannerOpusBitrate, scannerOpusComplexity, 0)
+	if err != nil {
+		return nil, fmt.Errorf("scanner opus encoder: %w", err)
+	}
+
+	return enc, nil
 }

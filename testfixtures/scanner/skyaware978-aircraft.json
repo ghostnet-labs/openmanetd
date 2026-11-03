@@ -1,0 +1,8 @@
+{ "now" : 1762150000.5,
+  "messages" : 2048,
+  "aircraft" : [
+    {"hex":"4b1805","addrtype":"adsb_icao","flight":"N456CD","alt_baro":4500,"gs":110.0,"track":181.0,"vert_rate":500,"lat":40.70,"lon":-111.95,"seen_pos":0.5,"seen":0.5,"rssi":-20.0},
+    {"hex":"~2a0b0c","addrtype":"tisb_other","alt_baro":7200,"lat":40.9,"lon":-111.8,"seen_pos":1.5,"seen":1.5},
+    {"hex":"a00001","addrtype":"adsb_icao","flight":"N1GA    ","alt_geom":8500,"geom_rate":-300,"gs":95.0,"seen":0.2,"rssi":-18.0}
+  ]
+}
