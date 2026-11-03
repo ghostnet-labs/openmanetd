@@ -4,12 +4,15 @@ package meshsim_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -37,23 +40,49 @@ func startAlfred(t *testing.T, m *meshsim.Mesh, names ...string) {
 		}
 	}
 
+	// alfred binds bat0's IPv6 link-local address at startup and exits
+	// ("can't bind: Cannot assign requested address") while that address
+	// is still tentative. OpenMANET's procd respawns it; here, wait for
+	// duplicate address detection to finish before starting it.
 	for _, n := range names {
-		sock := alfredSock(m, n)
-		m.Start(n, "alfred", "-i", meshsim.BatIface, "-b", meshsim.BatIface, "-m", "-p", "1", "-u", sock)
+		m.Eventually(convergeTimeout, n+" bat0 link-local ready", linkLocalReady(m, n))
+		m.Start(n, "alfred", "-i", meshsim.BatIface, "-b", meshsim.BatIface, "-m", "-p", "1", "-u", alfredSock(m, n))
 	}
 
-	// alfred needs bat0's IPv6 link-local address before it can bind;
-	// wait until its socket is answering before starting the vis server.
+	// Wait until each alfred accepts connections (a leftover socket file
+	// is not enough) before starting the vis server.
 	for _, n := range names {
 		sock := alfredSock(m, n)
 		m.Eventually(convergeTimeout, n+" alfred is up", func() error {
-			if _, err := os.Stat(sock); err != nil {
+			conn, err := net.Dial("unix", sock)
+			if err != nil {
 				return fmt.Errorf("alfred socket: %w", err)
 			}
 
-			return nil
+			return conn.Close()
 		})
 		m.Start(n, "batadv-vis", "-i", meshsim.BatIface, "-s", "-u", sock)
+	}
+}
+
+// linkLocalReady reports whether the node's bat0 has an IPv6 link-local
+// address that has finished duplicate address detection.
+func linkLocalReady(m *meshsim.Mesh, node string) func() error {
+	return func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		out, err := exec.CommandContext(ctx, "ip", "-n", m.Node(node).NS, "-6", "addr", "show",
+			"dev", meshsim.BatIface, "scope", "link", "-tentative").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("ip addr: %w: %s", err, out)
+		}
+
+		if !strings.Contains(string(out), "inet6 fe80:") {
+			return errors.New("no non-tentative link-local address yet")
+		}
+
+		return nil
 	}
 }
 
