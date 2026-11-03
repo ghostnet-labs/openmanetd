@@ -1,0 +1,4 @@
+# Raw IQ captures: never diff or convert line endings.
+*.cu8 binary
+*.cs16 binary
+*.cf32 binary
