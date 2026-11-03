@@ -19,6 +19,7 @@ describe('TestNavIcon', () => {
       'topology',
       'gps',
       'blos',
+      'scanner',
       'settings',
       'more',
       'advanced',

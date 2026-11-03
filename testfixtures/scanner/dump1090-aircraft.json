@@ -1,0 +1,9 @@
+{ "now" : 1762150000.0,
+  "messages" : 123456,
+  "aircraft" : [
+    {"hex":"a1b2c3","type":"adsb_icao","flight":"UAL123  ","alt_baro":35000,"alt_geom":35450,"gs":450.2,"track":270.5,"baro_rate":-64,"squawk":"1200","emergency":"none","category":"A3","lat":40.7608,"lon":-111.8910,"nic":8,"rc":186,"seen_pos":1.0,"version":2,"mlat":[],"tisb":[],"messages":512,"seen":0.5,"rssi":-12.3},
+    {"hex":"abc123","type":"adsb_icao","flight":"N123AB  ","alt_baro":"ground","gs":12.0,"track":90.0,"lat":40.7884,"lon":-111.9778,"seen_pos":2.0,"messages":40,"seen":2.0,"rssi":-25.1},
+    {"hex":"4B1805","type":"mode_s","alt_baro":4600,"squawk":"7000","messages":12,"seen":3.0,"rssi":-30.0},
+    {"hex":"c0ffee","type":"mode_s","messages":2,"seen":250.0,"rssi":-33.5}
+  ]
+}
