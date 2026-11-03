@@ -22,17 +22,21 @@ const (
 	svcPriority  = 0x07
 )
 
-// tdmaSlots maps the IDEN_UP_TDMA channel type to slots per carrier.
-func tdmaSlots(channelType uint8) uint8 {
-	switch channelType {
-	case 0, 1, 2:
-		return 1
-	case 3, 5:
-		return 2
+// channelType decodes the IDEN_UP_TDMA channel type (TIA-102.BBAC):
+// types 0-2 are FDMA, 3-5 TDMA. Unknown types keep one slot and report no
+// bandwidth, matching SDRTrunk's ChannelType.UNKNOWN.
+func channelType(code uint8) (slots uint8, bandwidthHz uint32, tdma bool) {
+	switch code {
+	case 0, 1:
+		return 1, 12500, false
+	case 2:
+		return 1, 6250, false
+	case 3, 5: // 5 is H-D8PSK simulcast
+		return 2, 12500, true
 	case 4:
-		return 4
+		return 4, 25000, true
 	default:
-		return 0
+		return 1, 0, false
 	}
 }
 
@@ -162,12 +166,10 @@ func (d *Decoder) handleIdenUpVU(args uint64, tdma bool) {
 		SpacingHz:  uint32(args>>32&0x3FF) * 125,
 		BaseHz:     (args & 0xFFFFFFFF) * 5,
 		Slots:      1,
-		TDMA:       tdma,
 	}
 
 	if tdma {
-		id.Slots = tdmaSlots(code)
-		id.BandwidthHz = 12500
+		id.Slots, id.BandwidthHz, id.TDMA = channelType(code)
 	} else {
 		id.BandwidthHz = vuBandwidth(code)
 	}

@@ -27,3 +27,20 @@ func (t TSBKDecoder) Decode(rx []uint8) ([12]byte, int) {
 
 	return b, m
 }
+
+// ParseTSBK checks the CRC of b and, when valid, parses it as the decoder
+// would, delivering events to emit. It reports whether the CRC passed.
+func ParseTSBK(b [12]byte, emit func(Event)) bool {
+	d, err := NewDecoder(48000, emit)
+	if err != nil {
+		panic(err)
+	}
+
+	if !tsbkCRCValid(&b) {
+		return false
+	}
+
+	d.handleTSBK(&b)
+
+	return true
+}
