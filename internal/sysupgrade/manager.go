@@ -105,6 +105,11 @@ type Options struct {
 	FactoryReset        FactoryResetRunner
 	FactoryResetCapable system.FactoryResetCapabilityProvider
 
+	// EFIBoot reports whether the device booted through UEFI, which
+	// picks the EFI combined image on x86. Nil checks /sys/firmware/efi
+	// once at construction.
+	EFIBoot func() bool
+
 	// DownloadDir is where the staged image and the runtime sysupgrade
 	// log file live. tmpfs on OpenWrt — large enough to hold a 50 MB
 	// firmware image, but contents are wiped on every reboot.
@@ -153,12 +158,27 @@ type Manager struct {
 	upgradeStarted     bool
 	uploadInFlight     bool
 	onlineDisabled     bool // immutable after NewManager
+	efiBoot            bool // immutable after NewManager
 }
 
 // subscriberQueue is the capacity used for each Subscribe channel.
 // Sized for ~800ms of UI-side stall at 100ms emit cadence; full
 // channels drop the event for that subscriber rather than blocking.
 const subscriberQueue = 8
+
+// efiSysfsDir exists only when the kernel was booted through UEFI.
+const efiSysfsDir = "/sys/firmware/efi"
+
+// efiBoot returns detect() when set, otherwise whether efiSysfsDir exists.
+func efiBoot(detect func() bool) bool {
+	if detect != nil {
+		return detect()
+	}
+
+	_, err := os.Stat(efiSysfsDir)
+
+	return err == nil
+}
 
 // NewManager constructs a Manager from Options. Any nil dependency that
 // has a sensible default is filled in (HTTP, Cache, Manifest fetcher).
@@ -218,6 +238,7 @@ func NewManager(opts Options) *Manager {
 		progress:           Progress{Phase: PhaseIdle, UpdatedAt: time.Now()},
 		subs:               make(map[uint64]chan Progress, 4),
 		onlineDisabled:     opts.DisableOnlineCheck,
+		efiBoot:            efiBoot(opts.EFIBoot),
 	}
 }
 
@@ -327,7 +348,7 @@ func (m *Manager) ListAvailableUpdates(ctx context.Context, forceRefresh, includ
 		// Ask the remote manifest first; fall back to heuristic.
 		manifest, _ := m.manifest.FetchManifest(ctx, r)
 
-		asset, err := MatchAsset(boardName, target, manifest, r.Assets)
+		asset, err := MatchAssetFor(Hardware{BoardName: boardName, Target: target, EFI: m.efiBoot}, manifest, r.Assets)
 		if err != nil {
 			m.log.Debug().Str("tag", r.Tag).Err(err).Msg("no matching asset for this hardware")
 
@@ -485,7 +506,7 @@ func (m *Manager) StartUpgrade(ctx context.Context, tag, assetName string, opts 
 			boardName = b.Model.ID
 		}
 
-		matched, merr := MatchAsset(boardName, target, manifest, rel.Assets)
+		matched, merr := MatchAssetFor(Hardware{BoardName: boardName, Target: target, EFI: m.efiBoot}, manifest, rel.Assets)
 		if merr != nil {
 			cancel()
 

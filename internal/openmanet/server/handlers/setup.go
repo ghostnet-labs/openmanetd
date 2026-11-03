@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -59,9 +60,21 @@ func (d *DefaultHostnameSetter) SetHostname(_ context.Context, hostname string) 
 var hostnameRFC1123 = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`)
 
 // factoryHostnamePattern matches the OpenMANET firmware's default
-// hostname (`BCM2711-XXXX`) so GetSetupStatus can flag a fresh
-// device as "not yet configured" via current_hostname inspection.
+// hostname on the Raspberry Pi boards (`BCM2711-XXXX`) so
+// GetSetupStatus can flag a fresh device as "not yet configured" via
+// current_hostname inspection. Other boards are matched through
+// DEVICE_PRODUCT; see isFactoryHostname.
 var factoryHostnamePattern = regexp.MustCompile(`^BCM\d+-[0-9a-fA-F]+$`)
+
+// factoryHostnameSuffix matches the suffix the firmware's
+// morse_generate_default_hostname appends to DEVICE_PRODUCT: the last
+// three or four hex digits of the label MAC, or "z" plus three random
+// hex digits when no MAC is known.
+var factoryHostnameSuffix = regexp.MustCompile(`^(?:[0-9a-fA-F]{3,4}|z[0-9a-f]{3})$`)
+
+// deviceInfoPath holds DEVICE_PRODUCT, the firmware's
+// CONFIG_VERSION_PRODUCT (e.g. "x86_64", "Venice", "BCM2712").
+const deviceInfoPath = "/etc/device_info"
 
 // UCISnapshot is an opaque snapshot of every UCI config the wizard
 // touches. The snapshot is taken at phase 2 and restored on any
@@ -118,6 +131,7 @@ type SetupService struct {
 	Cfg            *config.Config
 	RNG            *rand.Rand
 	LoadRegDB      func(path string) (*morseregdb.DB, error)
+	DeviceProduct  func() string         // overrideable DEVICE_PRODUCT lookup for tests; nil reads /etc/device_info
 	SetTimeFn      func(time.Time) error // overrideable clock write for tests; nil falls back to unix.Settimeofday
 	nowFn          func() time.Time      // overrideable time.Now for deterministic clock-drift tests; nil falls back to time.Now
 	RegDBPath      string
@@ -605,11 +619,60 @@ func (s *SetupService) detectAlreadyConfigured(currentHostname string) bool {
 		return true
 	}
 
-	if currentHostname != "" && !factoryHostnamePattern.MatchString(currentHostname) {
+	if currentHostname != "" && !s.isFactoryHostname(currentHostname) {
 		return true
 	}
 
 	return false
+}
+
+// isFactoryHostname reports whether hostname is the one the firmware
+// generates on first boot: `BCM2711-XXXX` on the Pi boards, otherwise
+// DEVICE_PRODUCT + "-" + a MAC-derived suffix (`x86_64-3456`,
+// `Venice-1a2b`).
+func (s *SetupService) isFactoryHostname(hostname string) bool {
+	if factoryHostnamePattern.MatchString(hostname) {
+		return true
+	}
+
+	product := s.deviceProduct()
+	if product == "" || product == "Generic" {
+		return false
+	}
+
+	suffix, ok := strings.CutPrefix(hostname, product+"-")
+
+	return ok && factoryHostnameSuffix.MatchString(suffix)
+}
+
+// deviceProduct returns DEVICE_PRODUCT from /etc/device_info, or "" when
+// it cannot be read.
+func (s *SetupService) deviceProduct() string {
+	if s.DeviceProduct != nil {
+		return s.DeviceProduct()
+	}
+
+	data, err := os.ReadFile(deviceInfoPath)
+	if err != nil {
+		return ""
+	}
+
+	return parseDeviceProduct(string(data))
+}
+
+// parseDeviceProduct extracts DEVICE_PRODUCT from the shell-style
+// /etc/device_info file (`DEVICE_PRODUCT='x86_64'`).
+func parseDeviceProduct(info string) string {
+	for line := range strings.Lines(info) {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "DEVICE_PRODUCT=")
+		if !ok {
+			continue
+		}
+
+		return strings.Trim(value, `'"`)
+	}
+
+	return ""
 }
 
 // ─── ApplySetup (placeholder; phases land in subsequent rounds) ──────────────
