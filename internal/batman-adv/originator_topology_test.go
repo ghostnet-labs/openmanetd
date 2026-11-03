@@ -34,7 +34,7 @@ func (f *fakeOrigProvider) GetOriginators() ([]batmanadv.Originator, error) {
 // the test is self-contained.
 func fiveEntrySnapshot() []batmanadv.Originator {
 	return []batmanadv.Originator{
-		// Direct RF neighbor (best_next_hop == orig_address)
+		// Direct RF neighbor (neigh_address == orig_address)
 		{OrigAddress: "9c:ef:d5:f9:9e:02", HardIfname: "phy2-mesh0", BestNeigh: "9c:ef:d5:f9:9e:02", LastSeenMs: 120, TQ: 255, Best: true},
 		// Non-best duplicate of the same originator — must be filtered out.
 		{OrigAddress: "9c:ef:d5:f9:9e:02", HardIfname: "phy2-mesh0", BestNeigh: "9c:ef:d5:f9:9e:02", LastSeenMs: 120, TQ: 180, Best: false},
