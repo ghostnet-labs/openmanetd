@@ -102,11 +102,19 @@ type Monitor struct { //nolint:govet // fieldalignment: mu stays above the field
 	opts     Options
 	dropped  atomic.Uint64
 
-	mu   sync.Mutex // protects plan
+	mu   sync.Mutex // protects plan, capSerial and capChanged
 	plan scanner.TunePlan
+	// capSerial is the configured serial of the receiver a running
+	// capture holds ("" when none); capChanged is closed and replaced
+	// whenever it changes.
+	capSerial  string
+	capChanged chan struct{}
 }
 
-var _ scanner.ControlChannelMonitor = (*Monitor)(nil)
+var (
+	_ scanner.ControlChannelMonitor = (*Monitor)(nil)
+	_ scanner.ReceiverReleaser      = (*Monitor)(nil)
+)
 
 // New returns a monitor for opts.
 func New(opts Options) *Monitor {
@@ -116,11 +124,12 @@ func New(opts Options) *Monitor {
 	opts.MaxBackoff = max(cmpOr(opts.MaxBackoff, DefaultMaxBackoff), opts.MinBackoff)
 
 	m := &Monitor{
-		runner:   opts.Runner,
-		lookPath: opts.LookPath,
-		events:   make(chan any, eventBuffer),
-		wake:     make(chan struct{}, 1),
-		opts:     opts,
+		runner:     opts.Runner,
+		lookPath:   opts.LookPath,
+		events:     make(chan any, eventBuffer),
+		wake:       make(chan struct{}, 1),
+		opts:       opts,
+		capChanged: make(chan struct{}),
 	}
 
 	if m.runner == nil {
@@ -169,6 +178,39 @@ func (m *Monitor) Tune(_ context.Context, plan scanner.TunePlan) error {
 	}
 
 	return nil
+}
+
+// WaitReleased implements scanner.ReceiverReleaser: it returns once no
+// capture process holds the receiver with serial (after a plan for
+// another receiver or the zero plan, once Run has stopped that capture),
+// or with ctx's error.
+func (m *Monitor) WaitReleased(ctx context.Context, serial string) error {
+	for {
+		m.mu.Lock()
+		holding, changed := m.capSerial, m.capChanged
+		m.mu.Unlock()
+
+		if holding == "" || holding != serial {
+			return nil
+		}
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return fmt.Errorf("p25mon: wait for capture on %s to stop: %w", serial, ctx.Err())
+		}
+	}
+}
+
+// setCapturing records the serial a capture holds ("" when it stops) and
+// wakes WaitReleased callers.
+func (m *Monitor) setCapturing(serial string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.capSerial = serial
+	close(m.capChanged)
+	m.capChanged = make(chan struct{})
 }
 
 func (m *Monitor) currentPlan() scanner.TunePlan {
@@ -294,6 +336,9 @@ func (m *Monitor) session(ctx context.Context, h *hunter) error {
 
 	errc := make(chan error, 1) // Run's single result; buffered so it never blocks
 
+	m.setCapturing(h.plan.Serial)
+	defer m.setCapturing("") // every path below has received from errc: Run (and its process) has exited
+
 	go func() { errc <- src.Run(sctx, h.consume) }()
 
 	select {
@@ -328,6 +373,10 @@ func (m *Monitor) send(ev any) {
 func (m *Monitor) sampleRate(plan scanner.TunePlan) int {
 	if plan.Tuner != scanner.TunerWide {
 		return m.opts.RTLRate
+	}
+
+	if plan.SampleRate != 0 {
+		return plan.SampleRate
 	}
 
 	if m.opts.AirspyRate != 0 {
@@ -379,7 +428,7 @@ func AirspySerial(s string) string {
 }
 
 func samePlan(a, b scanner.TunePlan) bool {
-	return a.SiteKey == b.SiteKey && a.CenterHz == b.CenterHz && a.UsableHz == b.UsableHz &&
+	return a.SiteKey == b.SiteKey && a.CenterHz == b.CenterHz && a.UsableHz == b.UsableHz && a.SampleRate == b.SampleRate &&
 		a.Serial == b.Serial && a.Tuner == b.Tuner && slices.Equal(a.ControlHz, b.ControlHz)
 }
 

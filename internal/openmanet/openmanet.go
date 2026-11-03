@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/scanner"
+	"github.com/openmanet/openmanetd/internal/scanner/conventional"
 	"github.com/openmanet/openmanetd/internal/scanner/p25mon"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
@@ -489,26 +491,33 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	go worker.Run(ctx)
 }
 
-// newScannerManager builds the scanner manager and its P25 control-channel
-// monitor (airspy_rx / rtl_sdr through internal/sdr), starts the monitor's
-// goroutine on ctx (done closes when it exits), and starts the manager when
+// newScannerManager builds the scanner manager, its P25 control-channel
+// monitor (airspy_rx / rtl_sdr through internal/sdr) and the conventional
+// analog scanner on the scan RTL-SDR, starts their goroutines on ctx (done
+// closes when both exit), and starts the manager when
 // scanner.enable is set. gps may be nil (GNSS disabled); it is passed as a
 // nil interface, never a typed nil pointer. A node without the capture
 // tools installed reports the control channel as unavailable.
 func newScannerManager(ctx context.Context, cfg *config.Config, gps *gpsd.GPSService) (*scanner.Manager, <-chan struct{}) {
 	mon := p25mon.New(p25mon.Options{Log: logger.GetLogger("p25mon")})
+	conv := conventional.New(conventional.Options{Log: logger.GetLogger("conventional")})
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
 
+		var wg sync.WaitGroup
+
+		wg.Go(func() { conv.Run(ctx) })
 		mon.Run(ctx)
+		wg.Wait()
 	}()
 
 	opts := scanner.Options{
-		Log:     logger.GetLogger("scanner"),
-		UCI:     network.NewUCINetworkConfigReader(),
-		Monitor: mon,
+		Log:          logger.GetLogger("scanner"),
+		UCI:          network.NewUCINetworkConfigReader(),
+		Monitor:      mon,
+		Conventional: conv,
 	}
 	if gps != nil {
 		opts.Position = gps

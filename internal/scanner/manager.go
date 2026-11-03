@@ -3,7 +3,15 @@
 // which receivers are plugged in and who owns them, picks the nearest P25
 // trunked site to the GPS fix (with hysteresis), centers the wide tuner on
 // it, steers the control-channel decoder and keeps a bounded talkgroup
-// history.
+// history. It also picks the analog conventional, aviation, interop and
+// weather channels near the fix and hands them to the conventional
+// scanner on the scan RTL-SDR.
+//
+// Scan receiver ownership is exclusive: with no wide receiver serial
+// configured, the P25 control-channel decoder uses the scan RTL-SDR
+// whenever a site is selected, and the conventional scanner only gets it
+// while no site is selected. The manager stops one and waits for it to
+// release the device before handing it to the other.
 //
 // All work runs on one goroutine started by Enable and stopped by Disable;
 // a disabled manager owns no goroutines.
@@ -36,6 +44,12 @@ const (
 	tuneRetry = 10 * time.Second
 	// stopTuneTimeout bounds the zero-plan Tune sent on shutdown.
 	stopTuneTimeout = 2 * time.Second
+	// releaseTimeout bounds the wait for one scanner to close the scan
+	// RTL-SDR before the other opens it.
+	releaseTimeout = 3 * time.Second
+	// convMoveKm is how far the position must move before the
+	// conventional channel list is recomputed.
+	convMoveKm = 1.0
 	// maxSubscribers bounds concurrent event streams.
 	maxSubscribers = 8
 	// subscriberBuffer is each stream's event queue: enough for a burst of
@@ -47,6 +61,23 @@ const (
 // ErrTooManySubscribers is returned by Subscribe when maxSubscribers
 // streams are open.
 var ErrTooManySubscribers = errors.New("too many scanner event streams")
+
+// ErrConventionalUnavailable is returned by SubscribeAudio when no
+// conventional scanner is wired.
+var ErrConventionalUnavailable = errors.New("conventional scanner not available")
+
+// ErrUnknownChannel is returned by SubscribeAudio for a channel key that
+// is not in the current conventional channel list.
+var ErrUnknownChannel = errors.New("channel is not in the conventional scan list")
+
+// scanHolder is which scanner the manager has given the scan RTL-SDR.
+type scanHolder uint8
+
+const (
+	holderNone scanHolder = iota
+	holderP25
+	holderConventional
+)
 
 // PositionSource is the GPS fix provider (*gpsd.GPSService).
 type PositionSource interface {
@@ -61,6 +92,9 @@ type Options struct {
 	Position PositionSource
 	// Monitor is the P25 control-channel decoder; nil means none is wired.
 	Monitor ControlChannelMonitor
+	// Conventional is the analog scanner on the scan RTL-SDR; nil means
+	// none is wired.
+	Conventional ConventionalScanner
 	// UCI reads dump1090/dump978-fa receiver ownership; nil skips it.
 	UCI receivers.UCIGetter
 	// RootFS resolves the aircraft.json paths (absolute paths are taken
@@ -73,6 +107,9 @@ type Options struct {
 	Now func() time.Time
 	// Sites is the site table; defaults to sites.Table().
 	Sites []sites.Site
+	// Channels is the conventional channel table; defaults to
+	// sites.Channels().
+	Channels []sites.Channel
 	// PollInterval and ReceiverInterval default to DefaultPollInterval and
 	// DefaultReceiverInterval.
 	PollInterval     time.Duration
@@ -84,6 +121,7 @@ type Manager struct { //nolint:govet // fieldalignment: lifeMu and mu stay above
 	log     zerolog.Logger
 	gps     PositionSource
 	monitor ControlChannelMonitor
+	conv    ConventionalScanner
 	uci     receivers.UCIGetter
 	rootFS  fs.FS
 	sysFS   fs.FS
@@ -93,6 +131,7 @@ type Manager struct { //nolint:govet // fieldalignment: lifeMu and mu stay above
 	// sites overrides the embedded table (tests); nil decodes the
 	// embedded table lazily on first use.
 	sites    []sites.Site
+	channels []sites.Channel
 	poll     time.Duration
 	recvPoll time.Duration
 
@@ -103,11 +142,21 @@ type Manager struct { //nolint:govet // fieldalignment: lifeMu and mu stay above
 	tunedKey    string
 	tunedSerial string
 	needsRetune bool
+	holder      scanHolder
+	convKey     string  // identity of the plan last handed to conv
+	convRef     convRef // inputs the conventional channel list was built from
+	convList    []ConventionalChannel
 
 	// tableOnce lazily decodes the embedded site table when sites is nil.
 	tableOnce sync.Once
 	table     []sites.Site
 	tableErr  error
+
+	// chanOnce lazily decodes the embedded channel table when channels
+	// is nil.
+	chanOnce  sync.Once
+	chanTable []sites.Channel
+	chanErr   error
 
 	lifeMu sync.Mutex // protects cancel and done
 	cancel context.CancelFunc
@@ -128,6 +177,25 @@ type Manager struct { //nolint:govet // fieldalignment: lifeMu and mu stay above
 	tunedAt     time.Time
 	grants      *history
 	subscribers map[chan Event]struct{}
+	// convChannels is the conventional channel list in force; convBusy
+	// is set while the P25 decoder holds the scan receiver; convDetail
+	// says why there is no conventional plan.
+	convChannels []ConventionalChannel
+	convBusy     bool
+	convDetail   string
+	audioSubs    map[int]func()
+	audioNext    int
+}
+
+// convRef is what the conventional channel list depends on.
+type convRef struct {
+	state    string
+	serial   string
+	lat, lon float64
+	radius   float64
+	usable   uint64
+	valid    bool
+	busy     bool
 }
 
 // NewManager builds a manager for cfg. It starts nothing; call Enable (or
@@ -137,17 +205,20 @@ func NewManager(opts Options, cfg config.ScannerConfig) *Manager {
 		log:         opts.Log,
 		gps:         opts.Position,
 		monitor:     opts.Monitor,
+		conv:        opts.Conventional,
 		uci:         opts.UCI,
 		rootFS:      opts.RootFS,
 		sysFS:       opts.SysFS,
 		now:         opts.Now,
 		sites:       opts.Sites,
+		channels:    opts.Channels,
 		poll:        opts.PollInterval,
 		recvPoll:    opts.ReceiverInterval,
 		kick:        make(chan struct{}, 1),
 		cfg:         cfg,
 		grants:      newHistory(cmpOr(cfg.TalkgroupHistory, config.DefaultScannerTalkgroupHistory)),
 		subscribers: make(map[chan Event]struct{}, maxSubscribers),
+		audioSubs:   make(map[int]func(), 4),
 	}
 
 	if m.rootFS == nil {
@@ -209,6 +280,24 @@ func (m *Manager) Sites() ([]sites.Site, error) {
 	return m.table, nil
 }
 
+// Channels returns the conventional channel table and any error decoding
+// it.
+func (m *Manager) Channels() ([]sites.Channel, error) {
+	if m.channels != nil {
+		return m.channels, nil
+	}
+
+	m.chanOnce.Do(func() {
+		m.chanTable, m.chanErr = sites.Channels()
+	})
+
+	if m.chanErr != nil {
+		return nil, fmt.Errorf("scanner channel table: %w", m.chanErr)
+	}
+
+	return m.chanTable, nil
+}
+
 // Enabled reports whether the manager goroutine is running.
 func (m *Manager) Enabled() bool {
 	m.mu.Lock()
@@ -265,7 +354,12 @@ func (m *Manager) Enable() {
 
 	m.mu.Lock()
 	m.enabled = true
+	problems := slices.Clone(m.cfg.Problems)
 	m.mu.Unlock()
+
+	for _, p := range problems {
+		m.log.Warn().Str("problem", p).Msg("scanner: ignoring invalid config value")
+	}
 
 	go m.run(ctx, m.done)
 
@@ -336,6 +430,9 @@ func (m *Manager) shutdown() {
 		cancel()
 	}
 
+	m.stopConventional()
+	m.holder, m.convList, m.convRef = holderNone, nil, convRef{}
+
 	m.selector.Reset()
 	m.tunedKey, m.tunedSerial, m.needsRetune = "", "", false
 	m.lastRecv, m.tuneFailed = time.Time{}, time.Time{}
@@ -349,11 +446,27 @@ func (m *Manager) shutdown() {
 	m.position = Position{}
 	m.control = ControlStatus{State: m.idleControlState()}
 	m.lastEvent, m.tunedAt = time.Time{}, time.Time{}
+	m.convChannels, m.convBusy, m.convDetail = nil, false, ""
 
 	for ch := range m.subscribers {
 		close(ch)
 		delete(m.subscribers, ch)
 	}
+
+	audio := make([]func(), 0, len(m.audioSubs))
+	for id, cancel := range m.audioSubs {
+		audio = append(audio, cancel)
+
+		delete(m.audioSubs, id)
+	}
+
+	m.mu.Unlock()
+
+	for _, cancel := range audio {
+		cancel() // closes the stream's channel; takes the scanner's lock, not m.mu
+	}
+
+	m.mu.Lock()
 }
 
 // tick runs one poll cycle.
@@ -371,6 +484,7 @@ func (m *Manager) tick(ctx context.Context, now time.Time) {
 
 	m.updatePosition(cfg, now)
 	m.updateSelection(ctx, cfg, now)
+	m.updateConventional(ctx, cfg)
 	m.refreshReceivers(cfg, now)
 }
 
@@ -472,7 +586,14 @@ func (m *Manager) updateSelection(ctx context.Context, cfg config.ScannerConfig,
 		return
 	}
 
-	m.retune(ctx, sel, tuner, serial, now)
+	m.retune(ctx, sel, retuneTarget{tuner: tuner, serial: serial, sampleRate: cfg.WideSampleRate}, now)
+}
+
+// retuneTarget is the receiver a retune points the decoder at.
+type retuneTarget struct {
+	serial     string
+	sampleRate int
+	tuner      Tuner
 }
 
 // buildSelectionLocked refreshes m.selection for site (nil clears it),
@@ -526,7 +647,9 @@ func controlTuner(cfg config.ScannerConfig) (tuner Tuner, serial string, usable 
 // retune points the decoder at sel (or stops it when sel is nil) and
 // publishes the site change. It runs on the manager goroutine without
 // holding mu across Tune.
-func (m *Manager) retune(ctx context.Context, sel *Selection, tuner Tuner, serial string, now time.Time) {
+func (m *Manager) retune(ctx context.Context, sel *Selection, target retuneTarget, now time.Time) {
+	tuner, serial := target.tuner, target.serial
+
 	newKey := ""
 	if sel != nil {
 		newKey = sel.Site.Key
@@ -552,9 +675,25 @@ func (m *Manager) retune(ctx context.Context, sel *Selection, tuner Tuner, seria
 			Serial:    serial,
 			Tuner:     tuner,
 		}
+
+		if tuner == TunerWide {
+			plan.SampleRate = target.sampleRate
+		}
+	}
+
+	onScan := sel != nil && tuner == TunerScan
+	if onScan && m.holder == holderConventional {
+		m.stopConventional() // the decoder is about to open the scan receiver
 	}
 
 	err := m.monitor.Tune(ctx, plan)
+
+	switch {
+	case onScan && err == nil:
+		m.holder = holderP25
+	case m.holder == holderP25:
+		m.holder = holderNone // released once the decoder's capture stops (see updateConventional)
+	}
 
 	m.mu.Lock()
 	m.tunedAt = now
@@ -733,6 +872,8 @@ func (m *Manager) applyDecoderStatusLocked(e DecoderStatus) {
 
 func (m *Manager) refreshReceivers(cfg config.ScannerConfig, now time.Time) {
 	feeds := m.tracker.Feeds(now)
+	conv := m.conventionalActivity()
+	p25OnScan := m.holder == holderP25
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -781,13 +922,18 @@ func (m *Manager) refreshReceivers(cfg config.ScannerConfig, now time.Time) {
 		dec.Idle = "no decoder output yet"
 	}
 
+	act[receivers.RoleScan] = conv
+
 	if tuner, _, _ := controlTuner(cfg); tuner == TunerScan {
-		// No wide receiver: the scan RTL-SDR decodes the control channel.
-		act[receivers.RoleScan] = dec
+		// No wide receiver: the scan RTL-SDR decodes the control channel
+		// while a site is selected.
 		act[receivers.RoleWide] = receivers.Activity{Idle: "no wide receiver serial configured"}
+
+		if p25OnScan || m.selection != nil {
+			act[receivers.RoleScan] = dec
+		}
 	} else {
 		act[receivers.RoleWide] = dec
-		act[receivers.RoleScan] = receivers.Activity{Idle: "conventional/aviation scanning not wired yet"}
 	}
 
 	m.receivers = receivers.Assess(claims, m.devices, act)

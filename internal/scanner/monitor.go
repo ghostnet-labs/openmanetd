@@ -95,6 +95,10 @@ type TunePlan struct {
 	CenterHz uint64
 	// UsableHz is the usable bandwidth the plan was built for.
 	UsableHz uint64
+	// SampleRate forces the wide tuner capture rate
+	// (scanner.tuner.wideSampleRate); 0 lets the decoder pick it from
+	// UsableHz. Ignored for the scan receiver.
+	SampleRate int
 	// Tuner is the receiver kind Serial names.
 	Tuner Tuner
 }

@@ -351,3 +351,48 @@ func TestAirspySerial(t *testing.T) {
 		})
 	}
 }
+
+// TestMonitor_waitReleased: while a capture holds the scan receiver,
+// WaitReleased blocks for that serial (not for others); after a zero plan
+// it returns once the capture has stopped.
+func TestMonitor_waitReleased(t *testing.T) {
+	runner := &p25montest.Runner{Data: fixture(t, "c4fm_1024k_site.cu8"), Passes: 1_000_000}
+	m := fixtureMonitor(runner, 0)
+
+	idle, cancelIdle := context.WithTimeout(context.Background(), waitTimeout)
+	defer cancelIdle()
+
+	require.NoError(t, m.WaitReleased(idle, "scan"), "nothing captured yet")
+
+	startMonitor(t, m)
+	require.NoError(t, m.Tune(context.Background(), scanPlan(fixtureControl)))
+	waitFor(t, m.Events(), isLocked)
+
+	short, cancelShort := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancelShort()
+
+	require.ErrorIs(t, m.WaitReleased(short, "scan"), context.DeadlineExceeded)
+	require.NoError(t, m.WaitReleased(idle, "other"))
+
+	require.NoError(t, m.Tune(context.Background(), scanner.TunePlan{}))
+	require.NoError(t, m.WaitReleased(idle, "scan"))
+}
+
+// TestMonitor_planSampleRate: a forced wide rate (Airspy Mini 6 MS/s)
+// reaches airspy_rx.
+func TestMonitor_planSampleRate(t *testing.T) {
+	runner := &p25montest.Runner{StartErr: errors.New("no device")}
+	m := fixtureMonitor(runner, 0)
+	startMonitor(t, m)
+
+	plan := scanPlan(fixtureControl)
+	plan.Tuner, plan.Serial, plan.SampleRate = scanner.TunerWide, "44a061dc2e395e8f", 6_000_000
+	require.NoError(t, m.Tune(context.Background(), plan))
+
+	waitFor(t, m.Events(), isDecoderStatus)
+	require.Eventually(t, func() bool { return len(runner.Starts()) > 0 }, waitTimeout, time.Millisecond)
+
+	args := runner.Starts()[0].Args
+	assert.Equal(t, "airspy_rx", runner.Starts()[0].Name)
+	assert.Contains(t, strings.Join(args, " "), "-a 6000000")
+}
