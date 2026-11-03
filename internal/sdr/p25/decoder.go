@@ -11,6 +11,7 @@
 package p25
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/openmanet/openmanetd/internal/sdr/iq"
@@ -161,21 +162,23 @@ type Decoder struct {
 	invertedPol bool
 }
 
+// MinSampleRate is the lowest input rate that fits the channel filter.
+const MinSampleRate = 2*int(channelStopHz) + 4000
+
 // NewDecoder returns a decoder for complex baseband at sampleRate samples
-// per second (any rate >= 24 kS/s; typical captures are 1.024-2.4 MS/s).
-// The control channel must be centered at 0 Hz unless SetFrequencyOffset
-// is used. emit receives every decoded Event; see Event for ownership.
-func NewDecoder(sampleRate int, emit func(Event)) *Decoder {
-	if sampleRate < 2*int(channelStopHz)+4000 {
-		panic("p25: sample rate too low for a 12.5 kHz channel")
+// per second (>= MinSampleRate; typical captures are 1.024-2.4 MS/s). The
+// control channel must be centered at 0 Hz unless SetFrequencyOffset is
+// used. emit receives every decoded Event; see Event for ownership.
+func NewDecoder(sampleRate int, emit func(Event)) (*Decoder, error) {
+	if sampleRate < MinSampleRate {
+		return nil, fmt.Errorf("p25: sample rate %d below minimum %d", sampleRate, MinSampleRate)
 	}
 
 	factor := max(1, int(float64(sampleRate)/channelRate))
 
 	chain, err := iq.NewChain(float64(sampleRate), factor, channelPassHz, channelStopHz, channelAttenD, writeBlock)
 	if err != nil {
-		// The rate check above guarantees a valid design.
-		panic("p25: " + err.Error())
+		return nil, fmt.Errorf("p25: channel filter: %w", err)
 	}
 
 	if emit == nil {
@@ -217,7 +220,7 @@ func NewDecoder(sampleRate int, emit func(Event)) *Decoder {
 
 	d.patNorm = math.Sqrt(d.patNorm)
 
-	return d
+	return d, nil
 }
 
 // SetFrequencyOffset tunes the decoder to a control channel offsetHz away

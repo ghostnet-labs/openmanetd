@@ -142,7 +142,8 @@ func TestFixtures_decode(t *testing.T) {
 			require.NoError(t, err)
 
 			r := &recorder{}
-			d := p25.NewDecoder(fixtureRate, r.emit)
+			d, err := p25.NewDecoder(fixtureRate, r.emit)
+			require.NoError(t, err)
 			d.SetFrequencyOffset(fx.mod.OffsetHz)
 
 			buf := make([]byte, 32768+1) // odd size exercises the converter carry

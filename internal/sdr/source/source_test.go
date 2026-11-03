@@ -294,11 +294,12 @@ func fixturePath(t *testing.T, name string) string {
 func TestFileSource_replaysFixtureIntoP25(t *testing.T) {
 	var grants []p25.GroupVoiceGrant
 
-	d := p25.NewDecoder(1_024_000, func(e p25.Event) {
+	d, err := p25.NewDecoder(1_024_000, func(e p25.Event) {
 		if g, ok := e.(*p25.GroupVoiceGrant); ok {
 			grants = append(grants, *g)
 		}
 	})
+	require.NoError(t, err)
 	d.SetFrequencyOffset(100_000)
 
 	fs := &source.FileSource{Path: fixturePath(t, "c4fm_1024k_site.cu8"), Format: iq.FormatCU8, SampleRate: 1_024_000}

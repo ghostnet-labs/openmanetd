@@ -99,7 +99,8 @@ func decodeAll(t *testing.T, rate int, offset float64, iqs []complex64, block in
 	t.Helper()
 
 	r := &recorder{}
-	d := p25.NewDecoder(rate, r.emit)
+	d, err := p25.NewDecoder(rate, r.emit)
+	require.NoError(t, err)
 	d.SetFrequencyOffset(offset)
 
 	for i := 0; i < len(iqs); i += block {
@@ -217,7 +218,8 @@ func TestDecoder_zeroAllocs(t *testing.T) {
 	iqs := signal(m, siteFrames(), 48)
 
 	events := 0
-	d := p25.NewDecoder(1_024_000, func(p25.Event) { events++ })
+	d, err := p25.NewDecoder(1_024_000, func(p25.Event) { events++ })
+	require.NoError(t, err)
 	d.SetFrequencyOffset(50_000)
 	d.Write(iqs) // warm up
 
@@ -240,7 +242,8 @@ func TestDecoder_zeroAllocs(t *testing.T) {
 func BenchmarkDecoder_Write16k(b *testing.B) {
 	m := p25test.Modulator{SampleRate: 1_024_000, OffsetHz: 50_000, Amplitude: 0.25, CNRdB: 25, Seed: 5}
 	iqs := signal(m, siteFrames(), 48)
-	d := p25.NewDecoder(1_024_000, func(p25.Event) {})
+	d, err := p25.NewDecoder(1_024_000, func(p25.Event) {})
+	require.NoError(b, err)
 	d.SetFrequencyOffset(50_000)
 
 	const block = 16384
