@@ -187,6 +187,29 @@ describe('TestScannerPage', () => {
     expect(screen.getByText('CC NO DECODER')).toHaveClass('lat-chip', 'warn');
   });
 
+  it('shows the decoder cause as a warning when unavailable and as a failure on error', async () => {
+    await renderScanner({
+      status: () => ({
+        ...ENABLED_STATUS(),
+        decoderUnavailable: true,
+        controlChannel: { state: ControlChannelState.UNAVAILABLE, detail: 'capture tool rtl_sdr: executable file not found' },
+      }),
+    });
+    await waitFor(() => screen.getByText(/capture tool rtl_sdr/));
+    expect(screen.getByText(/capture tool rtl_sdr/)).toHaveClass('lat-alert', 'warn');
+    expect(screen.getByText('CC NO DECODER')).toHaveClass('lat-chip', 'warn');
+    cleanup();
+
+    await renderScanner({
+      status: () => ({
+        ...ENABLED_STATUS(),
+        controlChannel: { state: ControlChannelState.ERROR, detail: 'source: capture process exited' },
+      }),
+    });
+    await waitFor(() => screen.getByText('source: capture process exited'));
+    expect(screen.getByText('source: capture process exited')).toHaveClass('lat-alert', 'crit');
+  });
+
   it('shows an error when the first status fails', async () => {
     await renderScanner({ status: () => { throw new ConnectError('backend down', Code.Unavailable); } });
     await waitFor(() => screen.getByText(/Scanner status unavailable/));

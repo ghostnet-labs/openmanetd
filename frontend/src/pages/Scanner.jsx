@@ -188,6 +188,8 @@ export default function Scanner() {
     let fitLabel = '—';
     if (site) fitLabel = site.fits ? 'ALL CHANNELS' : `${site.uncovered} OUTSIDE`;
     const positionAlert = summary.position === 'NO FIX' ? 'unavailable: no GPS fix' : 'stale';
+    // An unavailable decoder is degraded, not failed: its cause is a warning.
+    const detailClass = summary.controlClass === 'crit' ? 'crit' : 'warn';
     const alerts = [];
     if (error) alerts.push({ cls: 'warn', text: `Last refresh failed: ${error}` });
     if (summary.positionStale) alerts.push({ cls: 'warn', text: `Position ${positionAlert}.` });
@@ -222,12 +224,12 @@ export default function Scanner() {
           <div className="panel-head"><h3>Control channel</h3></div>
           <Kv k="State" v={summary.control} className={summary.controlClass} />
           <Kv k="Frequency" v={site ? site.controlChannel : '—'} />
-          <Kv k="Tuner centre" v={site ? site.center : '—'} />
+          <Kv k="Tuner center" v={site ? site.center : '—'} />
           <Kv k="Tuner fit" v={fitLabel} className={site && !site.fits ? 'warn' : ''} />
           <Kv k="NAC" v={summary.nac} />
           <Kv k="WACN / SYS" v={`${summary.wacn} / ${summary.systemId}`} />
           <Kv k="Last decode" v={summary.lastDecode} className={summary.decodeStale ? 'warn' : ''} />
-          {summary.detail ? <div className="lat-alert crit">{summary.detail}</div> : null}
+          {summary.detail ? <div className={`lat-alert ${detailClass}`}>{summary.detail}</div> : null}
         </div>
 
         <div className="lat-panel">
