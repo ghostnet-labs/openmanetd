@@ -6,6 +6,9 @@ import { describe, it, expect } from 'vitest';
 import {
   AircraftSource,
   ControlChannelState,
+  ConventionalCategory,
+  ConventionalMode,
+  ConventionalScanState,
   PositionSource,
   ReceiverHardware,
   ReceiverRole,
@@ -16,6 +19,9 @@ import {
 import {
   aircraftRows,
   controlStateInfo,
+  conventionalRows,
+  conventionalStateInfo,
+  conventionalSummary,
   encryptionInfo,
   formatHex,
   formatKm,
@@ -156,5 +162,55 @@ describe('TestScannerSummarize', () => {
     expect(s.siteUnavailable).toBe(true);
     expect(s.positionStale).toBe(true);
     expect(s.control).toBe('—');
+  });
+});
+
+describe('TestConventionalHelpers', () => {
+  const NOW = 1_700_000_000_000;
+  const ts = (msAgo) => ({ seconds: BigInt(Math.floor((NOW - msAgo) / 1000)), nanos: 0 });
+
+  it('maps every scan state to a label and status class', () => {
+    expect(conventionalStateInfo(ConventionalScanState.HOLDING)).toEqual({ label: 'HOLDING', className: 'ok' });
+    expect(conventionalStateInfo(ConventionalScanState.ERROR)).toEqual({ label: 'FAIL', className: 'crit' });
+    expect(conventionalStateInfo(ConventionalScanState.RECEIVER_BUSY).className).toBe('warn');
+    expect(conventionalStateInfo(ConventionalScanState.SCANNING).className).toBe('');
+    expect(conventionalStateInfo(99).label).toBe('—');
+  });
+
+  it('summarizes null, disabled, empty and populated responses', () => {
+    expect(conventionalSummary(null)).toEqual({ enabled: false });
+    expect(conventionalSummary({ enabled: false })).toEqual({ enabled: false });
+
+    const empty = conventionalSummary({ enabled: true });
+    expect(empty.state).toBe('—');
+    expect(empty.window).toBe('—');
+    expect(empty.center).toBe('—');
+    expect(empty.radius).toBe('—');
+
+    const s = conventionalSummary({
+      enabled: true,
+      radiusKm: 80,
+      status: { state: ConventionalScanState.RECEIVER_BUSY, detail: 'busy', centerHz: 155425000n, window: 2, windows: 5 },
+    });
+    expect(s).toMatchObject({ state: 'RX BUSY', stateClass: 'warn', detail: 'busy', center: '155.425 MHz', window: '2 / 5', radius: '80 km', receiverBusy: true });
+  });
+
+  it('builds rows for live, quiet, unscanned and nationwide channels', () => {
+    expect(conventionalRows(null)).toEqual([]);
+    expect(conventionalRows([])).toEqual([]);
+
+    const rows = conventionalRows([
+      { key: 'C-1', label: 'Tower', frequencyHz: 120050000n, mode: ConventionalMode.AM, category: ConventionalCategory.AVIATION,
+        distanceKm: 4.25, window: 1, active: true, lastHeardTime: ts(500) },
+      { key: 'C-2', label: '', frequencyHz: 155475000n, mode: ConventionalMode.NFM, category: ConventionalCategory.INTEROP,
+        alwaysOn: true, window: 2, lastHeardTime: ts(90_000) },
+      { key: 'C-3', label: 'Far', frequencyHz: 460000000n, mode: ConventionalMode.NFM, category: ConventionalCategory.CONVENTIONAL,
+        distanceKm: 0, window: 0 },
+    ], NOW);
+
+    expect(rows[0]).toMatchObject({ key: 'C-1', frequency: '120.05 MHz', mode: 'AM', category: 'Aviation', distance: '4.3 km',
+      status: 'LIVE', statusClass: 'live', active: true, scanned: true, lastHeard: 'just now' });
+    expect(rows[1]).toMatchObject({ label: '—', mode: 'NFM', category: 'Interop', distance: 'NATIONWIDE', status: 'QUIET', lastHeard: '1m ago' });
+    expect(rows[2]).toMatchObject({ distance: '0.0 km', status: 'NOT SCANNED', statusClass: 'warn', scanned: false, lastHeard: 'never' });
   });
 });

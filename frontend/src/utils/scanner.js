@@ -9,6 +9,9 @@
 import {
   AircraftSource,
   ControlChannelState,
+  ConventionalCategory,
+  ConventionalMode,
+  ConventionalScanState,
   PositionSource,
   ReceiverHardware,
   ReceiverRole,
@@ -74,6 +77,27 @@ const SOURCE_LABELS = {
   [AircraftSource.ADSB_1090]: '1090',
   [AircraftSource.UAT_978]: '978',
   [AircraftSource.BOTH]: 'BOTH',
+};
+
+const CONVENTIONAL_STATES = {
+  [ConventionalScanState.UNAVAILABLE]: { label: 'UNAVAILABLE', className: 'warn' },
+  [ConventionalScanState.IDLE]: { label: 'IDLE', className: '' },
+  [ConventionalScanState.RECEIVER_BUSY]: { label: 'RX BUSY', className: 'warn' },
+  [ConventionalScanState.SCANNING]: { label: 'SCANNING', className: '' },
+  [ConventionalScanState.HOLDING]: { label: 'HOLDING', className: 'ok' },
+  [ConventionalScanState.ERROR]: { label: 'FAIL', className: 'crit' },
+};
+
+const MODE_LABELS = {
+  [ConventionalMode.NFM]: 'NFM',
+  [ConventionalMode.AM]: 'AM',
+};
+
+const CATEGORY_LABELS = {
+  [ConventionalCategory.CONVENTIONAL]: 'Conventional',
+  [ConventionalCategory.AVIATION]: 'Aviation',
+  [ConventionalCategory.INTEROP]: 'Interop',
+  [ConventionalCategory.WEATHER]: 'Weather',
 };
 
 const UNKNOWN = { label: DASH, className: '' };
@@ -233,4 +257,52 @@ export function summarize(status) {
     lastDecode: formatAgo(status.lastDecodeTime) ?? 'never',
     detail: status.controlChannel?.detail || '',
   };
+}
+
+export function conventionalStateInfo(state) {
+  return CONVENTIONAL_STATES[state] ?? UNKNOWN;
+}
+
+// conventionalSummary flattens ListConventionalChannelsResponse into the
+// values the Conventional panel header shows.
+export function conventionalSummary(res) {
+  if (!res || !res.enabled) return { enabled: false };
+  const st = res.status;
+  const info = conventionalStateInfo(st?.state);
+  const windows = st?.windows ?? 0;
+  return {
+    enabled: true,
+    state: info.label,
+    stateClass: info.className,
+    detail: st?.detail || '',
+    center: formatMHz(st?.centerHz),
+    window: windows > 0 && st.window > 0 ? `${st.window} / ${windows}` : DASH,
+    radius: res.radiusKm > 0 ? `${Math.round(res.radiusKm)} km` : DASH,
+    receiverBusy: st?.state === ConventionalScanState.RECEIVER_BUSY,
+  };
+}
+
+// conventionalRows maps ConventionalChannel messages to table rows. A
+// channel outside every capture window is listed but not scanned.
+export function conventionalRows(channels, now = Date.now()) {
+  return (channels ?? []).map((c) => {
+    let distance = formatKm(c.distanceKm);
+    if (c.distanceKm == null && c.alwaysOn) distance = 'NATIONWIDE';
+    let status = { label: 'QUIET', className: '' };
+    if (c.active) status = { label: 'LIVE', className: 'live' };
+    else if (!c.window) status = { label: 'NOT SCANNED', className: 'warn' };
+    return {
+      key: c.key,
+      frequency: formatMHz(c.frequencyHz),
+      label: c.label || DASH,
+      mode: MODE_LABELS[c.mode] ?? DASH,
+      category: CATEGORY_LABELS[c.category] ?? DASH,
+      distance,
+      status: status.label,
+      statusClass: status.className,
+      active: !!c.active,
+      scanned: !!c.window,
+      lastHeard: formatAgo(c.lastHeardTime, now) ?? 'never',
+    };
+  });
 }

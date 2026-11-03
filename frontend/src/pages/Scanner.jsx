@@ -1,5 +1,5 @@
 // =============================================================================
-// Scanner.jsx — aircraft receivers and P25 site monitor (GHO-53)
+// Scanner.jsx — aircraft receivers, P25 site monitor, conventional scan (GHO-53)
 // =============================================================================
 //
 // Polls ScannerService while the tab is visible: receiver ownership and
@@ -17,10 +17,12 @@ import {
   getScannerConfig,
   getScannerStatus,
   listAircraft,
+  listConventionalChannels,
   listTalkgroupActivity,
   setScannerConfig,
 } from '../services/scannerApi.js';
 import { aircraftRows, grantRows, receiverRows, summarize } from '../utils/scanner.js';
+import ScannerConventional from './ScannerConventional.jsx';
 import './Scanner.css';
 
 export const POLL_MS = 2000;
@@ -79,7 +81,7 @@ function errorMessage(err) {
   return err instanceof ConnectError ? err.rawMessage : String(err?.message ?? err);
 }
 
-const INITIAL = { loading: true, status: null, aircraft: null, grants: null, error: null };
+const INITIAL = { loading: true, status: null, aircraft: null, grants: null, conventional: null, convError: null, error: null };
 
 function Kv({ k, v, className = '' }) {
   return (
@@ -94,7 +96,7 @@ export default function Scanner() {
   const [saveError, setSaveError] = useState(null);
   const alive = useRef(true);
 
-  const { loading, status, aircraft, grants, error } = state;
+  const { loading, status, aircraft, grants, conventional, convError, error } = state;
   const summary = useMemo(() => summarize(status), [status]);
   const receivers = useMemo(() => receiverRows(status?.receivers), [status]);
   const planes = useMemo(() => aircraftRows(aircraft?.aircraft), [aircraft]);
@@ -103,10 +105,11 @@ export default function Scanner() {
   const load = useCallback(async () => {
     // Independent reads go out together; one failing does not hide the
     // others' data.
-    const [st, ac, tg] = await Promise.allSettled([
+    const [st, ac, tg, cv] = await Promise.allSettled([
       getScannerStatus(),
       listAircraft(false),
       listTalkgroupActivity(ACTIVITY_LIMIT),
+      listConventionalChannels(),
     ]);
     if (!alive.current) return;
 
@@ -116,6 +119,8 @@ export default function Scanner() {
       status: st.status === 'fulfilled' ? st.value : prev.status,
       aircraft: ac.status === 'fulfilled' ? ac.value : prev.aircraft,
       grants: tg.status === 'fulfilled' ? tg.value : prev.grants,
+      conventional: cv.status === 'fulfilled' ? cv.value : prev.conventional,
+      convError: cv.status === 'rejected' ? errorMessage(cv.reason) : null,
       error: failed ? errorMessage(failed.reason) : null,
     }));
   }, []);
@@ -239,6 +244,8 @@ export default function Scanner() {
           <Kv k="Aircraft" v={String(aircraftCount)} className="accent" />
         </div>
 
+        <ScannerConventional data={conventional} error={convError} />
+
         <div className="lat-panel col-span-all">
           <div className="panel-head"><h3>Receivers</h3></div>
           <DataTable ariaLabel="Receivers" columns={RECEIVER_COLUMNS} rows={receivers} rowKey={rowKey} emptyLabel="No receivers." />
@@ -276,7 +283,7 @@ export default function Scanner() {
       <div className="lat-view-header">
         <div>
           <h2>Scanner</h2>
-          <div className="crumb">Aircraft 1090 / 978 · P25 trunking</div>
+          <div className="crumb">Aircraft 1090 / 978 · P25 trunking · Conventional FM / AM</div>
         </div>
         {toolbar}
       </div>

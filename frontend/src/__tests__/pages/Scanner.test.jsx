@@ -9,7 +9,11 @@ import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
 import { ScannerService } from '../../gen/openmanet/scanner/v1/scanner_service_pb.js';
 import {
   AircraftSource,
+  AudioEncoding,
   ControlChannelState,
+  ConventionalCategory,
+  ConventionalMode,
+  ConventionalScanState,
   PositionSource,
   ReceiverHardware,
   ReceiverRole,
@@ -64,10 +68,23 @@ const ACTIVITY = () => ({
   ],
 });
 
+const CONVENTIONAL = () => ({
+  enabled: true,
+  radiusKm: 80,
+  status: { state: ConventionalScanState.HOLDING, centerHz: 120000000n, window: 1, windows: 3, sampleRate: 2048000 },
+  channels: [
+    { key: 'C-0000aaaa', label: 'SLC Tower', frequencyHz: 118300000n, mode: ConventionalMode.AM,
+      category: ConventionalCategory.AVIATION, distanceKm: 6.1, window: 1, active: true, lastHeardTime: nowTs() },
+    { key: 'C-0000bbbb', label: 'Guard', frequencyHz: 121500000n, mode: ConventionalMode.AM,
+      category: ConventionalCategory.AVIATION, alwaysOn: true, window: 1 },
+  ],
+});
+
 const CONFIG = () => ({ config: { enabled: true, mode: SiteSelectionMode.AUTO, hysteresisKm: 5, states: [] } });
 
 let handlers;
 let setCalls;
+let audioCalls;
 
 function defaultHandlers() {
   return {
@@ -75,6 +92,8 @@ function defaultHandlers() {
     aircraft: AIRCRAFT,
     activity: ACTIVITY,
     config: CONFIG,
+    conventional: CONVENTIONAL,
+    audio: async function* audio() {},
   };
 }
 
@@ -87,6 +106,11 @@ async function renderScanner(overrides = {}) {
       listAircraft: () => handlers.aircraft(),
       listTalkgroupActivity: () => handlers.activity(),
       getScannerConfig: () => handlers.config(),
+      listConventionalChannels: () => handlers.conventional(),
+      streamAudio: (req, ctx) => {
+        audioCalls.push(req);
+        return handlers.audio(req, ctx);
+      },
       setScannerConfig: (req) => {
         setCalls.push(req.config);
         return { config: { ...req.config } };
@@ -101,6 +125,7 @@ async function renderScanner(overrides = {}) {
 beforeEach(() => {
   vi.resetModules();
   setCalls = [];
+  audioCalls = [];
 });
 
 afterEach(() => {
@@ -142,7 +167,7 @@ describe('TestScannerPage', () => {
     expect(screen.getAllByText('EMERGENCY')[0]).toHaveClass('lat-chip', 'crit');
     expect(screen.getAllByText('ENCRYPTED')[0]).toHaveClass('lat-chip', 'warn');
 
-    expect(container.querySelectorAll('.table-scroll').length).toBe(3);
+    expect(container.querySelectorAll('.table-scroll').length).toBe(4);
     expect(container.querySelector('.lat-alert')).toBeNull();
   });
 
@@ -251,5 +276,162 @@ describe('TestScannerPage', () => {
     await renderScanner({ config: () => { throw new ConnectError('denied', Code.PermissionDenied); } });
     await waitFor(() => screen.getByText('Scanner config: denied'));
     expect(screen.getByRole('switch', { name: 'Enable scanner' })).toBeDisabled();
+  });
+});
+
+function stubAudio() {
+  const ctxs = [];
+  const AudioContext = vi.fn(function MockAudioContext() {
+    this.state = 'running';
+    this.currentTime = 0;
+    this.destination = {};
+    this.close = vi.fn(() => Promise.resolve());
+    this.createBuffer = vi.fn((c, n) => {
+      const d = new Float32Array(n);
+      return { getChannelData: () => d };
+    });
+    this.createBufferSource = vi.fn(() => ({ connect: vi.fn(), start: vi.fn() }));
+    ctxs.push(this);
+  });
+  vi.stubGlobal('AudioContext', AudioContext);
+  return ctxs;
+}
+
+describe('TestScannerConventionalPanel', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lists nearby channels with live and last-heard state', async () => {
+    await renderScanner();
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+
+    expect(screen.getByRole('heading', { name: 'Conventional' })).toBeInTheDocument();
+    expect(screen.getAllByText('LIVE')[0].closest('.lat-chip')).not.toBeNull();
+    expect(screen.getAllByText('QUIET').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('NATIONWIDE').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('never').length).toBeGreaterThan(0);
+    expect(screen.getByText('HOLDING')).toHaveClass('v', 'ok');
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByText('80 km')).toBeInTheDocument();
+  });
+
+  it('shows the empty state and a receiver-busy cause', async () => {
+    await renderScanner({
+      conventional: () => ({
+        enabled: true,
+        status: { state: ConventionalScanState.RECEIVER_BUSY, detail: 'scan receiver decodes the P25 control channel' },
+        channels: [],
+      }),
+    });
+    await waitFor(() => screen.getByText('No conventional channels nearby.'));
+    expect(screen.getByText('RX BUSY')).toHaveClass('v', 'warn');
+    expect(screen.getByText(/decodes the P25 control channel/)).toHaveClass('lat-alert', 'warn');
+  });
+
+  it('shows an error when the channel list fails', async () => {
+    await renderScanner({ conventional: () => { throw new ConnectError('no table', Code.Internal); } });
+    await waitFor(() => screen.getByText('Conventional channels unavailable: no table'));
+    expect(screen.getByText('Conventional channels unavailable: no table')).toHaveClass('lat-alert', 'crit');
+    // The other panels still render.
+    expect(screen.getByText('Nelson Peak [1-010]')).toBeInTheDocument();
+  });
+
+  it('plays a channel stream through WebAudio and stops on STOP', async () => {
+    const ctxs = stubAudio();
+    let aborted = false;
+    let pushed = 0;
+    await renderScanner({
+      audio: async function* audio(_req, ctx) {
+        ctx.signal.addEventListener('abort', () => { aborted = true; });
+        yield { encoding: AudioEncoding.PCM_S16LE, sampleRate: 8000 };
+        yield { data: new Uint8Array(320), encoding: AudioEncoding.PCM_S16LE, sampleRate: 8000, sequence: 1 };
+        pushed++;
+        await new Promise((resolve) => ctx.signal.addEventListener('abort', resolve));
+      },
+    });
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+
+    const listen = screen.getAllByRole('button', { name: 'Listen to SLC Tower 118.3 MHz' })[0];
+    fireEvent.click(listen);
+
+    await waitFor(() => expect(audioCalls).toHaveLength(1));
+    expect(audioCalls[0].channelKey).toBe('C-0000aaaa');
+    expect(audioCalls[0].encoding).toBe(AudioEncoding.PCM_S16LE);
+    await waitFor(() => expect(pushed).toBe(1));
+    await waitFor(() => expect(ctxs[0].createBufferSource).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('AUDIO')).toBeInTheDocument();
+
+    const stop = screen.getAllByRole('button', { name: 'Stop listening to SLC Tower 118.3 MHz' })[0];
+    expect(stop).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(stop);
+
+    await waitFor(() => expect(aborted).toBe(true));
+    expect(ctxs[0].close).toHaveBeenCalled();
+    expect(screen.queryByText('AUDIO')).toBeNull();
+  });
+
+  it('switches channels by closing the previous stream', async () => {
+    const ctxs = stubAudio();
+    await renderScanner({
+      audio: async function* audio(_req, ctx) {
+        yield { encoding: AudioEncoding.PCM_S16LE, sampleRate: 8000 };
+        await new Promise((resolve) => ctx.signal.addEventListener('abort', resolve));
+      },
+    });
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Listen to SLC Tower/ })[0]);
+    await waitFor(() => expect(audioCalls).toHaveLength(1));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Listen to Guard/ })[0]);
+    await waitFor(() => expect(audioCalls).toHaveLength(2));
+    expect(audioCalls[1].channelKey).toBe('C-0000bbbb');
+    expect(ctxs[0].close).toHaveBeenCalled();
+    expect(ctxs[1].close).not.toHaveBeenCalled();
+  });
+
+  it('shows a stream error and returns the button to LISTEN', async () => {
+    stubAudio();
+    await renderScanner({
+      audio: async function* audio() {
+        yield { encoding: AudioEncoding.PCM_S16LE, sampleRate: 8000 };
+        throw new ConnectError('too many scanner audio streams', Code.ResourceExhausted);
+      },
+    });
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Listen to SLC Tower/ })[0]);
+    await waitFor(() => screen.getByText('Audio: too many scanner audio streams'));
+    expect(screen.getByText('Audio: too many scanner audio streams')).toHaveClass('lat-alert', 'crit');
+    expect(screen.getAllByRole('button', { name: /^Listen to SLC Tower/ })[0]).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('closes the stream on unmount', async () => {
+    const ctxs = stubAudio();
+    let aborted = false;
+    const { unmount } = await renderScanner({
+      audio: async function* audio(_req, ctx) {
+        ctx.signal.addEventListener('abort', () => { aborted = true; });
+        yield { encoding: AudioEncoding.PCM_S16LE, sampleRate: 8000 };
+        await new Promise((resolve) => ctx.signal.addEventListener('abort', resolve));
+      },
+    });
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Listen to SLC Tower/ })[0]);
+    await waitFor(() => expect(audioCalls).toHaveLength(1));
+
+    unmount();
+    await waitFor(() => expect(aborted).toBe(true));
+    expect(ctxs[0].close).toHaveBeenCalled();
+  });
+
+  it('reports missing WebAudio', async () => {
+    vi.stubGlobal('AudioContext', undefined);
+    vi.stubGlobal('webkitAudioContext', undefined);
+    await renderScanner();
+    await waitFor(() => screen.getAllByText('SLC Tower'));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Listen to SLC Tower/ })[0]);
+    await waitFor(() => screen.getByText(/Audio: WebAudio not supported/));
+    expect(audioCalls).toHaveLength(0);
   });
 });
