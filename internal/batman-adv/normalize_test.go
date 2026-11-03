@@ -14,8 +14,8 @@ import (
 
 func TestParseOriginators_LowercasesMACs(t *testing.T) {
 	raw := []byte(`[
-		{"orig_address":"AA:BB:CC:DD:EE:01","best_next_hop":"AA:BB:CC:DD:EE:02","hard_ifname":"wlh0","tq":255,"best":true},
-		{"orig_address":"aa:BB:cc:DD:ee:03","best_next_hop":"AA:bb:CC:dd:EE:01","hard_ifname":"wlh0","tq":200,"best":false}
+		{"orig_address":"AA:BB:CC:DD:EE:01","neigh_address":"AA:BB:CC:DD:EE:02","hard_ifname":"wlh0","tq":255,"best":true},
+		{"orig_address":"aa:BB:cc:DD:ee:03","neigh_address":"AA:bb:CC:dd:EE:01","hard_ifname":"wlh0","tq":200,"best":false}
 	]`)
 
 	origs, err := parseOriginators(raw)

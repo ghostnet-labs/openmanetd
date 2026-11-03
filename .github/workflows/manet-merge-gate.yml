@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ghostnet-labs/docs
-          ref: 3b3c3c3e4017649b24d1ceeb6fb0e3e2209b21d9
+          ref: bf35517fc3df91241ce844559acfa7202c801dc8
           path: runner-policy
           sparse-checkout: |
             project/scripts/check_runners.py

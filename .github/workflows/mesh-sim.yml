@@ -1,0 +1,68 @@
+name: "Mesh simulation"
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "internal/batman-adv/**"
+      - "internal/meshsim/**"
+      - "internal/openmanet/server/handlers/mesh*.go"
+      - "internal/openmanet/server/handlers/batctl_snapshot.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - ".github/workflows/mesh-sim.yml"
+
+permissions:
+  contents: read
+
+# Cancel superseded PR runs so old heads stop holding runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mesh-sim:
+    name: "Virtual mesh (batman-adv)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: "recursive"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install mesh tools and build dependencies
+        # The topology test links openmanetd's handlers package, which needs
+        # the same native libraries as the Go test workflow.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends batctl alfred nftables iputils-ping \
+            build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev \
+            libopusfile-dev pkg-config portaudio19-dev libhidapi-dev libusb-1.0-0-dev \
+            libudev-dev libpam0g-dev
+          sudo modprobe batman_adv
+
+      - name: Show batman-adv support
+        run: |
+          batctl -v
+          sudo batctl ra || true
+          for algo in BATMAN_IV BATMAN_V; do
+            sudo unshare -n sh -c "ip link add bat0 type batadv ra $algo && echo $algo supported" || echo "$algo NOT supported"
+          done
+          grep -i batman /boot/config-$(uname -r) || true
+
+      - name: Compile Alfred Go Bindings
+        run: make alfred
+
+      - name: Build test binary
+        run: go test -c -tags meshsim -o meshsim.test ./internal/meshsim
+
+      - name: Run virtual mesh tests
+        run: sudo MESHSIM_REQUIRE=1 ./meshsim.test -test.v -test.timeout 25m -test.parallel 8

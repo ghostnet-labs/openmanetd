@@ -1,0 +1,200 @@
+//go:build meshsim
+
+package meshsim_test
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
+	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
+	"github.com/openmanet/openmanetd/internal/meshsim"
+	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
+)
+
+// startAlfred runs an alfred primary and a batadv-vis server on every node,
+// each with its own unix socket, as OpenMANET's init scripts do on bat0.
+func startAlfred(t *testing.T, m *meshsim.Mesh, names ...string) {
+	t.Helper()
+
+	for _, bin := range []string{"alfred", "batadv-vis"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			if os.Getenv("MESHSIM_REQUIRE") == "1" {
+				t.Fatalf("%s not installed: %v", bin, err)
+			}
+
+			t.Skipf("%s not installed: %v", bin, err)
+		}
+	}
+
+	for _, n := range names {
+		sock := alfredSock(m, n)
+		m.Start(n, "alfred", "-i", meshsim.BatIface, "-b", meshsim.BatIface, "-m", "-p", "1", "-u", sock)
+	}
+
+	// alfred needs bat0's IPv6 link-local address before it can bind;
+	// wait until its socket is answering before starting the vis server.
+	for _, n := range names {
+		sock := alfredSock(m, n)
+		m.Eventually(convergeTimeout, n+" alfred is up", func() error {
+			if _, err := os.Stat(sock); err != nil {
+				return fmt.Errorf("alfred socket: %w", err)
+			}
+
+			return nil
+		})
+		m.Start(n, "batadv-vis", "-i", meshsim.BatIface, "-s", "-u", sock)
+	}
+}
+
+func alfredSock(m *meshsim.Mesh, node string) string {
+	return filepath.Join(m.Dir(), node+"-alfred.sock")
+}
+
+// topologyService wires MeshTopologyService the way server.go does, minus
+// the snapshot cache, so every call reads live batctl and batadv-vis
+// output from inside the node's namespace.
+func topologyService(m *meshsim.Mesh, node string) *handlers.MeshTopologyService {
+	return &handlers.MeshTopologyService{
+		Log:             zerolog.Nop(),
+		VisProvider:     batmanadv.BatadvVisProvider{Args: []string{"-u", alfredSock(m, node)}},
+		OrigProvider:    &batmanadv.BatctlOriginatorTopologyProvider{BatHostsPath: m.BatHostsPath()},
+		ParseBatHosts:   batmanadv.ParseBatHostsFile,
+		GetMeshGateways: batmanadv.GetMeshGateways,
+		BatHostsPath:    m.BatHostsPath(),
+		BatInterface:    meshsim.BatIface,
+	}
+}
+
+func getTopology(m *meshsim.Mesh, node string) (*meshtopov1.MeshTopology, error) {
+	var topo *meshtopov1.MeshTopology
+
+	err := m.Do(node, func() error {
+		res, err := topologyService(m, node).GetMeshTopology(context.Background(), &emptypb.Empty{})
+		if err != nil {
+			return err
+		}
+
+		topo = res.GetTopology()
+
+		return nil
+	})
+
+	return topo, err
+}
+
+// describe renders a topology compactly for failure messages.
+func describe(topo *meshtopov1.MeshTopology) string {
+	var b strings.Builder
+
+	b.WriteString("self=" + topo.GetSelfMac() + " nodes=[")
+
+	for _, n := range topo.GetNodes() {
+		fmt.Fprintf(&b, " %s/%s hops=%d self=%t", n.GetMac(), n.GetHostname(), n.GetHopsFromSelf(), n.GetIsSelf())
+	}
+
+	b.WriteString(" ] edges=[")
+
+	for _, e := range topo.GetEdges() {
+		fmt.Fprintf(&b, " %s-%s", e.GetFromMac(), e.GetToMac())
+	}
+
+	b.WriteString(" ]")
+
+	return b.String()
+}
+
+func hasEdge(topo *meshtopov1.MeshTopology, a, b string) bool {
+	for _, e := range topo.GetEdges() {
+		from, to := strings.ToLower(e.GetFromMac()), strings.ToLower(e.GetToMac())
+		if (from == a && to == b) || (from == b && to == a) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// TestMesh_topologyRPC serves GetMeshTopology from one end of a four-node
+// line, with real alfred gossip carrying batadv-vis data between nodes,
+// and checks the graph the UI would draw.
+func TestMesh_topologyRPC(t *testing.T) {
+	forEachAlgo(t, func(t *testing.T, m *meshsim.Mesh) {
+		names := []string{"a", "b", "c", "d"}
+		chain(t, m, names...)
+		m.Eventually(convergeTimeout, "a learns 3 originators", originatorCount(m, "a", 3))
+		startAlfred(t, m, names...)
+
+		var topo *meshtopov1.MeshTopology
+
+		// Nodes render under their canonical MAC: bat0's for the serving
+		// node (from bat-hosts grouping), the originator MAC for peers.
+		// Look them up by hostname, as the UI labels them.
+		macOf := func(name string) string {
+			for _, n := range topo.GetNodes() {
+				if n.GetHostname() == name {
+					return strings.ToLower(n.GetMac())
+				}
+			}
+
+			return "missing:" + name
+		}
+
+		m.Eventually(purgeTimeout, "topology shows the whole line", func() error {
+			var err error
+
+			topo, err = getTopology(m, "a")
+			if err != nil {
+				return err
+			}
+
+			if got := len(topo.GetNodes()); got != len(names) {
+				return fmt.Errorf("%d nodes, want %d: %s", got, len(names), describe(topo))
+			}
+
+			for _, pair := range [][2]string{{"a", "b"}, {"b", "c"}, {"c", "d"}} {
+				if !hasEdge(topo, macOf(pair[0]), macOf(pair[1])) {
+					return fmt.Errorf("no edge %s-%s: %s", pair[0], pair[1], describe(topo))
+				}
+			}
+
+			return nil
+		})
+
+		for _, pair := range [][2]string{{"a", "c"}, {"a", "d"}, {"b", "d"}} {
+			assert.False(t, hasEdge(topo, macOf(pair[0]), macOf(pair[1])), "%s and %s cannot hear each other", pair[0], pair[1])
+		}
+
+		assert.Len(t, topo.GetEdges(), 3, describe(topo))
+		assert.Equal(t, m.Algo(), topo.GetAlgorithm())
+		assert.Equal(t, m.Node("a").BatMAC, macOf("a"), "self renders under bat0's MAC")
+
+		for i, name := range names {
+			var node *meshtopov1.MeshNode
+
+			for _, n := range topo.GetNodes() {
+				if n.GetHostname() == name {
+					node = n
+				}
+			}
+
+			require.NotNil(t, node, "node %s missing: %s", name, describe(topo))
+			assert.Equal(t, name == "a", node.GetIsSelf(), "is_self of %s", name)
+			assert.Equal(t, int32(i), node.GetHopsFromSelf(), "hops from a to %s", name)
+
+			if name != "a" {
+				assert.Equal(t, m.Node(name).MAC, macOf(name), "%s renders under its originator MAC", name)
+			}
+		}
+	})
+}

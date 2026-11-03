@@ -201,7 +201,7 @@ const (
 )
 
 // hopsFor returns the hop distance from the self node to orig, walking the
-// best_next_hop chain until a direct neighbor is reached (best_next_hop ==
+// best next hop (neigh_address) chain until a direct neighbor is reached (next hop ==
 // orig_address) or the chain is broken/cyclic. Results are memoized in cache
 // so the whole snapshot resolves in O(N) amortized.
 //
