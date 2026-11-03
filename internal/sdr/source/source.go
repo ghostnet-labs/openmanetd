@@ -93,11 +93,32 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if c.Driver == DriverAirspy {
+		// airspy_rx parses -s with strtoull (decimal, or hex after 0x)
+		// and treats -a values <= 1000000 as an index into the device's
+		// rate table rather than a rate in Hz.
+		if _, err := strconv.ParseUint(strings.TrimPrefix(strings.ToLower(c.Serial), "0x"), serialBase(c.Serial), 64); err != nil {
+			return fmt.Errorf("source: airspy serial %q must be decimal or 0x-prefixed hex", c.Serial)
+		}
+
+		if c.SampleRate <= 1_000_000 {
+			return fmt.Errorf("source: airspy sample rate %d must be above 1 MS/s (lower values are rate indexes)", c.SampleRate)
+		}
+	}
+
 	if c.FrequencyHz == 0 || c.SampleRate <= 0 {
 		return errors.New("source: frequency and sample rate are required")
 	}
 
 	return nil
+}
+
+func serialBase(s string) int {
+	if len(s) > 2 && (strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X")) {
+		return 16
+	}
+
+	return 10
 }
 
 // Command returns the tool and arguments that capture at freqHz to stdout.

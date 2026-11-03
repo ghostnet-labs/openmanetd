@@ -75,6 +75,13 @@ func TestConfig_Validate(t *testing.T) {
 		{"no_driver", func(c *source.Config) { c.Driver = 0 }, false},
 		{"no_rate", func(c *source.Config) { c.SampleRate = 0 }, false},
 		{"airspy_small_numeric_ok", func(c *source.Config) { c.Driver = source.DriverAirspy; c.Serial = "1" }, true},
+		{"airspy_hex_serial", func(c *source.Config) { c.Driver = source.DriverAirspy; c.Serial = "0x35AC63DC2D8C7A4F" }, true},
+		{"airspy_non_numeric_serial", func(c *source.Config) { c.Driver = source.DriverAirspy; c.Serial = "scan1" }, false},
+		{"airspy_rate_is_index", func(c *source.Config) {
+			c.Driver = source.DriverAirspy
+			c.Serial = "0x1"
+			c.SampleRate = 1_000_000
+		}, false},
 	}
 
 	for _, tc := range cases {
