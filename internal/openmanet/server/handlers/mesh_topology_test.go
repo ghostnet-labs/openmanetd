@@ -617,6 +617,61 @@ func TestGetMeshTopology_SynthesizesEdgesWhenVisEmpty(t *testing.T) {
 	}
 }
 
+// TestGetMeshTopology_LineUsesVisForHopsAndEdges pins what the meshsim
+// line test (internal/meshsim) found on real batman-adv: on a-b-c-d, a's
+// originator table routes both c and d via b. Those multi-hop rows must not
+// draw a b-d edge when d publishes its own vis neighbors, and hop counts
+// must come from the vis graph (3 for d), not the first-hop table (2).
+func TestGetMeshTopology_LineUsesVisForHopsAndEdges(t *testing.T) {
+	const (
+		a = "aa:aa:aa:aa:aa:00"
+		b = "bb:bb:bb:bb:bb:00"
+		c = "cc:cc:cc:cc:cc:00"
+		d = "dd:dd:dd:dd:dd:00"
+	)
+
+	link := func(router, neighbor string) batmanadv.VisNeighbor {
+		return batmanadv.VisNeighbor{Router: router, Neighbor: neighbor, Metric: "1.000"}
+	}
+
+	vis := &fakeVisProvider{doc: &batmanadv.VisDoc{
+		Vis: []batmanadv.VisNode{
+			{Primary: a, Neighbors: []batmanadv.VisNeighbor{link(a, b)}},
+			{Primary: b, Neighbors: []batmanadv.VisNeighbor{link(b, a), link(b, c)}},
+			{Primary: c, Neighbors: []batmanadv.VisNeighbor{link(c, b), link(c, d)}},
+			{Primary: d, Neighbors: []batmanadv.VisNeighbor{link(d, c)}},
+		},
+	}}
+	orig := &fakeOrigTopology{snap: &batmanadv.OriginatorTopology{
+		SelfMAC: a,
+		Originators: []batmanadv.OriginatorEntry{
+			{OrigMAC: b, NextHopMAC: b, HardIfname: "wlh0", Hops: 1},
+			{OrigMAC: c, NextHopMAC: b, HardIfname: "wlh0", Hops: 2},
+			{OrigMAC: d, NextHopMAC: b, HardIfname: "wlh0", Hops: 2},
+		},
+	}}
+
+	svc := newMeshTopologyService(vis, orig, nil)
+	svc.NeighborsProvider = nil
+
+	resp, err := svc.GetMeshTopology(context.Background(), &emptypb.Empty{})
+	require.NoError(t, err)
+
+	edges := make(map[string]bool, len(resp.GetTopology().GetEdges()))
+	for _, e := range resp.GetTopology().GetEdges() {
+		edges[e.GetFromMac()+"|"+e.GetToMac()] = true
+	}
+
+	assert.Equal(t, map[string]bool{a + "|" + b: true, b + "|" + c: true, c + "|" + d: true}, edges)
+
+	hops := make(map[string]int32, len(resp.GetTopology().GetNodes()))
+	for _, n := range resp.GetTopology().GetNodes() {
+		hops[n.GetMac()] = n.GetHopsFromSelf()
+	}
+
+	assert.Equal(t, map[string]int32{a: 0, b: 1, c: 2, d: 3}, hops)
+}
+
 // TestGetMeshTopology_AlgorithmFromBatmanAdv asserts the algorithm chip
 // reads the batman-adv (originator) algorithm label, never the
 // batadv-vis header, so the UI mirrors what batctl reports.

@@ -74,6 +74,11 @@ test-race: fmt vet buf sqlc-gen ## Run tests with race detector.
 integration-test: fmt vet ## Run integration tests (no hardware required).
 	go test -tags integration -timeout 60s ./internal/... -coverprofile=coverage.out -covermode=atomic
 
+.PHONY: mesh-sim
+mesh-sim: ## Run the virtual batman-adv mesh tests (needs sudo and the batman_adv module).
+	go test -c -tags meshsim -o bin/meshsim.test ./internal/meshsim
+	sudo MESHSIM_REQUIRE=1 ./bin/meshsim.test -test.v -test.timeout 25m -test.parallel 8
+
 .PHONY: test-frontend
 test-frontend: ## Run frontend tests.
 	pnpm -C frontend install && pnpm -C frontend run test:coverage

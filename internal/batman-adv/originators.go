@@ -12,10 +12,14 @@ import (
 // batctl emits multiple rows per originator — one per candidate next hop — and
 // flags the selected route with Best=true. Only those flagged entries
 // describe the forwarding state; everything else is informational.
+//
+// Each row's next hop is batctl's "neigh_address" (BATADV_ATTR_NEIGH_ADDRESS,
+// see batctl genl_json.c); on the Best row it is the selected next hop.
+// batctl has never emitted a "best_next_hop" key.
 type Originator struct {
 	OrigAddress string  `json:"orig_address"`
 	HardIfname  string  `json:"hard_ifname"`
-	BestNeigh   string  `json:"best_next_hop"`
+	BestNeigh   string  `json:"neigh_address"`
 	LastSeenMs  int     `json:"last_seen_msecs"`
 	TQ          int     `json:"tq"`
 	Throughput  float64 `json:"throughput"`
