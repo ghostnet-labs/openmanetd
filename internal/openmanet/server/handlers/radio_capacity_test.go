@@ -456,3 +456,37 @@ func addBatmanSections(r *fakeConfigReader) {
 		"batmesh1": "interface",
 	}
 }
+
+// The wireless refresh runs before the capacity check, so the gate never
+// judges a stale cached tree and a failed refresh stops before admission.
+func TestUpdateRadioSettings_capacitySkippedWhenRefreshFails(t *testing.T) {
+	reader := newWifiConfigMockReader()
+	reader.reloadError = errors.New("reload failed")
+	gate := &fakeRadioCapacityGate{}
+	svc := newTestWifiConfigService(t)
+	svc.ConfigReader = reader
+	svc.Capacity = gate
+
+	resp, err := svc.UpdateRadioSettings(context.Background(), &wificonfigv1.UpdateRadioSettingsRequest{
+		RadioName: "radio2",
+		Settings:  &wificonfigv1.RadioSettings{Ssid: "ap", Channel: "6"},
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.GetSuccess())
+	assert.Empty(t, gate.getRequests(), "capacity gate must not run on a stale tree")
+}
+
+func TestApplyRadioSettingsBatch_capacitySkippedWhenRefreshFails(t *testing.T) {
+	reader := newWifiConfigMockReader()
+	reader.reloadError = errors.New("reload failed")
+	gate := &fakeRadioCapacityGate{}
+	svc := newTestWifiConfigService(t)
+	svc.ConfigReader = reader
+	svc.Capacity = gate
+
+	err := svc.ApplyRadioSettingsBatch(context.Background(), []handlers.RadioSettingsUpdate{
+		{RadioName: "radio2", Settings: &wificonfigv1.RadioSettings{Ssid: "ap", Channel: "6"}},
+	})
+	require.ErrorContains(t, err, "refresh config before batch")
+	assert.Empty(t, gate.getRequests(), "capacity gate must not run on a stale tree")
+}
