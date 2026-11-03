@@ -30,6 +30,8 @@ func TestGetScanner_defaults(t *testing.T) {
 		Skyaware978Path:    "/var/run/skyaware978/aircraft.json",
 		MaxAircraft:        512,
 		TalkgroupHistory:   128,
+
+		ConventionalRadiusKm: 80,
 	}, sc, "scanner must be off by default")
 }
 
@@ -51,6 +53,9 @@ scanner:
   tuner:
     wideUsableHz: 9000000
     rtlUsableHz: 2400000
+    wideSampleRate: 6000000
+  conventional:
+    radiusKm: 40
   aircraft:
     dump1090Path: /tmp/a.json
     skyaware978Path: /tmp/b.json
@@ -73,7 +78,10 @@ scanner:
 	assert.Equal(t, 1024, sc.TalkgroupHistory, "clamped")
 	assert.Equal(t, "44a061dc2e395e8f", sc.WideSerial)
 	assert.Equal(t, "scan2", sc.ScanSerial)
-	assert.Equal(t, uint64(9_000_000), sc.WideUsableHz)
+	assert.Equal(t, uint64(4_800_000), sc.WideUsableHz, "capped at 80% of the 6 MS/s Airspy Mini rate")
+	assert.Equal(t, 6_000_000, sc.WideSampleRate)
+	assert.InDelta(t, 40.0, sc.ConventionalRadiusKm, 1e-9)
+	assert.Empty(t, sc.Problems)
 	assert.Equal(t, uint64(2_400_000), sc.RTLUsableHz)
 	assert.Equal(t, "/tmp/a.json", sc.Dump1090Path)
 	assert.Equal(t, "/tmp/b.json", sc.Skyaware978Path)
@@ -87,6 +95,8 @@ func TestGetScanner_invalidValuesFallBack(t *testing.T) {
 	v.Set("scanner.positionStaleAfter", "0s")
 	v.Set("scanner.decodeStaleAfter", "soon")
 	v.Set("scanner.receivers.scanSerial", "")
+	v.Set("scanner.tuner.wideSampleRate", 8_000_000)
+	v.Set("scanner.conventional.radiusKm", -1)
 
 	sc := NewWithoutWatch(v).GetScanner()
 	assert.Equal(t, ScannerModeAuto, sc.Mode)
@@ -94,6 +104,31 @@ func TestGetScanner_invalidValuesFallBack(t *testing.T) {
 	assert.Equal(t, DefaultScannerPositionStaleAfter, sc.PositionStaleAfter)
 	assert.Equal(t, DefaultScannerDecodeStaleAfter, sc.DecodeStaleAfter)
 	assert.Empty(t, sc.ScanSerial, "an explicit empty serial unclaims the scan tuner")
+	assert.Zero(t, sc.WideSampleRate)
+	assert.Equal(t, DefaultScannerWideUsableHz, sc.WideUsableHz)
+	assert.InDelta(t, DefaultScannerConventionalRadiusKm, sc.ConventionalRadiusKm, 1e-9)
+	require.Len(t, sc.Problems, 2)
+	assert.Contains(t, sc.Problems[0], "wideSampleRate")
+	assert.Contains(t, sc.Problems[1], "radiusKm")
+}
+
+func TestValidateScannerWideSampleRate(t *testing.T) {
+	tests := []struct {
+		rate int
+		ok   bool
+	}{
+		{0, true}, {2_500_000, true}, {3_000_000, true}, {6_000_000, true}, {10_000_000, true},
+		{2_048_000, false}, {-1, false}, {20_000_000, false}, {1_000_000, false},
+	}
+
+	for _, tc := range tests {
+		err := ValidateScannerWideSampleRate(tc.rate)
+		if tc.ok {
+			assert.NoError(t, err, tc.rate)
+		} else {
+			assert.Error(t, err, tc.rate)
+		}
+	}
 }
 
 func TestGetScanner_returnsCopies(t *testing.T) {

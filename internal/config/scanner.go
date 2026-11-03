@@ -34,14 +34,18 @@ const (
 	// DefaultScannerWideUsableHz and DefaultScannerRTLUsableHz are planning
 	// assumptions (8 MHz of a 10 MS/s Airspy, 2.0 MHz of a 2.4 MS/s
 	// RTL-SDR) until bench-measured.
-	DefaultScannerWideUsableHz     uint64 = 8_000_000
-	DefaultScannerRTLUsableHz      uint64 = 2_000_000
-	DefaultScannerDump1090Path            = "/var/run/dump1090/aircraft.json"
-	DefaultScannerSkyaware978Path         = "/var/run/skyaware978/aircraft.json"
-	DefaultScannerMaxAircraft             = 512
-	DefaultScannerTalkgroupHistory        = 128
-	maxScannerTalkgroupHistory            = 1024
-	maxScannerAircraft                    = 4096
+	DefaultScannerWideUsableHz uint64 = 8_000_000
+	DefaultScannerRTLUsableHz  uint64 = 2_000_000
+	// DefaultScannerConventionalRadiusKm bounds the positioned
+	// conventional/aviation/weather channels the scan receiver monitors.
+	DefaultScannerConventionalRadiusKm = 80.0
+	maxScannerConventionalRadiusKm     = 500.0
+	DefaultScannerDump1090Path         = "/var/run/dump1090/aircraft.json"
+	DefaultScannerSkyaware978Path      = "/var/run/skyaware978/aircraft.json"
+	DefaultScannerMaxAircraft          = 512
+	DefaultScannerTalkgroupHistory     = 128
+	maxScannerTalkgroupHistory         = 1024
+	maxScannerAircraft                 = 4096
 )
 
 // Scanner site-selection modes.
@@ -65,16 +69,26 @@ type ScannerConfig struct {
 	Dump1090Path    string
 	Skyaware978Path string
 	// States restricts site selection; empty allows every state.
-	States             []string
+	States []string
+	// Problems lists config values that were rejected at load and
+	// replaced by defaults; the scanner manager logs them when it starts.
+	Problems           []string
 	HysteresisKm       float64
 	PositionStaleAfter time.Duration
 	AircraftStaleAfter time.Duration
 	DecodeStaleAfter   time.Duration
 	WideUsableHz       uint64
 	RTLUsableHz        uint64
-	MaxAircraft        int
-	TalkgroupHistory   int
-	Enable             bool
+	// WideSampleRate forces the wide tuner capture rate
+	// (scanner.tuner.wideSampleRate, one of WideSampleRates); 0 picks it
+	// from the plan width. WideUsableHz is capped at 80% of it.
+	WideSampleRate int
+	// ConventionalRadiusKm bounds the positioned conventional channels
+	// (scanner.conventional.radiusKm).
+	ConventionalRadiusKm float64
+	MaxAircraft          int
+	TalkgroupHistory     int
+	Enable               bool
 }
 
 // loadScanner reads the scanner section, applying defaults. The caller
@@ -96,6 +110,8 @@ func (c *Config) loadScanner() ScannerConfig {
 		Skyaware978Path:    DefaultScannerSkyaware978Path,
 		MaxAircraft:        DefaultScannerMaxAircraft,
 		TalkgroupHistory:   DefaultScannerTalkgroupHistory,
+
+		ConventionalRadiusKm: DefaultScannerConventionalRadiusKm,
 	}
 
 	if c.v.IsSet("scanner.enable") {
@@ -134,6 +150,8 @@ func (c *Config) loadScanner() ScannerConfig {
 		sc.RTLUsableHz = v
 	}
 
+	c.loadScannerTuning(&sc)
+
 	if v := c.v.GetString("scanner.aircraft.dump1090Path"); v != "" {
 		sc.Dump1090Path = v
 	}
@@ -153,6 +171,48 @@ func (c *Config) loadScanner() ScannerConfig {
 	return sc
 }
 
+// loadScannerTuning reads the wide tuner capture rate and the
+// conventional scan radius into sc, recording rejected values in
+// sc.Problems. The caller holds c.mu.
+func (c *Config) loadScannerTuning(sc *ScannerConfig) {
+	if c.v.IsSet("scanner.tuner.wideSampleRate") {
+		rate := c.v.GetInt("scanner.tuner.wideSampleRate")
+		if err := ValidateScannerWideSampleRate(rate); err != nil {
+			sc.Problems = append(sc.Problems, "scanner.tuner.wideSampleRate: "+err.Error())
+		} else {
+			sc.WideSampleRate = rate
+		}
+	}
+
+	if sc.WideSampleRate > 0 {
+		if limit := uint64(sc.WideSampleRate) * 8 / 10; sc.WideUsableHz > limit {
+			sc.WideUsableHz = limit
+		}
+	}
+
+	if c.v.IsSet("scanner.conventional.radiusKm") {
+		if r := c.v.GetFloat64("scanner.conventional.radiusKm"); r > 0 && r <= maxScannerConventionalRadiusKm {
+			sc.ConventionalRadiusKm = r
+		} else {
+			sc.Problems = append(sc.Problems, fmt.Sprintf("scanner.conventional.radiusKm: %v is outside (0, %v]", r, maxScannerConventionalRadiusKm))
+		}
+	}
+}
+
+// WideSampleRates are the airspy_rx capture rates the wide tuner accepts:
+// Airspy R2 (10 and 2.5 MS/s) and Airspy Mini (6 and 3 MS/s).
+func WideSampleRates() []int { return []int{2_500_000, 3_000_000, 6_000_000, 10_000_000} }
+
+// ValidateScannerWideSampleRate checks scanner.tuner.wideSampleRate: 0
+// (automatic) or one of WideSampleRates.
+func ValidateScannerWideSampleRate(rate int) error {
+	if rate == 0 || slices.Contains(WideSampleRates(), rate) {
+		return nil
+	}
+
+	return fmt.Errorf("%d S/s is not an Airspy rate (want 2500000 or 10000000 for an R2, 3000000 or 6000000 for a Mini)", rate)
+}
+
 // positiveDuration parses raw, falling back to def when it is empty,
 // unparsable or not positive.
 func positiveDuration(raw string, def time.Duration) time.Duration {
@@ -170,6 +230,7 @@ func (c *Config) GetScanner() ScannerConfig {
 
 	sc := c.Scanner
 	sc.States = slices.Clone(sc.States)
+	sc.Problems = slices.Clone(sc.Problems)
 
 	return sc
 }
