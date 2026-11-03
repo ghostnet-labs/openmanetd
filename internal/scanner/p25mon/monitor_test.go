@@ -197,8 +197,12 @@ func TestMonitor_huntsAndRetunesToNextControlChannel(t *testing.T) {
 		return ok && g.Talkgroup == 8001
 	})
 
+	// Retune restarts the capture asynchronously, and the replay keeps
+	// feeding the old process meanwhile, so the grant can arrive before the
+	// second start is recorded.
+	require.Eventually(t, func() bool { return len(runner.Starts()) >= 2 }, 5*time.Second, 5*time.Millisecond)
+
 	starts := runner.Starts()
-	require.GreaterOrEqual(t, len(starts), 2)
 	assert.Equal(t, fmt.Sprint(outside-250_000), starts[0].Args[3], "first hunt centers off the out-of-window channel")
 	assert.Equal(t, "851000000", starts[1].Args[3], "stepping back into the window retunes to the plan center")
 }
