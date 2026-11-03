@@ -20,6 +20,7 @@ import (
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
 	niconnect "github.com/openmanet/openmanetd/internal/api/openmanet/network_interface/v1/network_interfacev1connect"
 	radioconnect "github.com/openmanet/openmanetd/internal/api/openmanet/radio/v1/radiov1connect"
+	scannerconnect "github.com/openmanet/openmanetd/internal/api/openmanet/scanner/v1/scannerv1connect"
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupconnect "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1/setupv1connect"
 	supconnect "github.com/openmanet/openmanetd/internal/api/openmanet/sysupgrade/v1/sysupgradev1connect"
@@ -77,6 +78,10 @@ type APIServer struct {
 	// disabled or failed to start. Like Hardware it must be a nil
 	// interface, not a typed nil pointer.
 	Chanmig handlers.ChannelMigrator
+	// Scanner is the aircraft / P25 site-monitor manager. The daemon always
+	// constructs it (it owns no goroutines while scanner.enable is false);
+	// nil leaves ScannerService reporting enabled false.
+	Scanner handlers.ScannerManager
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -323,6 +328,15 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		ConfigReader: wifiSvc.ConfigReader,
 		Radios:       wifiSvc,
 		ChanmigTrust: &handlers.ConfigChanmigTrust{Cfg: cfg.Cfg},
+	}, connect.WithInterceptors(validateInterceptor)))
+
+	// ScannerService (GHO-53) reports aircraft receivers, the P25 site the
+	// wide tuner follows and talkgroup activity, and edits the scanner
+	// config. Session-gated (not in isAPISkipPath).
+	api.Handle(scannerconnect.NewScannerServiceHandler(&handlers.ScannerService{
+		Log:     cfg.Log.With().Str("service", "scanner").Logger(),
+		Cfg:     cfg.Cfg,
+		Manager: cfg.Scanner,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

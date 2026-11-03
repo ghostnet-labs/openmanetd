@@ -15,12 +15,16 @@ import (
 	"github.com/openmanet/openmanetd/internal/blos"
 	"github.com/openmanet/openmanetd/internal/chanmig"
 	"github.com/openmanet/openmanetd/internal/comms/control/alsa"
+	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/pathsel"
 	"github.com/openmanet/openmanetd/internal/radiogate"
+	"github.com/openmanet/openmanetd/internal/scanner"
+	"github.com/openmanet/openmanetd/internal/scanner/aircraft"
+	"github.com/openmanet/openmanetd/internal/scanner/sites"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/ipn"
@@ -874,4 +878,152 @@ func (f *fakeChanmigTrust) installs() []handlers.JoinTrust {
 	defer f.mu.Unlock()
 
 	return append([]handlers.JoinTrust(nil), f.installed...)
+}
+
+// ── fakeScannerManager ────────────────────────────────────────────────────────
+
+// fakeScannerManager is a canned handlers.ScannerManager.
+type fakeScannerManager struct {
+	mu        sync.Mutex
+	enabled   bool
+	status    scanner.Status
+	aircraft  []aircraft.Aircraft
+	feeds     []aircraft.FeedStatus
+	now       time.Time
+	sites     []sites.Site
+	sitesErr  error
+	reference scanner.Position
+	grants    []scanner.Grant
+	events    chan scanner.Event
+	subErr    error
+	applied   []config.ScannerConfig
+	cancels   int
+}
+
+func (f *fakeScannerManager) Enabled() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.enabled
+}
+
+func (f *fakeScannerManager) Status() scanner.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.status
+}
+
+func (f *fakeScannerManager) Aircraft(dst []aircraft.Aircraft, _ bool) ([]aircraft.Aircraft, []aircraft.FeedStatus, time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append(dst[:0], f.aircraft...), f.feeds, f.now
+}
+
+func (f *fakeScannerManager) Sites() ([]sites.Site, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.sites == nil && f.sitesErr == nil {
+		return sites.Table()
+	}
+
+	return f.sites, f.sitesErr
+}
+
+func (f *fakeScannerManager) Reference() scanner.Position {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.reference
+}
+
+func (f *fakeScannerManager) Grants(limit int) ([]scanner.Grant, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	g := f.grants
+	if limit > 0 && limit < len(g) {
+		g = g[:limit]
+	}
+
+	return g, 128
+}
+
+func (f *fakeScannerManager) Subscribe() (<-chan scanner.Event, func(), error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.subErr != nil {
+		return nil, nil, f.subErr
+	}
+
+	return f.events, func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		f.cancels++
+	}, nil
+}
+
+func (f *fakeScannerManager) Apply(cfg config.ScannerConfig) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.applied = append(f.applied, cfg)
+	f.enabled = cfg.Enable
+}
+
+func (f *fakeScannerManager) getApplied() []config.ScannerConfig {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]config.ScannerConfig(nil), f.applied...)
+}
+
+func (f *fakeScannerManager) getCancels() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.cancels
+}
+
+// fakeScannerConfigStore is an in-memory handlers.ScannerConfigStore.
+type fakeScannerConfigStore struct {
+	mu         sync.Mutex
+	cfg        config.ScannerConfig
+	persistErr error
+	persisted  []config.ScannerSettings
+}
+
+func (f *fakeScannerConfigStore) GetScanner() config.ScannerConfig {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.cfg
+}
+
+func (f *fakeScannerConfigStore) PersistScannerConfig(s config.ScannerSettings) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.persistErr != nil {
+		return f.persistErr
+	}
+
+	f.persisted = append(f.persisted, s)
+	f.cfg.Enable, f.cfg.Mode, f.cfg.ManualSite, f.cfg.States = s.Enable, s.Mode, s.ManualSite, s.States
+	f.cfg.HysteresisKm = s.HysteresisKm
+	f.cfg.PositionStaleAfter, f.cfg.AircraftStaleAfter, f.cfg.DecodeStaleAfter =
+		s.PositionStaleAfter, s.AircraftStaleAfter, s.DecodeStaleAfter
+
+	return nil
+}
+
+func (f *fakeScannerConfigStore) getPersisted() []config.ScannerSettings {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]config.ScannerSettings(nil), f.persisted...)
 }

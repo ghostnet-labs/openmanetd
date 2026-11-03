@@ -30,6 +30,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
+	"github.com/openmanet/openmanetd/internal/scanner"
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/sysupgrade"
 	"github.com/openmanet/openmanetd/internal/terminal"
@@ -213,6 +214,12 @@ func Start(staticFS fs.FS) {
 	// alfred poll loop, both bound to ctx and joined by waitChanmig.
 	chanmigSvc := startChanmig(ctx, cfg, manager, log)
 
+	// Scanner (GHO-53): aircraft.json merge, receiver ownership, nearest
+	// P25 site and talkgroup history. Constructed always so the API can
+	// enable it at runtime, but with scanner.enable false (the default) it
+	// owns no goroutine and touches no receiver.
+	scannerMgr := newScannerManager(cfg, gps)
+
 	// Set up session-based authentication when enabled.
 	var (
 		sessionStore  *auth.SessionStore
@@ -291,6 +298,7 @@ func Start(staticFS fs.FS) {
 	// into the one the handlers already share.
 	apiServer.Hardware = hardwareAPI(hwManager)
 	apiServer.Chanmig = chanmigAPI(chanmigSvc)
+	apiServer.Scanner = scannerMgr
 
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider
@@ -346,6 +354,7 @@ func Start(staticFS fs.FS) {
 
 	waitHardwareManager(hwManager, log)
 	waitChanmig(chanmigSvc, log)
+	scannerMgr.Disable()
 
 	if cfg.GetEnableGNSS() {
 		gps.Close()
@@ -475,6 +484,30 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	}
 
 	go worker.Run(ctx)
+}
+
+// newScannerManager builds the scanner manager and starts it when
+// scanner.enable is set. gps may be nil (GNSS disabled); it is passed as a
+// nil interface, never a typed nil pointer. The P25 control-channel
+// decoder (Options.Monitor) is not wired yet, so the control channel
+// reports unavailable.
+func newScannerManager(cfg *config.Config, gps *gpsd.GPSService) *scanner.Manager {
+	opts := scanner.Options{
+		Log: logger.GetLogger("scanner"),
+		UCI: network.NewUCINetworkConfigReader(),
+	}
+	if gps != nil {
+		opts.Position = gps
+	}
+
+	sc := cfg.GetScanner()
+	mgr := scanner.NewManager(opts, sc)
+
+	if sc.Enable {
+		mgr.Enable()
+	}
+
+	return mgr
 }
 
 // buildTerminalManager constructs the web-terminal manager when the feature
