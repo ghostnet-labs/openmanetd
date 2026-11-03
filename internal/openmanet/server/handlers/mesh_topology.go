@@ -331,6 +331,13 @@ func mergeMeshTopology(
 	// 5. Build MeshEdge list — originator-derived first, then vis neighbors.
 	edges := buildMeshEdges(visDoc, origSnap.Originators, primaryByMac, segmentByPrimary, gatewayByPrimary, selfMAC, selfPrimary, gossip, renderedPrimaries(nodes), localBlosGwByRemote)
 
+	// 6. With vis adjacency in the graph, walk it from self for true hop
+	// counts and the forwarding tree. The originator table alone names
+	// only the first hop, so it cannot tell two hops from five.
+	if len(origSnap.Originators) > 0 && visHasNeighbors(visDoc) {
+		applyPathTree(nodes, edges, selfPrimary)
+	}
+
 	return &meshtopov1.MeshTopology{
 		SelfMac:        origSnap.SelfMAC,
 		SelfHostname:   origSnap.SelfHostname,
@@ -1002,7 +1009,7 @@ func buildMeshEdges(
 ) []*meshtopov1.MeshEdge {
 	edgeByKey := make(map[string]*meshtopov1.MeshEdge)
 
-	seedOriginatorEdges(edgeByKey, origs, primaryByMac, segmentByPrimary, gatewayByPrimary, knownPrimaries, selfMAC, selfPrimary, gossip, localBlosGwByRemote)
+	seedOriginatorEdges(edgeByKey, origs, primaryByMac, segmentByPrimary, gatewayByPrimary, knownPrimaries, selfMAC, selfPrimary, gossip, localBlosGwByRemote, visNeighborPublishers(visDoc, primaryByMac))
 	layerGossipEdges(edgeByKey, gossip, segmentByPrimary, knownPrimaries)
 	layerVisEdges(edgeByKey, visDoc, primaryByMac, segmentByPrimary, knownPrimaries)
 
@@ -1050,11 +1057,23 @@ func seedOriginatorEdges(
 	selfPrimary string,
 	gossip *gossipView,
 	localBlosGwByRemote map[string]string,
+	visPublishers map[string]struct{},
 ) {
 	for _, o := range origs {
 		fromPrimary, toPrimary, ok := originatorEdgeEndpoints(o, primaryByMac, selfMAC)
 		if !ok {
 			continue
+		}
+
+		// A multi-hop entry only says "toPrimary is reached via
+		// fromPrimary", not that the two are adjacent: on a line a-b-c-d,
+		// a reaches d via b. When toPrimary publishes its own vis
+		// neighbors, those draw its real links; seeding here would add a
+		// b-d edge that does not exist.
+		if !isDirectOriginator(o) {
+			if _, ok := visPublishers[toPrimary]; ok {
+				continue
+			}
 		}
 
 		if shouldSuppressSelfPeerEdge(fromPrimary, toPrimary, selfPrimary, gatewayByPrimary, gossip) {
@@ -1309,6 +1328,103 @@ func applyVisNeighbor(
 	}
 
 	addEdge(edgeByKey, aPrimary, bPrimary, segmentByPrimary, knownPrimaries, metric, false)
+}
+
+// isDirectOriginator reports whether the originator is its own best next
+// hop, i.e. a one-hop neighbor.
+func isDirectOriginator(o batmanadv.OriginatorEntry) bool {
+	next := strings.ToLower(o.NextHopMAC)
+
+	return next == "" || next == strings.ToLower(o.OrigMAC)
+}
+
+// visHasNeighbors reports whether any vis entry lists a neighbor.
+func visHasNeighbors(visDoc *batmanadv.VisDoc) bool {
+	if visDoc == nil {
+		return false
+	}
+
+	for _, v := range visDoc.Vis {
+		if len(v.Neighbors) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// visNeighborPublishers returns the canonical primaries whose vis entry
+// lists at least one neighbor, i.e. nodes whose links vis already draws.
+func visNeighborPublishers(visDoc *batmanadv.VisDoc, primaryByMac map[string]string) map[string]struct{} {
+	if visDoc == nil {
+		return nil
+	}
+
+	out := make(map[string]struct{}, len(visDoc.Vis))
+
+	for _, v := range visDoc.Vis {
+		if len(v.Neighbors) == 0 {
+			continue
+		}
+
+		out[resolvePrimary(primaryByMac, strings.ToLower(v.Primary))] = struct{}{}
+	}
+
+	return out
+}
+
+// applyPathTree runs a breadth-first walk of the rendered edges from self.
+// Every routed node (one with an originator-derived hop count) reachable
+// in the graph gets its graph distance as HopsFromSelf, and the walk's
+// tree edges are marked on_my_path. Where two paths are equally short the
+// tree picks one by edge order, which may not be the one batman-adv
+// forwards on. Nodes the walk cannot reach keep their originator-derived
+// values.
+func applyPathTree(nodes []*meshtopov1.MeshNode, edges []*meshtopov1.MeshEdge, selfPrimary string) {
+	if selfPrimary == "" {
+		return
+	}
+
+	adj := make(map[string][]*meshtopov1.MeshEdge, len(nodes))
+	for _, e := range edges {
+		adj[e.FromMac] = append(adj[e.FromMac], e)
+		adj[e.ToMac] = append(adj[e.ToMac], e)
+	}
+
+	depth := make(map[string]int32, len(nodes))
+	depth[selfPrimary] = 0
+	queue := make([]string, 0, len(nodes))
+	queue = append(queue, selfPrimary)
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		for _, e := range adj[cur] {
+			next := e.ToMac
+			if next == cur {
+				next = e.FromMac
+			}
+
+			if _, seen := depth[next]; seen {
+				continue
+			}
+
+			e.OnMyPath = true
+			depth[next] = depth[cur] + 1
+			queue = append(queue, next)
+		}
+	}
+
+	for _, n := range nodes {
+		if n.IsSelf || n.HopsFromSelf <= 0 || n.HopsFromSelf == hopsUnknown {
+			continue
+		}
+
+		if d, ok := depth[strings.ToLower(n.Mac)]; ok {
+			n.HopsFromSelf = d
+		}
+	}
 }
 
 // resolvePrimary looks up a MAC's primary, falling back to the MAC itself
