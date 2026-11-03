@@ -5,11 +5,13 @@ import (
 	"crypto/ed25519"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/digineo/go-uci/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdlayher/wifi"
 	"github.com/openmanet/openmanetd/internal/blos"
@@ -1064,4 +1066,18 @@ func (f *fakeScannerConfigStore) getPersisted() []config.ScannerSettings {
 	defer f.mu.Unlock()
 
 	return append([]config.ScannerSettings(nil), f.persisted...)
+}
+
+// diskWirelessReader mirrors the production reader's cache refresh on a real
+// temporary UCI tree, allowing RPC tests to exercise whole-file persistence.
+type diskWirelessReader struct{ uci.Tree }
+
+func (r *diskWirelessReader) ReloadConfig() error {
+	if err := r.LoadConfig("wireless", true); err != nil {
+		return fmt.Errorf("reload wireless fixture: %w", err)
+	}
+
+	r.Revert("network")
+
+	return nil
 }
