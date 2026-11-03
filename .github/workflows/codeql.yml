@@ -36,7 +36,8 @@ jobs:
     # Pushes and same-repo PRs use the Mac Studio Linux VM runners; fork PRs
     # stay on GitHub-hosted runners so outside code never reaches the Mac.
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "Linux", "ARM64"]') || 'ubuntu-latest' }}
-    timeout-minutes: 60
+    # Includes up to ~30 minutes waiting for the Go CodeQL slot below.
+    timeout-minutes: 90
     permissions:
       # required for all workflows
       security-events: write
@@ -96,10 +97,46 @@ jobs:
       with:
         go-version-file: "go.mod"
 
+    # The Mac Studio gh-ubuntu VM has 6 GiB and no swap. Each Go CodeQL
+    # job peaks at 2-3 GB, and four running together were OOM-killed
+    # (exit 137) on 2026-11-03. The VM's five runners share one home
+    # directory, so a flock there lets only one Go analysis run on the host
+    # at a time. Other jobs wait for the lock instead of being cancelled,
+    # so every PR still gets its "Analyze (go)" result. A background
+    # holder keeps the lock until the release step below; if the job dies,
+    # the runner's orphan-process cleanup kills it and the lock frees.
+    - name: Wait for the host's Go CodeQL slot
+      if: matrix.language == 'go' && runner.environment == 'self-hosted'
+      run: |
+        lock="$HOME/.codeql-go.lock"
+        ready="$RUNNER_TEMP/codeql-go-slot"
+        rm -f "$ready"
+        setsid flock "$lock" sh -c 'touch "$1"; exec sleep 6000' _ "$ready" \
+          </dev/null >/dev/null 2>&1 &
+        holder=$!
+        echo "CODEQL_GO_SLOT_PID=$holder" >>"$GITHUB_ENV"
+        sleep 1
+        waited=0
+        until [ -e "$ready" ]; do
+          if ! kill -0 "$holder" 2>/dev/null; then
+            echo "::error::Go CodeQL lock holder exited before taking the lock"
+            exit 1
+          fi
+          if [ $((waited % 60)) -eq 0 ]; then
+            echo "Waiting for another Go CodeQL job on this host (${waited}s)"
+          fi
+          sleep 5
+          waited=$((waited + 5))
+        done
+        echo "Took the Go CodeQL slot after ${waited}s"
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:
+        # Cap the CodeQL evaluator well under the 6 GiB VM so the analysis
+        # leaves room for the other jobs sharing the host.
+        ram: 3072
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -130,3 +167,7 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+
+    - name: Release the host's Go CodeQL slot
+      if: always() && env.CODEQL_GO_SLOT_PID != ''
+      run: kill -- "-$CODEQL_GO_SLOT_PID" 2>/dev/null || true
