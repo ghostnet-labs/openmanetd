@@ -17,6 +17,8 @@ const (
 	colState  = "state"
 	colSystem = "system"
 	colSite   = "site"
+	colLat    = "lat"
+	colLon    = "lon"
 )
 
 type siteID struct{ state, system, site string }
@@ -29,19 +31,27 @@ type siteFreqs struct {
 
 // fitColumns are the site-tuner-fit.csv columns build reads.
 var fitColumns = []string{ //nolint:gochecknoglobals // read-only column list
-	colState, colSystem, colSite, "county", "lat", "lon", "n",
+	colState, colSystem, colSite, "county", colLat, colLon, "n",
 	"rtl_sdr_needed", "wide_tuners_needed", "band", "phase", "encryption",
 }
 
 // freqColumns are the scanner-frequencies.csv columns build reads.
-var freqColumns = []string{colState, "category", colSystem, colSite, "freq_mhz", "use"} //nolint:gochecknoglobals // read-only column list
+var freqColumns = []string{ //nolint:gochecknoglobals // read-only column list
+	colState, "category", colSystem, colSite, "freq_mhz", "mode", "use", colLat, colLon,
+}
 
 // build writes the uncompressed table (format sites.Format) for every site
 // in fit, taking frequencies from the trunked rows of freq. Rows with use
 // "control" become control channels; every other trunked row is a voice
-// channel.
+// channel. The analog rows of the conventional, aviation, interop and
+// weather categories become C records (see conventionalLines).
 func build(fit, freq io.Reader, w io.Writer) error {
-	byID, err := readFreqs(freq)
+	byID, analog, err := readFreqs(freq)
+	if err != nil {
+		return err
+	}
+
+	chans, err := conventionalLines(analog)
 	if err != nil {
 		return err
 	}
@@ -82,6 +92,10 @@ func build(fit, freq io.Reader, w io.Writer) error {
 		b.WriteString(l + "\n")
 	}
 
+	for _, l := range chans {
+		b.WriteString(l + "\n")
+	}
+
 	if _, err := io.WriteString(w, b.String()); err != nil {
 		return fmt.Errorf("write table: %w", err)
 	}
@@ -105,7 +119,7 @@ func siteLine(r map[string]string, byID map[siteID]*siteFreqs, systems, details 
 		return "", fmt.Errorf("n=%s but scanner-frequencies lists %d", r["n"], len(f.control)+len(f.voice))
 	}
 
-	for _, k := range []string{"lat", "lon"} {
+	for _, k := range []string{colLat, colLon} {
 		if _, err := strconv.ParseFloat(r[k], 64); err != nil {
 			return "", fmt.Errorf("bad %s: %w", k, err)
 		}
@@ -137,7 +151,7 @@ func siteLine(r map[string]string, byID map[siteID]*siteFreqs, systems, details 
 	}
 
 	fields := []string{
-		"T", r[colState], strconv.Itoa(systems.index(r[colSystem])), r[colSite], r["county"], r["lat"], r["lon"],
+		"T", r[colState], strconv.Itoa(systems.index(r[colSystem])), r[colSite], r["county"], r[colLat], r[colLon],
 		strconv.Itoa(int(band)), strconv.Itoa(int(phase)), strconv.Itoa(details.index(r["phase"])),
 		strconv.Itoa(int(enc)), r["rtl_sdr_needed"], r["wide_tuners_needed"], ctrl, voice,
 	}
@@ -145,16 +159,19 @@ func siteLine(r map[string]string, byID map[siteID]*siteFreqs, systems, details 
 	return strings.Join(fields, "\t"), nil
 }
 
-func readFreqs(r io.Reader) (map[siteID]*siteFreqs, error) {
+func readFreqs(r io.Reader) (map[siteID]*siteFreqs, []map[string]string, error) {
 	rows, err := readCSV(r, freqColumns)
 	if err != nil {
-		return nil, fmt.Errorf("scanner-frequencies: %w", err)
+		return nil, nil, fmt.Errorf("scanner-frequencies: %w", err)
 	}
 
 	out := make(map[siteID]*siteFreqs, 300)
+	analog := make([]map[string]string, 0, 900)
 
 	for _, row := range rows {
 		if row["category"] != "trunked" {
+			analog = append(analog, row)
+
 			continue
 		}
 
@@ -173,7 +190,7 @@ func readFreqs(r io.Reader) (map[siteID]*siteFreqs, error) {
 		}
 	}
 
-	return out, nil
+	return out, analog, nil
 }
 
 func readCSV(r io.Reader, want []string) ([]map[string]string, error) {
