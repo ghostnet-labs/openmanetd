@@ -57,6 +57,12 @@ const (
 	// ScannerServiceSetScannerConfigProcedure is the fully-qualified name of the ScannerService's
 	// SetScannerConfig RPC.
 	ScannerServiceSetScannerConfigProcedure = "/openmanet.scanner.v1.ScannerService/SetScannerConfig"
+	// ScannerServiceListConventionalChannelsProcedure is the fully-qualified name of the
+	// ScannerService's ListConventionalChannels RPC.
+	ScannerServiceListConventionalChannelsProcedure = "/openmanet.scanner.v1.ScannerService/ListConventionalChannels"
+	// ScannerServiceStreamAudioProcedure is the fully-qualified name of the ScannerService's
+	// StreamAudio RPC.
+	ScannerServiceStreamAudioProcedure = "/openmanet.scanner.v1.ScannerService/StreamAudio"
 )
 
 // ScannerServiceClient is a client for the openmanet.scanner.v1.ScannerService service.
@@ -90,6 +96,19 @@ type ScannerServiceClient interface {
 	// (enabling or disabling the scanner manager included).
 	// INVALID_ARGUMENT when manual_site_key names no site in the table.
 	SetScannerConfig(context.Context, *v1.SetScannerConfigRequest) (*v1.SetScannerConfigResponse, error)
+	// ListConventionalChannels returns the analog conventional, aviation,
+	// interop and weather channels the scan receiver monitors near the
+	// current position, with live and last-heard state.
+	ListConventionalChannels(context.Context, *v1.ListConventionalChannelsRequest) (*v1.ListConventionalChannelsResponse, error)
+	// StreamAudio streams demodulated audio of open-squelch conventional
+	// channels for listening on the local EUD until the client cancels.
+	// Only audio leaves the node's demodulators; raw IQ is never streamed.
+	// A stream for one channel pins the scan to that channel's window. The
+	// first message carries no audio and confirms the stream.
+	// FAILED_PRECONDITION when the scanner is disabled or has no
+	// conventional receiver, NOT_FOUND for a channel_key not on the list,
+	// RESOURCE_EXHAUSTED when too many audio streams are open.
+	StreamAudio(context.Context, *v1.StreamAudioRequest) (*connect.ServerStreamForClient[v1.StreamAudioResponse], error)
 }
 
 // NewScannerServiceClient constructs a client for the openmanet.scanner.v1.ScannerService service.
@@ -151,19 +170,33 @@ func NewScannerServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(scannerServiceMethods.ByName("SetScannerConfig")),
 			connect.WithClientOptions(opts...),
 		),
+		listConventionalChannels: connect.NewClient[v1.ListConventionalChannelsRequest, v1.ListConventionalChannelsResponse](
+			httpClient,
+			baseURL+ScannerServiceListConventionalChannelsProcedure,
+			connect.WithSchema(scannerServiceMethods.ByName("ListConventionalChannels")),
+			connect.WithClientOptions(opts...),
+		),
+		streamAudio: connect.NewClient[v1.StreamAudioRequest, v1.StreamAudioResponse](
+			httpClient,
+			baseURL+ScannerServiceStreamAudioProcedure,
+			connect.WithSchema(scannerServiceMethods.ByName("StreamAudio")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // scannerServiceClient implements ScannerServiceClient.
 type scannerServiceClient struct {
-	getScannerStatus      *connect.Client[v1.GetScannerStatusRequest, v1.GetScannerStatusResponse]
-	listAircraft          *connect.Client[v1.ListAircraftRequest, v1.ListAircraftResponse]
-	streamAircraft        *connect.Client[v1.StreamAircraftRequest, v1.StreamAircraftResponse]
-	listSites             *connect.Client[v1.ListSitesRequest, v1.ListSitesResponse]
-	listTalkgroupActivity *connect.Client[v1.ListTalkgroupActivityRequest, v1.ListTalkgroupActivityResponse]
-	streamScannerEvents   *connect.Client[v1.StreamScannerEventsRequest, v1.StreamScannerEventsResponse]
-	getScannerConfig      *connect.Client[v1.GetScannerConfigRequest, v1.GetScannerConfigResponse]
-	setScannerConfig      *connect.Client[v1.SetScannerConfigRequest, v1.SetScannerConfigResponse]
+	getScannerStatus         *connect.Client[v1.GetScannerStatusRequest, v1.GetScannerStatusResponse]
+	listAircraft             *connect.Client[v1.ListAircraftRequest, v1.ListAircraftResponse]
+	streamAircraft           *connect.Client[v1.StreamAircraftRequest, v1.StreamAircraftResponse]
+	listSites                *connect.Client[v1.ListSitesRequest, v1.ListSitesResponse]
+	listTalkgroupActivity    *connect.Client[v1.ListTalkgroupActivityRequest, v1.ListTalkgroupActivityResponse]
+	streamScannerEvents      *connect.Client[v1.StreamScannerEventsRequest, v1.StreamScannerEventsResponse]
+	getScannerConfig         *connect.Client[v1.GetScannerConfigRequest, v1.GetScannerConfigResponse]
+	setScannerConfig         *connect.Client[v1.SetScannerConfigRequest, v1.SetScannerConfigResponse]
+	listConventionalChannels *connect.Client[v1.ListConventionalChannelsRequest, v1.ListConventionalChannelsResponse]
+	streamAudio              *connect.Client[v1.StreamAudioRequest, v1.StreamAudioResponse]
 }
 
 // GetScannerStatus calls openmanet.scanner.v1.ScannerService.GetScannerStatus.
@@ -230,6 +263,20 @@ func (c *scannerServiceClient) SetScannerConfig(ctx context.Context, req *v1.Set
 	return nil, err
 }
 
+// ListConventionalChannels calls openmanet.scanner.v1.ScannerService.ListConventionalChannels.
+func (c *scannerServiceClient) ListConventionalChannels(ctx context.Context, req *v1.ListConventionalChannelsRequest) (*v1.ListConventionalChannelsResponse, error) {
+	response, err := c.listConventionalChannels.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// StreamAudio calls openmanet.scanner.v1.ScannerService.StreamAudio.
+func (c *scannerServiceClient) StreamAudio(ctx context.Context, req *v1.StreamAudioRequest) (*connect.ServerStreamForClient[v1.StreamAudioResponse], error) {
+	return c.streamAudio.CallServerStream(ctx, connect.NewRequest(req))
+}
+
 // ScannerServiceHandler is an implementation of the openmanet.scanner.v1.ScannerService service.
 type ScannerServiceHandler interface {
 	// GetScannerStatus returns receivers, the reference position, the
@@ -261,6 +308,19 @@ type ScannerServiceHandler interface {
 	// (enabling or disabling the scanner manager included).
 	// INVALID_ARGUMENT when manual_site_key names no site in the table.
 	SetScannerConfig(context.Context, *v1.SetScannerConfigRequest) (*v1.SetScannerConfigResponse, error)
+	// ListConventionalChannels returns the analog conventional, aviation,
+	// interop and weather channels the scan receiver monitors near the
+	// current position, with live and last-heard state.
+	ListConventionalChannels(context.Context, *v1.ListConventionalChannelsRequest) (*v1.ListConventionalChannelsResponse, error)
+	// StreamAudio streams demodulated audio of open-squelch conventional
+	// channels for listening on the local EUD until the client cancels.
+	// Only audio leaves the node's demodulators; raw IQ is never streamed.
+	// A stream for one channel pins the scan to that channel's window. The
+	// first message carries no audio and confirms the stream.
+	// FAILED_PRECONDITION when the scanner is disabled or has no
+	// conventional receiver, NOT_FOUND for a channel_key not on the list,
+	// RESOURCE_EXHAUSTED when too many audio streams are open.
+	StreamAudio(context.Context, *v1.StreamAudioRequest, *connect.ServerStream[v1.StreamAudioResponse]) error
 }
 
 // NewScannerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -318,6 +378,18 @@ func NewScannerServiceHandler(svc ScannerServiceHandler, opts ...connect.Handler
 		connect.WithSchema(scannerServiceMethods.ByName("SetScannerConfig")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scannerServiceListConventionalChannelsHandler := connect.NewUnaryHandlerSimple(
+		ScannerServiceListConventionalChannelsProcedure,
+		svc.ListConventionalChannels,
+		connect.WithSchema(scannerServiceMethods.ByName("ListConventionalChannels")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scannerServiceStreamAudioHandler := connect.NewServerStreamHandlerSimple(
+		ScannerServiceStreamAudioProcedure,
+		svc.StreamAudio,
+		connect.WithSchema(scannerServiceMethods.ByName("StreamAudio")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/openmanet.scanner.v1.ScannerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScannerServiceGetScannerStatusProcedure:
@@ -336,6 +408,10 @@ func NewScannerServiceHandler(svc ScannerServiceHandler, opts ...connect.Handler
 			scannerServiceGetScannerConfigHandler.ServeHTTP(w, r)
 		case ScannerServiceSetScannerConfigProcedure:
 			scannerServiceSetScannerConfigHandler.ServeHTTP(w, r)
+		case ScannerServiceListConventionalChannelsProcedure:
+			scannerServiceListConventionalChannelsHandler.ServeHTTP(w, r)
+		case ScannerServiceStreamAudioProcedure:
+			scannerServiceStreamAudioHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -375,4 +451,12 @@ func (UnimplementedScannerServiceHandler) GetScannerConfig(context.Context, *v1.
 
 func (UnimplementedScannerServiceHandler) SetScannerConfig(context.Context, *v1.SetScannerConfigRequest) (*v1.SetScannerConfigResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("openmanet.scanner.v1.ScannerService.SetScannerConfig is not implemented"))
+}
+
+func (UnimplementedScannerServiceHandler) ListConventionalChannels(context.Context, *v1.ListConventionalChannelsRequest) (*v1.ListConventionalChannelsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("openmanet.scanner.v1.ScannerService.ListConventionalChannels is not implemented"))
+}
+
+func (UnimplementedScannerServiceHandler) StreamAudio(context.Context, *v1.StreamAudioRequest, *connect.ServerStream[v1.StreamAudioResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("openmanet.scanner.v1.ScannerService.StreamAudio is not implemented"))
 }

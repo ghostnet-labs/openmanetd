@@ -686,6 +686,247 @@ func (AircraftSource) EnumDescriptor() ([]byte, []int) {
 	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{10}
 }
 
+// ConventionalMode is the analog demodulation of a conventional channel.
+type ConventionalMode int32
+
+const (
+	ConventionalMode_CONVENTIONAL_MODE_UNSPECIFIED ConventionalMode = 0
+	// CONVENTIONAL_MODE_NFM is narrowband FM with noise squelch.
+	ConventionalMode_CONVENTIONAL_MODE_NFM ConventionalMode = 1
+	// CONVENTIONAL_MODE_AM is AM with carrier squelch (the 108-137 MHz
+	// aviation band).
+	ConventionalMode_CONVENTIONAL_MODE_AM ConventionalMode = 2
+)
+
+// Enum value maps for ConventionalMode.
+var (
+	ConventionalMode_name = map[int32]string{
+		0: "CONVENTIONAL_MODE_UNSPECIFIED",
+		1: "CONVENTIONAL_MODE_NFM",
+		2: "CONVENTIONAL_MODE_AM",
+	}
+	ConventionalMode_value = map[string]int32{
+		"CONVENTIONAL_MODE_UNSPECIFIED": 0,
+		"CONVENTIONAL_MODE_NFM":         1,
+		"CONVENTIONAL_MODE_AM":          2,
+	}
+)
+
+func (x ConventionalMode) Enum() *ConventionalMode {
+	p := new(ConventionalMode)
+	*p = x
+	return p
+}
+
+func (x ConventionalMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConventionalMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_openmanet_scanner_v1_scanner_proto_enumTypes[11].Descriptor()
+}
+
+func (ConventionalMode) Type() protoreflect.EnumType {
+	return &file_openmanet_scanner_v1_scanner_proto_enumTypes[11]
+}
+
+func (x ConventionalMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConventionalMode.Descriptor instead.
+func (ConventionalMode) EnumDescriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{11}
+}
+
+// ConventionalCategory is where a conventional channel comes from.
+type ConventionalCategory int32
+
+const (
+	ConventionalCategory_CONVENTIONAL_CATEGORY_UNSPECIFIED ConventionalCategory = 0
+	// CONVENTIONAL_CATEGORY_CONVENTIONAL is a state or local land mobile
+	// channel.
+	ConventionalCategory_CONVENTIONAL_CATEGORY_CONVENTIONAL ConventionalCategory = 1
+	// CONVENTIONAL_CATEGORY_AVIATION is an airport, ARTCC or national
+	// aviation frequency.
+	ConventionalCategory_CONVENTIONAL_CATEGORY_AVIATION ConventionalCategory = 2
+	// CONVENTIONAL_CATEGORY_INTEROP is a national interoperability channel.
+	ConventionalCategory_CONVENTIONAL_CATEGORY_INTEROP ConventionalCategory = 3
+	// CONVENTIONAL_CATEGORY_WEATHER is a NOAA Weather Radio transmitter.
+	ConventionalCategory_CONVENTIONAL_CATEGORY_WEATHER ConventionalCategory = 4
+)
+
+// Enum value maps for ConventionalCategory.
+var (
+	ConventionalCategory_name = map[int32]string{
+		0: "CONVENTIONAL_CATEGORY_UNSPECIFIED",
+		1: "CONVENTIONAL_CATEGORY_CONVENTIONAL",
+		2: "CONVENTIONAL_CATEGORY_AVIATION",
+		3: "CONVENTIONAL_CATEGORY_INTEROP",
+		4: "CONVENTIONAL_CATEGORY_WEATHER",
+	}
+	ConventionalCategory_value = map[string]int32{
+		"CONVENTIONAL_CATEGORY_UNSPECIFIED":  0,
+		"CONVENTIONAL_CATEGORY_CONVENTIONAL": 1,
+		"CONVENTIONAL_CATEGORY_AVIATION":     2,
+		"CONVENTIONAL_CATEGORY_INTEROP":      3,
+		"CONVENTIONAL_CATEGORY_WEATHER":      4,
+	}
+)
+
+func (x ConventionalCategory) Enum() *ConventionalCategory {
+	p := new(ConventionalCategory)
+	*p = x
+	return p
+}
+
+func (x ConventionalCategory) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConventionalCategory) Descriptor() protoreflect.EnumDescriptor {
+	return file_openmanet_scanner_v1_scanner_proto_enumTypes[12].Descriptor()
+}
+
+func (ConventionalCategory) Type() protoreflect.EnumType {
+	return &file_openmanet_scanner_v1_scanner_proto_enumTypes[12]
+}
+
+func (x ConventionalCategory) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConventionalCategory.Descriptor instead.
+func (ConventionalCategory) EnumDescriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{12}
+}
+
+// ConventionalScanState is the conventional scanner state.
+type ConventionalScanState int32
+
+const (
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_UNSPECIFIED ConventionalScanState = 0
+	// CONVENTIONAL_SCAN_STATE_UNAVAILABLE: no conventional scanner on this
+	// node, or rtl_sdr is not installed.
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_UNAVAILABLE ConventionalScanState = 1
+	// CONVENTIONAL_SCAN_STATE_IDLE: nothing to scan (scanner disabled, no
+	// scan receiver serial, or no channels selected).
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_IDLE ConventionalScanState = 2
+	// CONVENTIONAL_SCAN_STATE_RECEIVER_BUSY: the scan RTL-SDR decodes the
+	// P25 control channel because no wide receiver is configured.
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_RECEIVER_BUSY ConventionalScanState = 3
+	// CONVENTIONAL_SCAN_STATE_SCANNING: stepping through capture windows.
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_SCANNING ConventionalScanState = 4
+	// CONVENTIONAL_SCAN_STATE_HOLDING: a squelch is open (or closed within
+	// the hold time) and the scan stays on its window.
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_HOLDING ConventionalScanState = 5
+	// CONVENTIONAL_SCAN_STATE_ERROR: the capture failed; it is retried.
+	ConventionalScanState_CONVENTIONAL_SCAN_STATE_ERROR ConventionalScanState = 6
+)
+
+// Enum value maps for ConventionalScanState.
+var (
+	ConventionalScanState_name = map[int32]string{
+		0: "CONVENTIONAL_SCAN_STATE_UNSPECIFIED",
+		1: "CONVENTIONAL_SCAN_STATE_UNAVAILABLE",
+		2: "CONVENTIONAL_SCAN_STATE_IDLE",
+		3: "CONVENTIONAL_SCAN_STATE_RECEIVER_BUSY",
+		4: "CONVENTIONAL_SCAN_STATE_SCANNING",
+		5: "CONVENTIONAL_SCAN_STATE_HOLDING",
+		6: "CONVENTIONAL_SCAN_STATE_ERROR",
+	}
+	ConventionalScanState_value = map[string]int32{
+		"CONVENTIONAL_SCAN_STATE_UNSPECIFIED":   0,
+		"CONVENTIONAL_SCAN_STATE_UNAVAILABLE":   1,
+		"CONVENTIONAL_SCAN_STATE_IDLE":          2,
+		"CONVENTIONAL_SCAN_STATE_RECEIVER_BUSY": 3,
+		"CONVENTIONAL_SCAN_STATE_SCANNING":      4,
+		"CONVENTIONAL_SCAN_STATE_HOLDING":       5,
+		"CONVENTIONAL_SCAN_STATE_ERROR":         6,
+	}
+)
+
+func (x ConventionalScanState) Enum() *ConventionalScanState {
+	p := new(ConventionalScanState)
+	*p = x
+	return p
+}
+
+func (x ConventionalScanState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ConventionalScanState) Descriptor() protoreflect.EnumDescriptor {
+	return file_openmanet_scanner_v1_scanner_proto_enumTypes[13].Descriptor()
+}
+
+func (ConventionalScanState) Type() protoreflect.EnumType {
+	return &file_openmanet_scanner_v1_scanner_proto_enumTypes[13]
+}
+
+func (x ConventionalScanState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ConventionalScanState.Descriptor instead.
+func (ConventionalScanState) EnumDescriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{13}
+}
+
+// AudioEncoding is the payload format of StreamAudioResponse.data.
+type AudioEncoding int32
+
+const (
+	AudioEncoding_AUDIO_ENCODING_UNSPECIFIED AudioEncoding = 0
+	// AUDIO_ENCODING_PCM_S16LE is 8 kHz mono signed 16-bit little-endian
+	// PCM, 160 samples (320 bytes, 20 ms) per message.
+	AudioEncoding_AUDIO_ENCODING_PCM_S16LE AudioEncoding = 1
+	// AUDIO_ENCODING_OPUS is one 20 ms 8 kHz mono Opus packet per message,
+	// as CommsService.StreamAudioRx carries mesh audio.
+	AudioEncoding_AUDIO_ENCODING_OPUS AudioEncoding = 2
+)
+
+// Enum value maps for AudioEncoding.
+var (
+	AudioEncoding_name = map[int32]string{
+		0: "AUDIO_ENCODING_UNSPECIFIED",
+		1: "AUDIO_ENCODING_PCM_S16LE",
+		2: "AUDIO_ENCODING_OPUS",
+	}
+	AudioEncoding_value = map[string]int32{
+		"AUDIO_ENCODING_UNSPECIFIED": 0,
+		"AUDIO_ENCODING_PCM_S16LE":   1,
+		"AUDIO_ENCODING_OPUS":        2,
+	}
+)
+
+func (x AudioEncoding) Enum() *AudioEncoding {
+	p := new(AudioEncoding)
+	*p = x
+	return p
+}
+
+func (x AudioEncoding) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AudioEncoding) Descriptor() protoreflect.EnumDescriptor {
+	return file_openmanet_scanner_v1_scanner_proto_enumTypes[14].Descriptor()
+}
+
+func (AudioEncoding) Type() protoreflect.EnumType {
+	return &file_openmanet_scanner_v1_scanner_proto_enumTypes[14]
+}
+
+func (x AudioEncoding) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AudioEncoding.Descriptor instead.
+func (AudioEncoding) EnumDescriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{14}
+}
+
 // Receiver is one claimed or detected receiver.
 type Receiver struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1904,6 +2145,269 @@ func (x *ScannerConfig) GetDecodeStaleAfter() *durationpb.Duration {
 	return nil
 }
 
+// ConventionalScanStatus is the conventional scanner's state and the
+// capture in progress.
+type ConventionalScanStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// state is the scanner state.
+	State ConventionalScanState `protobuf:"varint,1,opt,name=state,proto3,enum=openmanet.scanner.v1.ConventionalScanState" json:"state,omitempty"`
+	// detail explains an idle, busy, unavailable or error state.
+	Detail string `protobuf:"bytes,2,opt,name=detail,proto3" json:"detail,omitempty"`
+	// center_hz is the scan RTL-SDR's current center frequency; 0 when not
+	// capturing.
+	CenterHz uint64 `protobuf:"varint,3,opt,name=center_hz,json=centerHz,proto3" json:"center_hz,omitempty"`
+	// window is the 1-based capture window being received; 0 when none.
+	Window uint32 `protobuf:"varint,4,opt,name=window,proto3" json:"window,omitempty"`
+	// windows is how many capture windows the channel list was packed into.
+	Windows uint32 `protobuf:"varint,5,opt,name=windows,proto3" json:"windows,omitempty"`
+	// sample_rate is the capture rate in samples per second.
+	SampleRate    uint32 `protobuf:"varint,6,opt,name=sample_rate,json=sampleRate,proto3" json:"sample_rate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConventionalScanStatus) Reset() {
+	*x = ConventionalScanStatus{}
+	mi := &file_openmanet_scanner_v1_scanner_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConventionalScanStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConventionalScanStatus) ProtoMessage() {}
+
+func (x *ConventionalScanStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConventionalScanStatus.ProtoReflect.Descriptor instead.
+func (*ConventionalScanStatus) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ConventionalScanStatus) GetState() ConventionalScanState {
+	if x != nil {
+		return x.State
+	}
+	return ConventionalScanState_CONVENTIONAL_SCAN_STATE_UNSPECIFIED
+}
+
+func (x *ConventionalScanStatus) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *ConventionalScanStatus) GetCenterHz() uint64 {
+	if x != nil {
+		return x.CenterHz
+	}
+	return 0
+}
+
+func (x *ConventionalScanStatus) GetWindow() uint32 {
+	if x != nil {
+		return x.Window
+	}
+	return 0
+}
+
+func (x *ConventionalScanStatus) GetWindows() uint32 {
+	if x != nil {
+		return x.Windows
+	}
+	return 0
+}
+
+func (x *ConventionalScanStatus) GetSampleRate() uint32 {
+	if x != nil {
+		return x.SampleRate
+	}
+	return 0
+}
+
+// ConventionalChannel is one analog channel on the conventional scan
+// list with its live state.
+type ConventionalChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// key identifies the channel (StreamAudioRequest.channel_key).
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// label is the channel name and use from the frequency research.
+	Label string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	// frequency_hz is the receive frequency.
+	FrequencyHz uint64 `protobuf:"varint,3,opt,name=frequency_hz,json=frequencyHz,proto3" json:"frequency_hz,omitempty"`
+	// mode is the demodulation used.
+	Mode ConventionalMode `protobuf:"varint,4,opt,name=mode,proto3,enum=openmanet.scanner.v1.ConventionalMode" json:"mode,omitempty"`
+	// category is the channel's source category.
+	Category ConventionalCategory `protobuf:"varint,5,opt,name=category,proto3,enum=openmanet.scanner.v1.ConventionalCategory" json:"category,omitempty"`
+	// state is the two-letter state, or "US" for nationwide channels.
+	State string `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
+	// latitude and longitude are set for channels with a location (airport,
+	// ARTCC site, weather transmitter).
+	Latitude *float64 `protobuf:"fixed64,7,opt,name=latitude,proto3,oneof" json:"latitude,omitempty"`
+	// longitude of the channel's location.
+	Longitude *float64 `protobuf:"fixed64,8,opt,name=longitude,proto3,oneof" json:"longitude,omitempty"`
+	// distance_km from the reference position; unset for channels without
+	// a location.
+	DistanceKm *float64 `protobuf:"fixed64,9,opt,name=distance_km,json=distanceKm,proto3,oneof" json:"distance_km,omitempty"`
+	// always_on is true for nationwide channels, which are scanned wherever
+	// the node is.
+	AlwaysOn bool `protobuf:"varint,10,opt,name=always_on,json=alwaysOn,proto3" json:"always_on,omitempty"`
+	// window is the 1-based capture window holding the channel; 0 when it
+	// fits no window and is listed but not scanned.
+	Window uint32 `protobuf:"varint,11,opt,name=window,proto3" json:"window,omitempty"`
+	// active is true while the channel's squelch is open.
+	Active bool `protobuf:"varint,12,opt,name=active,proto3" json:"active,omitempty"`
+	// last_heard_time is when the squelch was last open; unset when never.
+	LastHeardTime *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=last_heard_time,json=lastHeardTime,proto3" json:"last_heard_time,omitempty"`
+	// level is the last squelch metric: for NFM the noise RMS relative to
+	// peak deviation (lower is a stronger signal), for AM the carrier level
+	// in dBFS.
+	Level         float64 `protobuf:"fixed64,14,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConventionalChannel) Reset() {
+	*x = ConventionalChannel{}
+	mi := &file_openmanet_scanner_v1_scanner_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConventionalChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConventionalChannel) ProtoMessage() {}
+
+func (x *ConventionalChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConventionalChannel.ProtoReflect.Descriptor instead.
+func (*ConventionalChannel) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ConventionalChannel) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ConventionalChannel) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ConventionalChannel) GetFrequencyHz() uint64 {
+	if x != nil {
+		return x.FrequencyHz
+	}
+	return 0
+}
+
+func (x *ConventionalChannel) GetMode() ConventionalMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ConventionalMode_CONVENTIONAL_MODE_UNSPECIFIED
+}
+
+func (x *ConventionalChannel) GetCategory() ConventionalCategory {
+	if x != nil {
+		return x.Category
+	}
+	return ConventionalCategory_CONVENTIONAL_CATEGORY_UNSPECIFIED
+}
+
+func (x *ConventionalChannel) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *ConventionalChannel) GetLatitude() float64 {
+	if x != nil && x.Latitude != nil {
+		return *x.Latitude
+	}
+	return 0
+}
+
+func (x *ConventionalChannel) GetLongitude() float64 {
+	if x != nil && x.Longitude != nil {
+		return *x.Longitude
+	}
+	return 0
+}
+
+func (x *ConventionalChannel) GetDistanceKm() float64 {
+	if x != nil && x.DistanceKm != nil {
+		return *x.DistanceKm
+	}
+	return 0
+}
+
+func (x *ConventionalChannel) GetAlwaysOn() bool {
+	if x != nil {
+		return x.AlwaysOn
+	}
+	return false
+}
+
+func (x *ConventionalChannel) GetWindow() uint32 {
+	if x != nil {
+		return x.Window
+	}
+	return 0
+}
+
+func (x *ConventionalChannel) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *ConventionalChannel) GetLastHeardTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastHeardTime
+	}
+	return nil
+}
+
+func (x *ConventionalChannel) GetLevel() float64 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
 var File_openmanet_scanner_v1_scanner_proto protoreflect.FileDescriptor
 
 const file_openmanet_scanner_v1_scanner_proto_rawDesc = "" +
@@ -2036,7 +2540,36 @@ const file_openmanet_scanner_v1_scanner_proto_rawDesc = "" +
 	"\x14position_stale_after\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\x0f\xbaH\f\xaa\x01\t\"\x03\b\x90\x1c2\x02\b\x05R\x12positionStaleAfter\x12\\\n" +
 	"\x14aircraft_stale_after\x18\a \x01(\v2\x19.google.protobuf.DurationB\x0f\xbaH\f\xaa\x01\t\"\x03\b\xd8\x042\x02\b\x05R\x12aircraftStaleAfter\x12X\n" +
 	"\x12decode_stale_after\x18\b \x01(\v2\x19.google.protobuf.DurationB\x0f\xbaH\f\xaa\x01\t\"\x03\b\xd8\x042\x02\b\x01R\x10decodeStaleAfter:{\xbaHx\x1av\n" +
-	"\x1ascanner_config.manual_site\x12*manual_site_key is required in manual mode\x1a,this.mode != 2 || this.manual_site_key != ''*\xb3\x01\n" +
+	"\x1ascanner_config.manual_site\x12*manual_site_key is required in manual mode\x1a,this.mode != 2 || this.manual_site_key != ''\"\xe3\x01\n" +
+	"\x16ConventionalScanStatus\x12A\n" +
+	"\x05state\x18\x01 \x01(\x0e2+.openmanet.scanner.v1.ConventionalScanStateR\x05state\x12\x16\n" +
+	"\x06detail\x18\x02 \x01(\tR\x06detail\x12\x1b\n" +
+	"\tcenter_hz\x18\x03 \x01(\x04R\bcenterHz\x12\x16\n" +
+	"\x06window\x18\x04 \x01(\rR\x06window\x12\x18\n" +
+	"\awindows\x18\x05 \x01(\rR\awindows\x12\x1f\n" +
+	"\vsample_rate\x18\x06 \x01(\rR\n" +
+	"sampleRate\"\xb6\x04\n" +
+	"\x13ConventionalChannel\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12!\n" +
+	"\ffrequency_hz\x18\x03 \x01(\x04R\vfrequencyHz\x12:\n" +
+	"\x04mode\x18\x04 \x01(\x0e2&.openmanet.scanner.v1.ConventionalModeR\x04mode\x12F\n" +
+	"\bcategory\x18\x05 \x01(\x0e2*.openmanet.scanner.v1.ConventionalCategoryR\bcategory\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\tR\x05state\x12\x1f\n" +
+	"\blatitude\x18\a \x01(\x01H\x00R\blatitude\x88\x01\x01\x12!\n" +
+	"\tlongitude\x18\b \x01(\x01H\x01R\tlongitude\x88\x01\x01\x12$\n" +
+	"\vdistance_km\x18\t \x01(\x01H\x02R\n" +
+	"distanceKm\x88\x01\x01\x12\x1b\n" +
+	"\talways_on\x18\n" +
+	" \x01(\bR\balwaysOn\x12\x16\n" +
+	"\x06window\x18\v \x01(\rR\x06window\x12\x16\n" +
+	"\x06active\x18\f \x01(\bR\x06active\x12B\n" +
+	"\x0flast_heard_time\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\rlastHeardTime\x12\x14\n" +
+	"\x05level\x18\x0e \x01(\x01R\x05levelB\v\n" +
+	"\t_latitudeB\f\n" +
+	"\n" +
+	"_longitudeB\x0e\n" +
+	"\f_distance_km*\xb3\x01\n" +
 	"\fReceiverRole\x12\x1d\n" +
 	"\x19RECEIVER_ROLE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17RECEIVER_ROLE_ADSB_1090\x10\x01\x12\x19\n" +
@@ -2097,7 +2630,29 @@ const file_openmanet_scanner_v1_scanner_proto_rawDesc = "" +
 	"\x1bAIRCRAFT_SOURCE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19AIRCRAFT_SOURCE_ADSB_1090\x10\x01\x12\x1b\n" +
 	"\x17AIRCRAFT_SOURCE_UAT_978\x10\x02\x12\x18\n" +
-	"\x14AIRCRAFT_SOURCE_BOTH\x10\x03B\xe7\x01\n" +
+	"\x14AIRCRAFT_SOURCE_BOTH\x10\x03*j\n" +
+	"\x10ConventionalMode\x12!\n" +
+	"\x1dCONVENTIONAL_MODE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15CONVENTIONAL_MODE_NFM\x10\x01\x12\x18\n" +
+	"\x14CONVENTIONAL_MODE_AM\x10\x02*\xcf\x01\n" +
+	"\x14ConventionalCategory\x12%\n" +
+	"!CONVENTIONAL_CATEGORY_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"CONVENTIONAL_CATEGORY_CONVENTIONAL\x10\x01\x12\"\n" +
+	"\x1eCONVENTIONAL_CATEGORY_AVIATION\x10\x02\x12!\n" +
+	"\x1dCONVENTIONAL_CATEGORY_INTEROP\x10\x03\x12!\n" +
+	"\x1dCONVENTIONAL_CATEGORY_WEATHER\x10\x04*\xa4\x02\n" +
+	"\x15ConventionalScanState\x12'\n" +
+	"#CONVENTIONAL_SCAN_STATE_UNSPECIFIED\x10\x00\x12'\n" +
+	"#CONVENTIONAL_SCAN_STATE_UNAVAILABLE\x10\x01\x12 \n" +
+	"\x1cCONVENTIONAL_SCAN_STATE_IDLE\x10\x02\x12)\n" +
+	"%CONVENTIONAL_SCAN_STATE_RECEIVER_BUSY\x10\x03\x12$\n" +
+	" CONVENTIONAL_SCAN_STATE_SCANNING\x10\x04\x12#\n" +
+	"\x1fCONVENTIONAL_SCAN_STATE_HOLDING\x10\x05\x12!\n" +
+	"\x1dCONVENTIONAL_SCAN_STATE_ERROR\x10\x06*f\n" +
+	"\rAudioEncoding\x12\x1e\n" +
+	"\x1aAUDIO_ENCODING_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18AUDIO_ENCODING_PCM_S16LE\x10\x01\x12\x17\n" +
+	"\x13AUDIO_ENCODING_OPUS\x10\x02B\xe7\x01\n" +
 	"\x18com.openmanet.scanner.v1B\fScannerProtoP\x01ZKgithub.com/openmanet/openmanetd/internal/api/openmanet/scanner/v1;scannerv1\xa2\x02\x03OSX\xaa\x02\x14Openmanet.Scanner.V1\xca\x02\x14Openmanet\\Scanner\\V1\xe2\x02 Openmanet\\Scanner\\V1\\GPBMetadata\xea\x02\x16Openmanet::Scanner::V1b\x06proto3"
 
 var (
@@ -2112,65 +2667,75 @@ func file_openmanet_scanner_v1_scanner_proto_rawDescGZIP() []byte {
 	return file_openmanet_scanner_v1_scanner_proto_rawDescData
 }
 
-var file_openmanet_scanner_v1_scanner_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
-var file_openmanet_scanner_v1_scanner_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_openmanet_scanner_v1_scanner_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
+var file_openmanet_scanner_v1_scanner_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_openmanet_scanner_v1_scanner_proto_goTypes = []any{
-	(ReceiverRole)(0),             // 0: openmanet.scanner.v1.ReceiverRole
-	(ReceiverState)(0),            // 1: openmanet.scanner.v1.ReceiverState
-	(ReceiverHardware)(0),         // 2: openmanet.scanner.v1.ReceiverHardware
-	(PositionSource)(0),           // 3: openmanet.scanner.v1.PositionSource
-	(SiteEncryption)(0),           // 4: openmanet.scanner.v1.SiteEncryption
-	(SiteBand)(0),                 // 5: openmanet.scanner.v1.SiteBand
-	(P25Phase)(0),                 // 6: openmanet.scanner.v1.P25Phase
-	(SiteSelectionMode)(0),        // 7: openmanet.scanner.v1.SiteSelectionMode
-	(SiteSelectionReason)(0),      // 8: openmanet.scanner.v1.SiteSelectionReason
-	(ControlChannelState)(0),      // 9: openmanet.scanner.v1.ControlChannelState
-	(AircraftSource)(0),           // 10: openmanet.scanner.v1.AircraftSource
-	(*Receiver)(nil),              // 11: openmanet.scanner.v1.Receiver
-	(*Position)(nil),              // 12: openmanet.scanner.v1.Position
-	(*Site)(nil),                  // 13: openmanet.scanner.v1.Site
-	(*TunerPlan)(nil),             // 14: openmanet.scanner.v1.TunerPlan
-	(*SelectedSite)(nil),          // 15: openmanet.scanner.v1.SelectedSite
-	(*ControlChannelStatus)(nil),  // 16: openmanet.scanner.v1.ControlChannelStatus
-	(*Aircraft)(nil),              // 17: openmanet.scanner.v1.Aircraft
-	(*AircraftFeed)(nil),          // 18: openmanet.scanner.v1.AircraftFeed
-	(*VoiceGrant)(nil),            // 19: openmanet.scanner.v1.VoiceGrant
-	(*ScannerConfig)(nil),         // 20: openmanet.scanner.v1.ScannerConfig
-	(*timestamppb.Timestamp)(nil), // 21: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),   // 22: google.protobuf.Duration
+	(ReceiverRole)(0),              // 0: openmanet.scanner.v1.ReceiverRole
+	(ReceiverState)(0),             // 1: openmanet.scanner.v1.ReceiverState
+	(ReceiverHardware)(0),          // 2: openmanet.scanner.v1.ReceiverHardware
+	(PositionSource)(0),            // 3: openmanet.scanner.v1.PositionSource
+	(SiteEncryption)(0),            // 4: openmanet.scanner.v1.SiteEncryption
+	(SiteBand)(0),                  // 5: openmanet.scanner.v1.SiteBand
+	(P25Phase)(0),                  // 6: openmanet.scanner.v1.P25Phase
+	(SiteSelectionMode)(0),         // 7: openmanet.scanner.v1.SiteSelectionMode
+	(SiteSelectionReason)(0),       // 8: openmanet.scanner.v1.SiteSelectionReason
+	(ControlChannelState)(0),       // 9: openmanet.scanner.v1.ControlChannelState
+	(AircraftSource)(0),            // 10: openmanet.scanner.v1.AircraftSource
+	(ConventionalMode)(0),          // 11: openmanet.scanner.v1.ConventionalMode
+	(ConventionalCategory)(0),      // 12: openmanet.scanner.v1.ConventionalCategory
+	(ConventionalScanState)(0),     // 13: openmanet.scanner.v1.ConventionalScanState
+	(AudioEncoding)(0),             // 14: openmanet.scanner.v1.AudioEncoding
+	(*Receiver)(nil),               // 15: openmanet.scanner.v1.Receiver
+	(*Position)(nil),               // 16: openmanet.scanner.v1.Position
+	(*Site)(nil),                   // 17: openmanet.scanner.v1.Site
+	(*TunerPlan)(nil),              // 18: openmanet.scanner.v1.TunerPlan
+	(*SelectedSite)(nil),           // 19: openmanet.scanner.v1.SelectedSite
+	(*ControlChannelStatus)(nil),   // 20: openmanet.scanner.v1.ControlChannelStatus
+	(*Aircraft)(nil),               // 21: openmanet.scanner.v1.Aircraft
+	(*AircraftFeed)(nil),           // 22: openmanet.scanner.v1.AircraftFeed
+	(*VoiceGrant)(nil),             // 23: openmanet.scanner.v1.VoiceGrant
+	(*ScannerConfig)(nil),          // 24: openmanet.scanner.v1.ScannerConfig
+	(*ConventionalScanStatus)(nil), // 25: openmanet.scanner.v1.ConventionalScanStatus
+	(*ConventionalChannel)(nil),    // 26: openmanet.scanner.v1.ConventionalChannel
+	(*timestamppb.Timestamp)(nil),  // 27: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),    // 28: google.protobuf.Duration
 }
 var file_openmanet_scanner_v1_scanner_proto_depIdxs = []int32{
 	0,  // 0: openmanet.scanner.v1.Receiver.role:type_name -> openmanet.scanner.v1.ReceiverRole
 	2,  // 1: openmanet.scanner.v1.Receiver.hardware:type_name -> openmanet.scanner.v1.ReceiverHardware
 	1,  // 2: openmanet.scanner.v1.Receiver.state:type_name -> openmanet.scanner.v1.ReceiverState
-	21, // 3: openmanet.scanner.v1.Receiver.last_sample_time:type_name -> google.protobuf.Timestamp
+	27, // 3: openmanet.scanner.v1.Receiver.last_sample_time:type_name -> google.protobuf.Timestamp
 	3,  // 4: openmanet.scanner.v1.Position.source:type_name -> openmanet.scanner.v1.PositionSource
-	21, // 5: openmanet.scanner.v1.Position.fix_time:type_name -> google.protobuf.Timestamp
+	27, // 5: openmanet.scanner.v1.Position.fix_time:type_name -> google.protobuf.Timestamp
 	5,  // 6: openmanet.scanner.v1.Site.band:type_name -> openmanet.scanner.v1.SiteBand
 	6,  // 7: openmanet.scanner.v1.Site.phase:type_name -> openmanet.scanner.v1.P25Phase
 	4,  // 8: openmanet.scanner.v1.Site.encryption:type_name -> openmanet.scanner.v1.SiteEncryption
-	13, // 9: openmanet.scanner.v1.SelectedSite.site:type_name -> openmanet.scanner.v1.Site
+	17, // 9: openmanet.scanner.v1.SelectedSite.site:type_name -> openmanet.scanner.v1.Site
 	7,  // 10: openmanet.scanner.v1.SelectedSite.mode:type_name -> openmanet.scanner.v1.SiteSelectionMode
 	8,  // 11: openmanet.scanner.v1.SelectedSite.reason:type_name -> openmanet.scanner.v1.SiteSelectionReason
-	14, // 12: openmanet.scanner.v1.SelectedSite.wide_tuner:type_name -> openmanet.scanner.v1.TunerPlan
-	21, // 13: openmanet.scanner.v1.SelectedSite.selected_at:type_name -> google.protobuf.Timestamp
+	18, // 12: openmanet.scanner.v1.SelectedSite.wide_tuner:type_name -> openmanet.scanner.v1.TunerPlan
+	27, // 13: openmanet.scanner.v1.SelectedSite.selected_at:type_name -> google.protobuf.Timestamp
 	9,  // 14: openmanet.scanner.v1.ControlChannelStatus.state:type_name -> openmanet.scanner.v1.ControlChannelState
-	21, // 15: openmanet.scanner.v1.ControlChannelStatus.last_decode_time:type_name -> google.protobuf.Timestamp
+	27, // 15: openmanet.scanner.v1.ControlChannelStatus.last_decode_time:type_name -> google.protobuf.Timestamp
 	10, // 16: openmanet.scanner.v1.Aircraft.source:type_name -> openmanet.scanner.v1.AircraftSource
-	21, // 17: openmanet.scanner.v1.Aircraft.last_seen:type_name -> google.protobuf.Timestamp
+	27, // 17: openmanet.scanner.v1.Aircraft.last_seen:type_name -> google.protobuf.Timestamp
 	10, // 18: openmanet.scanner.v1.AircraftFeed.source:type_name -> openmanet.scanner.v1.AircraftSource
-	21, // 19: openmanet.scanner.v1.AircraftFeed.last_update:type_name -> google.protobuf.Timestamp
-	21, // 20: openmanet.scanner.v1.VoiceGrant.start_time:type_name -> google.protobuf.Timestamp
-	21, // 21: openmanet.scanner.v1.VoiceGrant.last_time:type_name -> google.protobuf.Timestamp
+	27, // 19: openmanet.scanner.v1.AircraftFeed.last_update:type_name -> google.protobuf.Timestamp
+	27, // 20: openmanet.scanner.v1.VoiceGrant.start_time:type_name -> google.protobuf.Timestamp
+	27, // 21: openmanet.scanner.v1.VoiceGrant.last_time:type_name -> google.protobuf.Timestamp
 	7,  // 22: openmanet.scanner.v1.ScannerConfig.mode:type_name -> openmanet.scanner.v1.SiteSelectionMode
-	22, // 23: openmanet.scanner.v1.ScannerConfig.position_stale_after:type_name -> google.protobuf.Duration
-	22, // 24: openmanet.scanner.v1.ScannerConfig.aircraft_stale_after:type_name -> google.protobuf.Duration
-	22, // 25: openmanet.scanner.v1.ScannerConfig.decode_stale_after:type_name -> google.protobuf.Duration
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	28, // 23: openmanet.scanner.v1.ScannerConfig.position_stale_after:type_name -> google.protobuf.Duration
+	28, // 24: openmanet.scanner.v1.ScannerConfig.aircraft_stale_after:type_name -> google.protobuf.Duration
+	28, // 25: openmanet.scanner.v1.ScannerConfig.decode_stale_after:type_name -> google.protobuf.Duration
+	13, // 26: openmanet.scanner.v1.ConventionalScanStatus.state:type_name -> openmanet.scanner.v1.ConventionalScanState
+	11, // 27: openmanet.scanner.v1.ConventionalChannel.mode:type_name -> openmanet.scanner.v1.ConventionalMode
+	12, // 28: openmanet.scanner.v1.ConventionalChannel.category:type_name -> openmanet.scanner.v1.ConventionalCategory
+	27, // 29: openmanet.scanner.v1.ConventionalChannel.last_heard_time:type_name -> google.protobuf.Timestamp
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_openmanet_scanner_v1_scanner_proto_init() }
@@ -2179,13 +2744,14 @@ func file_openmanet_scanner_v1_scanner_proto_init() {
 		return
 	}
 	file_openmanet_scanner_v1_scanner_proto_msgTypes[6].OneofWrappers = []any{}
+	file_openmanet_scanner_v1_scanner_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openmanet_scanner_v1_scanner_proto_rawDesc), len(file_openmanet_scanner_v1_scanner_proto_rawDesc)),
-			NumEnums:      11,
-			NumMessages:   10,
+			NumEnums:      15,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

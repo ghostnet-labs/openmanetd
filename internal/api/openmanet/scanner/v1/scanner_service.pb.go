@@ -94,7 +94,9 @@ type GetScannerStatusResponse struct {
 	// the aircraft stale timeout.
 	AircraftStale bool `protobuf:"varint,11,opt,name=aircraft_stale,json=aircraftStale,proto3" json:"aircraft_stale,omitempty"`
 	// generated_at is when the status was assembled.
-	GeneratedAt   *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
+	GeneratedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
+	// conventional is the conventional (analog) scanner state.
+	Conventional  *ConventionalScanStatus `protobuf:"bytes,13,opt,name=conventional,proto3" json:"conventional,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -209,6 +211,13 @@ func (x *GetScannerStatusResponse) GetAircraftStale() bool {
 func (x *GetScannerStatusResponse) GetGeneratedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.GeneratedAt
+	}
+	return nil
+}
+
+func (x *GetScannerStatusResponse) GetConventional() *ConventionalScanStatus {
+	if x != nil {
+		return x.Conventional
 	}
 	return nil
 }
@@ -1046,12 +1055,309 @@ func (x *SetScannerConfigResponse) GetConfig() *ScannerConfig {
 	return nil
 }
 
+// ListConventionalChannelsRequest is reserved for future options.
+type ListConventionalChannelsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConventionalChannelsRequest) Reset() {
+	*x = ListConventionalChannelsRequest{}
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConventionalChannelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConventionalChannelsRequest) ProtoMessage() {}
+
+func (x *ListConventionalChannelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConventionalChannelsRequest.ProtoReflect.Descriptor instead.
+func (*ListConventionalChannelsRequest) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_service_proto_rawDescGZIP(), []int{16}
+}
+
+// ListConventionalChannelsResponse carries the conventional scan list.
+type ListConventionalChannelsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// enabled is false when the scanner manager is not running.
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// status is the conventional scanner state.
+	Status *ConventionalScanStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	// channels are sorted by frequency.
+	Channels []*ConventionalChannel `protobuf:"bytes,3,rep,name=channels,proto3" json:"channels,omitempty"`
+	// radius_km bounds the channels with a location.
+	RadiusKm float64 `protobuf:"fixed64,4,opt,name=radius_km,json=radiusKm,proto3" json:"radius_km,omitempty"`
+	// generated_at is when the list was assembled.
+	GeneratedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConventionalChannelsResponse) Reset() {
+	*x = ListConventionalChannelsResponse{}
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConventionalChannelsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConventionalChannelsResponse) ProtoMessage() {}
+
+func (x *ListConventionalChannelsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConventionalChannelsResponse.ProtoReflect.Descriptor instead.
+func (*ListConventionalChannelsResponse) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_service_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListConventionalChannelsResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *ListConventionalChannelsResponse) GetStatus() *ConventionalScanStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+func (x *ListConventionalChannelsResponse) GetChannels() []*ConventionalChannel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
+func (x *ListConventionalChannelsResponse) GetRadiusKm() float64 {
+	if x != nil {
+		return x.RadiusKm
+	}
+	return 0
+}
+
+func (x *ListConventionalChannelsResponse) GetGeneratedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.GeneratedAt
+	}
+	return nil
+}
+
+// StreamAudioRequest selects the audio to stream.
+type StreamAudioRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// channel_key limits the stream to one channel (ConventionalChannel.key)
+	// and pins the scan to it; empty streams every channel as the scan
+	// finds activity.
+	ChannelKey string `protobuf:"bytes,1,opt,name=channel_key,json=channelKey,proto3" json:"channel_key,omitempty"`
+	// encoding is the requested payload format; unset means PCM. A server
+	// without an Opus encoder answers with PCM (see the response encoding).
+	Encoding      AudioEncoding `protobuf:"varint,2,opt,name=encoding,proto3,enum=openmanet.scanner.v1.AudioEncoding" json:"encoding,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamAudioRequest) Reset() {
+	*x = StreamAudioRequest{}
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamAudioRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamAudioRequest) ProtoMessage() {}
+
+func (x *StreamAudioRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamAudioRequest.ProtoReflect.Descriptor instead.
+func (*StreamAudioRequest) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_service_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *StreamAudioRequest) GetChannelKey() string {
+	if x != nil {
+		return x.ChannelKey
+	}
+	return ""
+}
+
+func (x *StreamAudioRequest) GetEncoding() AudioEncoding {
+	if x != nil {
+		return x.Encoding
+	}
+	return AudioEncoding_AUDIO_ENCODING_UNSPECIFIED
+}
+
+// StreamAudioResponse is one 20 ms audio frame.
+type StreamAudioResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// data is the frame payload in encoding; empty in the first message.
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// encoding is the payload format.
+	Encoding AudioEncoding `protobuf:"varint,2,opt,name=encoding,proto3,enum=openmanet.scanner.v1.AudioEncoding" json:"encoding,omitempty"`
+	// sample_rate is the audio rate in Hz (8000).
+	SampleRate uint32 `protobuf:"varint,3,opt,name=sample_rate,json=sampleRate,proto3" json:"sample_rate,omitempty"`
+	// sequence counts audio frames on this stream from 1 (0 in the first
+	// message); a gap means frames were dropped for a slow client.
+	Sequence uint32 `protobuf:"varint,4,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// channel_key is the channel the audio came from.
+	ChannelKey string `protobuf:"bytes,5,opt,name=channel_key,json=channelKey,proto3" json:"channel_key,omitempty"`
+	// frequency_hz is the channel frequency.
+	FrequencyHz uint64 `protobuf:"varint,6,opt,name=frequency_hz,json=frequencyHz,proto3" json:"frequency_hz,omitempty"`
+	// talkgroup is the P25 talkgroup of trunked voice; 0 for conventional
+	// channels.
+	Talkgroup uint32 `protobuf:"varint,7,opt,name=talkgroup,proto3" json:"talkgroup,omitempty"`
+	// time is when the frame was demodulated.
+	Time *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=time,proto3" json:"time,omitempty"`
+	// level is the squelch metric of the frame (see ConventionalChannel.level).
+	Level         float64 `protobuf:"fixed64,9,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamAudioResponse) Reset() {
+	*x = StreamAudioResponse{}
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamAudioResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamAudioResponse) ProtoMessage() {}
+
+func (x *StreamAudioResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openmanet_scanner_v1_scanner_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamAudioResponse.ProtoReflect.Descriptor instead.
+func (*StreamAudioResponse) Descriptor() ([]byte, []int) {
+	return file_openmanet_scanner_v1_scanner_service_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *StreamAudioResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *StreamAudioResponse) GetEncoding() AudioEncoding {
+	if x != nil {
+		return x.Encoding
+	}
+	return AudioEncoding_AUDIO_ENCODING_UNSPECIFIED
+}
+
+func (x *StreamAudioResponse) GetSampleRate() uint32 {
+	if x != nil {
+		return x.SampleRate
+	}
+	return 0
+}
+
+func (x *StreamAudioResponse) GetSequence() uint32 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *StreamAudioResponse) GetChannelKey() string {
+	if x != nil {
+		return x.ChannelKey
+	}
+	return ""
+}
+
+func (x *StreamAudioResponse) GetFrequencyHz() uint64 {
+	if x != nil {
+		return x.FrequencyHz
+	}
+	return 0
+}
+
+func (x *StreamAudioResponse) GetTalkgroup() uint32 {
+	if x != nil {
+		return x.Talkgroup
+	}
+	return 0
+}
+
+func (x *StreamAudioResponse) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+func (x *StreamAudioResponse) GetLevel() float64 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
 var File_openmanet_scanner_v1_scanner_service_proto protoreflect.FileDescriptor
 
 const file_openmanet_scanner_v1_scanner_service_proto_rawDesc = "" +
 	"\n" +
 	"*openmanet/scanner/v1/scanner_service.proto\x12\x14openmanet.scanner.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\"openmanet/scanner/v1/scanner.proto\"\x19\n" +
-	"\x17GetScannerStatusRequest\"\x9e\x05\n" +
+	"\x17GetScannerStatusRequest\"\xf0\x05\n" +
 	"\x18GetScannerStatusResponse\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
 	"\treceivers\x18\x02 \x03(\v2\x1e.openmanet.scanner.v1.ReceiverR\treceivers\x12:\n" +
@@ -1065,7 +1371,8 @@ const file_openmanet_scanner_v1_scanner_service_proto_rawDesc = "" +
 	"\fdecode_stale\x18\n" +
 	" \x01(\bR\vdecodeStale\x12%\n" +
 	"\x0eaircraft_stale\x18\v \x01(\bR\raircraftStale\x12=\n" +
-	"\fgenerated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\":\n" +
+	"\fgenerated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\x12P\n" +
+	"\fconventional\x18\r \x01(\v2,.openmanet.scanner.v1.ConventionalScanStatusR\fconventional\":\n" +
 	"\x13ListAircraftRequest\x12#\n" +
 	"\rinclude_stale\x18\x01 \x01(\bR\fincludeStale\"\xe5\x01\n" +
 	"\x14ListAircraftResponse\x12\x18\n" +
@@ -1116,7 +1423,30 @@ const file_openmanet_scanner_v1_scanner_service_proto_rawDesc = "" +
 	"\x17SetScannerConfigRequest\x12C\n" +
 	"\x06config\x18\x01 \x01(\v2#.openmanet.scanner.v1.ScannerConfigB\x06\xbaH\x03\xc8\x01\x01R\x06config\"W\n" +
 	"\x18SetScannerConfigResponse\x12;\n" +
-	"\x06config\x18\x01 \x01(\v2#.openmanet.scanner.v1.ScannerConfigR\x06config2\x9e\a\n" +
+	"\x06config\x18\x01 \x01(\v2#.openmanet.scanner.v1.ScannerConfigR\x06config\"!\n" +
+	"\x1fListConventionalChannelsRequest\"\xa5\x02\n" +
+	" ListConventionalChannelsResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12D\n" +
+	"\x06status\x18\x02 \x01(\v2,.openmanet.scanner.v1.ConventionalScanStatusR\x06status\x12E\n" +
+	"\bchannels\x18\x03 \x03(\v2).openmanet.scanner.v1.ConventionalChannelR\bchannels\x12\x1b\n" +
+	"\tradius_km\x18\x04 \x01(\x01R\bradiusKm\x12=\n" +
+	"\fgenerated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\"\x89\x01\n" +
+	"\x12StreamAudioRequest\x12(\n" +
+	"\vchannel_key\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x18 R\n" +
+	"channelKey\x12I\n" +
+	"\bencoding\x18\x02 \x01(\x0e2#.openmanet.scanner.v1.AudioEncodingB\b\xbaH\x05\x82\x01\x02\x10\x01R\bencoding\"\xcf\x02\n" +
+	"\x13StreamAudioResponse\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12?\n" +
+	"\bencoding\x18\x02 \x01(\x0e2#.openmanet.scanner.v1.AudioEncodingR\bencoding\x12\x1f\n" +
+	"\vsample_rate\x18\x03 \x01(\rR\n" +
+	"sampleRate\x12\x1a\n" +
+	"\bsequence\x18\x04 \x01(\rR\bsequence\x12\x1f\n" +
+	"\vchannel_key\x18\x05 \x01(\tR\n" +
+	"channelKey\x12!\n" +
+	"\ffrequency_hz\x18\x06 \x01(\x04R\vfrequencyHz\x12\x1c\n" +
+	"\ttalkgroup\x18\a \x01(\rR\ttalkgroup\x12.\n" +
+	"\x04time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x14\n" +
+	"\x05level\x18\t \x01(\x01R\x05level2\x90\t\n" +
 	"\x0eScannerService\x12q\n" +
 	"\x10GetScannerStatus\x12-.openmanet.scanner.v1.GetScannerStatusRequest\x1a..openmanet.scanner.v1.GetScannerStatusResponse\x12e\n" +
 	"\fListAircraft\x12).openmanet.scanner.v1.ListAircraftRequest\x1a*.openmanet.scanner.v1.ListAircraftResponse\x12m\n" +
@@ -1125,7 +1455,9 @@ const file_openmanet_scanner_v1_scanner_service_proto_rawDesc = "" +
 	"\x15ListTalkgroupActivity\x122.openmanet.scanner.v1.ListTalkgroupActivityRequest\x1a3.openmanet.scanner.v1.ListTalkgroupActivityResponse\x12|\n" +
 	"\x13StreamScannerEvents\x120.openmanet.scanner.v1.StreamScannerEventsRequest\x1a1.openmanet.scanner.v1.StreamScannerEventsResponse0\x01\x12q\n" +
 	"\x10GetScannerConfig\x12-.openmanet.scanner.v1.GetScannerConfigRequest\x1a..openmanet.scanner.v1.GetScannerConfigResponse\x12q\n" +
-	"\x10SetScannerConfig\x12-.openmanet.scanner.v1.SetScannerConfigRequest\x1a..openmanet.scanner.v1.SetScannerConfigResponseB\xee\x01\n" +
+	"\x10SetScannerConfig\x12-.openmanet.scanner.v1.SetScannerConfigRequest\x1a..openmanet.scanner.v1.SetScannerConfigResponse\x12\x89\x01\n" +
+	"\x18ListConventionalChannels\x125.openmanet.scanner.v1.ListConventionalChannelsRequest\x1a6.openmanet.scanner.v1.ListConventionalChannelsResponse\x12d\n" +
+	"\vStreamAudio\x12(.openmanet.scanner.v1.StreamAudioRequest\x1a).openmanet.scanner.v1.StreamAudioResponse0\x01B\xee\x01\n" +
 	"\x18com.openmanet.scanner.v1B\x13ScannerServiceProtoP\x01ZKgithub.com/openmanet/openmanetd/internal/api/openmanet/scanner/v1;scannerv1\xa2\x02\x03OSX\xaa\x02\x14Openmanet.Scanner.V1\xca\x02\x14Openmanet\\Scanner\\V1\xe2\x02 Openmanet\\Scanner\\V1\\GPBMetadata\xea\x02\x16Openmanet::Scanner::V1b\x06proto3"
 
 var (
@@ -1140,81 +1472,99 @@ func file_openmanet_scanner_v1_scanner_service_proto_rawDescGZIP() []byte {
 	return file_openmanet_scanner_v1_scanner_service_proto_rawDescData
 }
 
-var file_openmanet_scanner_v1_scanner_service_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_openmanet_scanner_v1_scanner_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_openmanet_scanner_v1_scanner_service_proto_goTypes = []any{
-	(*GetScannerStatusRequest)(nil),       // 0: openmanet.scanner.v1.GetScannerStatusRequest
-	(*GetScannerStatusResponse)(nil),      // 1: openmanet.scanner.v1.GetScannerStatusResponse
-	(*ListAircraftRequest)(nil),           // 2: openmanet.scanner.v1.ListAircraftRequest
-	(*ListAircraftResponse)(nil),          // 3: openmanet.scanner.v1.ListAircraftResponse
-	(*StreamAircraftRequest)(nil),         // 4: openmanet.scanner.v1.StreamAircraftRequest
-	(*StreamAircraftResponse)(nil),        // 5: openmanet.scanner.v1.StreamAircraftResponse
-	(*ListSitesRequest)(nil),              // 6: openmanet.scanner.v1.ListSitesRequest
-	(*ListSitesResponse)(nil),             // 7: openmanet.scanner.v1.ListSitesResponse
-	(*ListTalkgroupActivityRequest)(nil),  // 8: openmanet.scanner.v1.ListTalkgroupActivityRequest
-	(*ListTalkgroupActivityResponse)(nil), // 9: openmanet.scanner.v1.ListTalkgroupActivityResponse
-	(*StreamScannerEventsRequest)(nil),    // 10: openmanet.scanner.v1.StreamScannerEventsRequest
-	(*StreamScannerEventsResponse)(nil),   // 11: openmanet.scanner.v1.StreamScannerEventsResponse
-	(*GetScannerConfigRequest)(nil),       // 12: openmanet.scanner.v1.GetScannerConfigRequest
-	(*GetScannerConfigResponse)(nil),      // 13: openmanet.scanner.v1.GetScannerConfigResponse
-	(*SetScannerConfigRequest)(nil),       // 14: openmanet.scanner.v1.SetScannerConfigRequest
-	(*SetScannerConfigResponse)(nil),      // 15: openmanet.scanner.v1.SetScannerConfigResponse
-	(*Receiver)(nil),                      // 16: openmanet.scanner.v1.Receiver
-	(*Position)(nil),                      // 17: openmanet.scanner.v1.Position
-	(*SelectedSite)(nil),                  // 18: openmanet.scanner.v1.SelectedSite
-	(*ControlChannelStatus)(nil),          // 19: openmanet.scanner.v1.ControlChannelStatus
-	(*timestamppb.Timestamp)(nil),         // 20: google.protobuf.Timestamp
-	(*Aircraft)(nil),                      // 21: openmanet.scanner.v1.Aircraft
-	(*AircraftFeed)(nil),                  // 22: openmanet.scanner.v1.AircraftFeed
-	(*durationpb.Duration)(nil),           // 23: google.protobuf.Duration
-	(*Site)(nil),                          // 24: openmanet.scanner.v1.Site
-	(*VoiceGrant)(nil),                    // 25: openmanet.scanner.v1.VoiceGrant
-	(*ScannerConfig)(nil),                 // 26: openmanet.scanner.v1.ScannerConfig
+	(*GetScannerStatusRequest)(nil),          // 0: openmanet.scanner.v1.GetScannerStatusRequest
+	(*GetScannerStatusResponse)(nil),         // 1: openmanet.scanner.v1.GetScannerStatusResponse
+	(*ListAircraftRequest)(nil),              // 2: openmanet.scanner.v1.ListAircraftRequest
+	(*ListAircraftResponse)(nil),             // 3: openmanet.scanner.v1.ListAircraftResponse
+	(*StreamAircraftRequest)(nil),            // 4: openmanet.scanner.v1.StreamAircraftRequest
+	(*StreamAircraftResponse)(nil),           // 5: openmanet.scanner.v1.StreamAircraftResponse
+	(*ListSitesRequest)(nil),                 // 6: openmanet.scanner.v1.ListSitesRequest
+	(*ListSitesResponse)(nil),                // 7: openmanet.scanner.v1.ListSitesResponse
+	(*ListTalkgroupActivityRequest)(nil),     // 8: openmanet.scanner.v1.ListTalkgroupActivityRequest
+	(*ListTalkgroupActivityResponse)(nil),    // 9: openmanet.scanner.v1.ListTalkgroupActivityResponse
+	(*StreamScannerEventsRequest)(nil),       // 10: openmanet.scanner.v1.StreamScannerEventsRequest
+	(*StreamScannerEventsResponse)(nil),      // 11: openmanet.scanner.v1.StreamScannerEventsResponse
+	(*GetScannerConfigRequest)(nil),          // 12: openmanet.scanner.v1.GetScannerConfigRequest
+	(*GetScannerConfigResponse)(nil),         // 13: openmanet.scanner.v1.GetScannerConfigResponse
+	(*SetScannerConfigRequest)(nil),          // 14: openmanet.scanner.v1.SetScannerConfigRequest
+	(*SetScannerConfigResponse)(nil),         // 15: openmanet.scanner.v1.SetScannerConfigResponse
+	(*ListConventionalChannelsRequest)(nil),  // 16: openmanet.scanner.v1.ListConventionalChannelsRequest
+	(*ListConventionalChannelsResponse)(nil), // 17: openmanet.scanner.v1.ListConventionalChannelsResponse
+	(*StreamAudioRequest)(nil),               // 18: openmanet.scanner.v1.StreamAudioRequest
+	(*StreamAudioResponse)(nil),              // 19: openmanet.scanner.v1.StreamAudioResponse
+	(*Receiver)(nil),                         // 20: openmanet.scanner.v1.Receiver
+	(*Position)(nil),                         // 21: openmanet.scanner.v1.Position
+	(*SelectedSite)(nil),                     // 22: openmanet.scanner.v1.SelectedSite
+	(*ControlChannelStatus)(nil),             // 23: openmanet.scanner.v1.ControlChannelStatus
+	(*timestamppb.Timestamp)(nil),            // 24: google.protobuf.Timestamp
+	(*ConventionalScanStatus)(nil),           // 25: openmanet.scanner.v1.ConventionalScanStatus
+	(*Aircraft)(nil),                         // 26: openmanet.scanner.v1.Aircraft
+	(*AircraftFeed)(nil),                     // 27: openmanet.scanner.v1.AircraftFeed
+	(*durationpb.Duration)(nil),              // 28: google.protobuf.Duration
+	(*Site)(nil),                             // 29: openmanet.scanner.v1.Site
+	(*VoiceGrant)(nil),                       // 30: openmanet.scanner.v1.VoiceGrant
+	(*ScannerConfig)(nil),                    // 31: openmanet.scanner.v1.ScannerConfig
+	(*ConventionalChannel)(nil),              // 32: openmanet.scanner.v1.ConventionalChannel
+	(AudioEncoding)(0),                       // 33: openmanet.scanner.v1.AudioEncoding
 }
 var file_openmanet_scanner_v1_scanner_service_proto_depIdxs = []int32{
-	16, // 0: openmanet.scanner.v1.GetScannerStatusResponse.receivers:type_name -> openmanet.scanner.v1.Receiver
-	17, // 1: openmanet.scanner.v1.GetScannerStatusResponse.position:type_name -> openmanet.scanner.v1.Position
-	18, // 2: openmanet.scanner.v1.GetScannerStatusResponse.selected_site:type_name -> openmanet.scanner.v1.SelectedSite
-	19, // 3: openmanet.scanner.v1.GetScannerStatusResponse.control_channel:type_name -> openmanet.scanner.v1.ControlChannelStatus
-	20, // 4: openmanet.scanner.v1.GetScannerStatusResponse.last_decode_time:type_name -> google.protobuf.Timestamp
-	20, // 5: openmanet.scanner.v1.GetScannerStatusResponse.generated_at:type_name -> google.protobuf.Timestamp
-	21, // 6: openmanet.scanner.v1.ListAircraftResponse.aircraft:type_name -> openmanet.scanner.v1.Aircraft
-	22, // 7: openmanet.scanner.v1.ListAircraftResponse.feeds:type_name -> openmanet.scanner.v1.AircraftFeed
-	20, // 8: openmanet.scanner.v1.ListAircraftResponse.generated_at:type_name -> google.protobuf.Timestamp
-	23, // 9: openmanet.scanner.v1.StreamAircraftRequest.interval:type_name -> google.protobuf.Duration
-	21, // 10: openmanet.scanner.v1.StreamAircraftResponse.aircraft:type_name -> openmanet.scanner.v1.Aircraft
-	22, // 11: openmanet.scanner.v1.StreamAircraftResponse.feeds:type_name -> openmanet.scanner.v1.AircraftFeed
-	20, // 12: openmanet.scanner.v1.StreamAircraftResponse.generated_at:type_name -> google.protobuf.Timestamp
-	24, // 13: openmanet.scanner.v1.ListSitesResponse.sites:type_name -> openmanet.scanner.v1.Site
-	17, // 14: openmanet.scanner.v1.ListSitesResponse.reference:type_name -> openmanet.scanner.v1.Position
-	25, // 15: openmanet.scanner.v1.ListTalkgroupActivityResponse.grants:type_name -> openmanet.scanner.v1.VoiceGrant
-	20, // 16: openmanet.scanner.v1.StreamScannerEventsResponse.time:type_name -> google.protobuf.Timestamp
-	25, // 17: openmanet.scanner.v1.StreamScannerEventsResponse.voice_grant:type_name -> openmanet.scanner.v1.VoiceGrant
-	19, // 18: openmanet.scanner.v1.StreamScannerEventsResponse.control_channel:type_name -> openmanet.scanner.v1.ControlChannelStatus
-	18, // 19: openmanet.scanner.v1.StreamScannerEventsResponse.site_changed:type_name -> openmanet.scanner.v1.SelectedSite
-	26, // 20: openmanet.scanner.v1.GetScannerConfigResponse.config:type_name -> openmanet.scanner.v1.ScannerConfig
-	26, // 21: openmanet.scanner.v1.SetScannerConfigRequest.config:type_name -> openmanet.scanner.v1.ScannerConfig
-	26, // 22: openmanet.scanner.v1.SetScannerConfigResponse.config:type_name -> openmanet.scanner.v1.ScannerConfig
-	0,  // 23: openmanet.scanner.v1.ScannerService.GetScannerStatus:input_type -> openmanet.scanner.v1.GetScannerStatusRequest
-	2,  // 24: openmanet.scanner.v1.ScannerService.ListAircraft:input_type -> openmanet.scanner.v1.ListAircraftRequest
-	4,  // 25: openmanet.scanner.v1.ScannerService.StreamAircraft:input_type -> openmanet.scanner.v1.StreamAircraftRequest
-	6,  // 26: openmanet.scanner.v1.ScannerService.ListSites:input_type -> openmanet.scanner.v1.ListSitesRequest
-	8,  // 27: openmanet.scanner.v1.ScannerService.ListTalkgroupActivity:input_type -> openmanet.scanner.v1.ListTalkgroupActivityRequest
-	10, // 28: openmanet.scanner.v1.ScannerService.StreamScannerEvents:input_type -> openmanet.scanner.v1.StreamScannerEventsRequest
-	12, // 29: openmanet.scanner.v1.ScannerService.GetScannerConfig:input_type -> openmanet.scanner.v1.GetScannerConfigRequest
-	14, // 30: openmanet.scanner.v1.ScannerService.SetScannerConfig:input_type -> openmanet.scanner.v1.SetScannerConfigRequest
-	1,  // 31: openmanet.scanner.v1.ScannerService.GetScannerStatus:output_type -> openmanet.scanner.v1.GetScannerStatusResponse
-	3,  // 32: openmanet.scanner.v1.ScannerService.ListAircraft:output_type -> openmanet.scanner.v1.ListAircraftResponse
-	5,  // 33: openmanet.scanner.v1.ScannerService.StreamAircraft:output_type -> openmanet.scanner.v1.StreamAircraftResponse
-	7,  // 34: openmanet.scanner.v1.ScannerService.ListSites:output_type -> openmanet.scanner.v1.ListSitesResponse
-	9,  // 35: openmanet.scanner.v1.ScannerService.ListTalkgroupActivity:output_type -> openmanet.scanner.v1.ListTalkgroupActivityResponse
-	11, // 36: openmanet.scanner.v1.ScannerService.StreamScannerEvents:output_type -> openmanet.scanner.v1.StreamScannerEventsResponse
-	13, // 37: openmanet.scanner.v1.ScannerService.GetScannerConfig:output_type -> openmanet.scanner.v1.GetScannerConfigResponse
-	15, // 38: openmanet.scanner.v1.ScannerService.SetScannerConfig:output_type -> openmanet.scanner.v1.SetScannerConfigResponse
-	31, // [31:39] is the sub-list for method output_type
-	23, // [23:31] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	20, // 0: openmanet.scanner.v1.GetScannerStatusResponse.receivers:type_name -> openmanet.scanner.v1.Receiver
+	21, // 1: openmanet.scanner.v1.GetScannerStatusResponse.position:type_name -> openmanet.scanner.v1.Position
+	22, // 2: openmanet.scanner.v1.GetScannerStatusResponse.selected_site:type_name -> openmanet.scanner.v1.SelectedSite
+	23, // 3: openmanet.scanner.v1.GetScannerStatusResponse.control_channel:type_name -> openmanet.scanner.v1.ControlChannelStatus
+	24, // 4: openmanet.scanner.v1.GetScannerStatusResponse.last_decode_time:type_name -> google.protobuf.Timestamp
+	24, // 5: openmanet.scanner.v1.GetScannerStatusResponse.generated_at:type_name -> google.protobuf.Timestamp
+	25, // 6: openmanet.scanner.v1.GetScannerStatusResponse.conventional:type_name -> openmanet.scanner.v1.ConventionalScanStatus
+	26, // 7: openmanet.scanner.v1.ListAircraftResponse.aircraft:type_name -> openmanet.scanner.v1.Aircraft
+	27, // 8: openmanet.scanner.v1.ListAircraftResponse.feeds:type_name -> openmanet.scanner.v1.AircraftFeed
+	24, // 9: openmanet.scanner.v1.ListAircraftResponse.generated_at:type_name -> google.protobuf.Timestamp
+	28, // 10: openmanet.scanner.v1.StreamAircraftRequest.interval:type_name -> google.protobuf.Duration
+	26, // 11: openmanet.scanner.v1.StreamAircraftResponse.aircraft:type_name -> openmanet.scanner.v1.Aircraft
+	27, // 12: openmanet.scanner.v1.StreamAircraftResponse.feeds:type_name -> openmanet.scanner.v1.AircraftFeed
+	24, // 13: openmanet.scanner.v1.StreamAircraftResponse.generated_at:type_name -> google.protobuf.Timestamp
+	29, // 14: openmanet.scanner.v1.ListSitesResponse.sites:type_name -> openmanet.scanner.v1.Site
+	21, // 15: openmanet.scanner.v1.ListSitesResponse.reference:type_name -> openmanet.scanner.v1.Position
+	30, // 16: openmanet.scanner.v1.ListTalkgroupActivityResponse.grants:type_name -> openmanet.scanner.v1.VoiceGrant
+	24, // 17: openmanet.scanner.v1.StreamScannerEventsResponse.time:type_name -> google.protobuf.Timestamp
+	30, // 18: openmanet.scanner.v1.StreamScannerEventsResponse.voice_grant:type_name -> openmanet.scanner.v1.VoiceGrant
+	23, // 19: openmanet.scanner.v1.StreamScannerEventsResponse.control_channel:type_name -> openmanet.scanner.v1.ControlChannelStatus
+	22, // 20: openmanet.scanner.v1.StreamScannerEventsResponse.site_changed:type_name -> openmanet.scanner.v1.SelectedSite
+	31, // 21: openmanet.scanner.v1.GetScannerConfigResponse.config:type_name -> openmanet.scanner.v1.ScannerConfig
+	31, // 22: openmanet.scanner.v1.SetScannerConfigRequest.config:type_name -> openmanet.scanner.v1.ScannerConfig
+	31, // 23: openmanet.scanner.v1.SetScannerConfigResponse.config:type_name -> openmanet.scanner.v1.ScannerConfig
+	25, // 24: openmanet.scanner.v1.ListConventionalChannelsResponse.status:type_name -> openmanet.scanner.v1.ConventionalScanStatus
+	32, // 25: openmanet.scanner.v1.ListConventionalChannelsResponse.channels:type_name -> openmanet.scanner.v1.ConventionalChannel
+	24, // 26: openmanet.scanner.v1.ListConventionalChannelsResponse.generated_at:type_name -> google.protobuf.Timestamp
+	33, // 27: openmanet.scanner.v1.StreamAudioRequest.encoding:type_name -> openmanet.scanner.v1.AudioEncoding
+	33, // 28: openmanet.scanner.v1.StreamAudioResponse.encoding:type_name -> openmanet.scanner.v1.AudioEncoding
+	24, // 29: openmanet.scanner.v1.StreamAudioResponse.time:type_name -> google.protobuf.Timestamp
+	0,  // 30: openmanet.scanner.v1.ScannerService.GetScannerStatus:input_type -> openmanet.scanner.v1.GetScannerStatusRequest
+	2,  // 31: openmanet.scanner.v1.ScannerService.ListAircraft:input_type -> openmanet.scanner.v1.ListAircraftRequest
+	4,  // 32: openmanet.scanner.v1.ScannerService.StreamAircraft:input_type -> openmanet.scanner.v1.StreamAircraftRequest
+	6,  // 33: openmanet.scanner.v1.ScannerService.ListSites:input_type -> openmanet.scanner.v1.ListSitesRequest
+	8,  // 34: openmanet.scanner.v1.ScannerService.ListTalkgroupActivity:input_type -> openmanet.scanner.v1.ListTalkgroupActivityRequest
+	10, // 35: openmanet.scanner.v1.ScannerService.StreamScannerEvents:input_type -> openmanet.scanner.v1.StreamScannerEventsRequest
+	12, // 36: openmanet.scanner.v1.ScannerService.GetScannerConfig:input_type -> openmanet.scanner.v1.GetScannerConfigRequest
+	14, // 37: openmanet.scanner.v1.ScannerService.SetScannerConfig:input_type -> openmanet.scanner.v1.SetScannerConfigRequest
+	16, // 38: openmanet.scanner.v1.ScannerService.ListConventionalChannels:input_type -> openmanet.scanner.v1.ListConventionalChannelsRequest
+	18, // 39: openmanet.scanner.v1.ScannerService.StreamAudio:input_type -> openmanet.scanner.v1.StreamAudioRequest
+	1,  // 40: openmanet.scanner.v1.ScannerService.GetScannerStatus:output_type -> openmanet.scanner.v1.GetScannerStatusResponse
+	3,  // 41: openmanet.scanner.v1.ScannerService.ListAircraft:output_type -> openmanet.scanner.v1.ListAircraftResponse
+	5,  // 42: openmanet.scanner.v1.ScannerService.StreamAircraft:output_type -> openmanet.scanner.v1.StreamAircraftResponse
+	7,  // 43: openmanet.scanner.v1.ScannerService.ListSites:output_type -> openmanet.scanner.v1.ListSitesResponse
+	9,  // 44: openmanet.scanner.v1.ScannerService.ListTalkgroupActivity:output_type -> openmanet.scanner.v1.ListTalkgroupActivityResponse
+	11, // 45: openmanet.scanner.v1.ScannerService.StreamScannerEvents:output_type -> openmanet.scanner.v1.StreamScannerEventsResponse
+	13, // 46: openmanet.scanner.v1.ScannerService.GetScannerConfig:output_type -> openmanet.scanner.v1.GetScannerConfigResponse
+	15, // 47: openmanet.scanner.v1.ScannerService.SetScannerConfig:output_type -> openmanet.scanner.v1.SetScannerConfigResponse
+	17, // 48: openmanet.scanner.v1.ScannerService.ListConventionalChannels:output_type -> openmanet.scanner.v1.ListConventionalChannelsResponse
+	19, // 49: openmanet.scanner.v1.ScannerService.StreamAudio:output_type -> openmanet.scanner.v1.StreamAudioResponse
+	40, // [40:50] is the sub-list for method output_type
+	30, // [30:40] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_openmanet_scanner_v1_scanner_service_proto_init() }
@@ -1235,7 +1585,7 @@ func file_openmanet_scanner_v1_scanner_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openmanet_scanner_v1_scanner_service_proto_rawDesc), len(file_openmanet_scanner_v1_scanner_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
