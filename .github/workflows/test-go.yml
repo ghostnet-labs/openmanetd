@@ -58,8 +58,18 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install build dependencies (fork PRs on ubuntu-latest)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
+            libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config \
+            portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev \
+            libudev-dev libpam0g-dev
+
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image.
+        # Native libraries are baked into the immutable ARC runner image; fork
+        # PRs run on ubuntu-latest and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: golangci-lint
@@ -101,8 +111,18 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install build dependencies (fork PRs on ubuntu-latest)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
+            libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config \
+            portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev \
+            libudev-dev libpam0g-dev
+
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image.
+        # Native libraries are baked into the immutable ARC runner image; fork
+        # PRs run on ubuntu-latest and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -188,8 +208,18 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install build dependencies (fork PRs on ubuntu-latest)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
+            libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config \
+            portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev \
+            libudev-dev libpam0g-dev
+
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image.
+        # Native libraries are baked into the immutable ARC runner image; fork
+        # PRs run on ubuntu-latest and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -249,8 +279,18 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install build dependencies (fork PRs on ubuntu-latest)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
+            libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config \
+            portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev \
+            libudev-dev libpam0g-dev
+
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image.
+        # Native libraries are baked into the immutable ARC runner image; fork
+        # PRs run on ubuntu-latest and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
