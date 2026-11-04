@@ -67,7 +67,7 @@ internal/blos/                    BLOS/Tailscale/VXLAN overlay
 internal/mgmt/                    Alfred mesh management, wireless config
 internal/gpsd/                    gpsd integration, NMEA/CoT publishing
 internal/network/                 Network interface, DHCP, routing, UCI config
-internal/frontend/                Embedded HTTP server (serves SPA, /ws, /api/*; proxies /rpc, /auth)
+internal/frontend/                Embedded HTTP server (serves SPA, /ws, /api/*; proxies /rpc/, /auth/, /api/sysupgrade/ to 8087)
 internal/database/                SQLite: schema.sql + query.sql; models/ is generated
 internal/config/                  Viper-backed config (/etc/openmanetd/config.yml)
 proto/                            Git submodule — .proto source files
