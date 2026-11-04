@@ -28,7 +28,7 @@ internal/openmanet/               Start() wires all subsystems
 internal/openmanet/server/        ConnectRPC HTTP server setup + service registration
 internal/openmanet/server/handlers/   Service handler implementations (one file per service)
 internal/api/                     AUTO-GENERATED protobuf + ConnectRPC Go stubs — DO NOT EDIT
-internal/frontend/                HTTP server: serves React SPA, proxies /api/* and /ws to port 8087
+internal/frontend/                HTTP server: serves React SPA, /ws and /api/*; proxies /rpc/, /auth/, /api/sysupgrade/ to port 8087
 internal/database/                SQLite: schema.sql + query.sql; models/ is generated
 internal/config/                  Viper-backed config (reads /etc/openmanetd/config.yml)
 internal/comms/                   Opus/RTP audio (malgo/miniaudio, CGO required)
@@ -40,7 +40,7 @@ frontend/src/gen/                 AUTO-GENERATED protobuf JS clients — DO NOT 
 static/                           Embedded build output (go:embed target in static.go)
 ```
 
-Ports: API + WebSocket = **8087**. Frontend server = **8081** (proxies `/api/*` and `/ws` → 8087).
+Ports: API = **8087**. Frontend server = **8080** (plain HTTP; **8081** is the optional TLS listener). The frontend server serves the SPA, `/ws` and `/api/{system,network,settings,whisper,terminal}` itself, and proxies only `/rpc/`, `/auth/` and `/api/sysupgrade/` → 8087.
 
 ## Code Generation
 
@@ -72,12 +72,11 @@ Ports: API + WebSocket = **8087**. Frontend server = **8081** (proxies `/api/*` 
 
 **Vite hot-reload dev server:**
 ```bash
-cd frontend && VITE_API_TARGET=http://<remote-host>:8081 pnpm run dev
+cd frontend && VITE_API_TARGET=http://<remote-host>:8080 pnpm run dev
 ```
 
 Proxy rules (`frontend/vite.config.js`):
-- `/ws`, `/api`, `/whisper` → `VITE_API_TARGET` (default `http://localhost:8080`)
-- `/rpc` → `VITE_RPC_TARGET` (default `http://localhost:8087`), `/rpc` prefix stripped before forwarding
+- `/ws`, `/api`, `/auth`, `/rpc`, `/whisper`, `/cgi-bin`, `/luci-static`, `/ubus` → `VITE_API_TARGET` (default `http://localhost:8080`), forwarded unchanged (no `/rpc` rewrite)
 
 **Frontend-only binary mode** (no local database/hardware):
 ```bash

@@ -67,14 +67,14 @@ internal/blos/                    BLOS/Tailscale/VXLAN overlay
 internal/mgmt/                    Alfred mesh management, wireless config
 internal/gpsd/                    gpsd integration, NMEA/CoT publishing
 internal/network/                 Network interface, DHCP, routing, UCI config
-internal/frontend/                Embedded HTTP server (serves SPA, proxies /api and /ws)
+internal/frontend/                Embedded HTTP server (serves SPA, /ws, /api/*; proxies /rpc, /auth)
 internal/database/                SQLite: schema.sql + query.sql; models/ is generated
 internal/config/                  Viper-backed config (/etc/openmanetd/config.yml)
 proto/                            Git submodule — .proto source files
 frontend/                         React SPA (Vite); build output → static/
 ```
 
-**Ports:** API + WebSocket = **8087**. Frontend = **8081** (proxies `/api/*` and `/ws` to 8087).
+**Ports:** API = **8087**. Frontend = **8080** (plain HTTP; **8081** is the optional TLS listener). The frontend serves the SPA, `/ws` and `/api/{system,network,settings,whisper,terminal}` itself, and proxies only `/rpc/`, `/auth/` and `/api/sysupgrade/` to 8087.
 
 ## Quickstart
 
@@ -89,7 +89,7 @@ Use `make build-lite` for a smaller binary (~5 MB) without the whisper WASM asse
 
 **Frontend dev server** (hot-reload, pointed at a remote node):
 ```bash
-cd frontend && VITE_API_TARGET=http://<node-ip>:8081 pnpm run dev
+cd frontend && VITE_API_TARGET=http://<node-ip>:8080 pnpm run dev
 ```
 
 **Frontend-only mode** (no local database or hardware):
