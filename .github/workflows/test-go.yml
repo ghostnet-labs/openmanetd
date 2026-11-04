@@ -12,6 +12,7 @@ on:
       - "internal/**"
       - "cmd/**"
       - "proto/**"
+      - "frontend/src/gen/**"
       - "sqlc.yaml"
       - "buf.yaml"
       - "buf.gen.yaml"
@@ -119,6 +120,20 @@ jobs:
 
       - name: Run tests
         run: make test
+
+      # make test regenerates protobuf and sqlc output; fail if the committed
+      # copies are stale. Limited to generator output dirs so go fmt / buf
+      # format changes elsewhere don't trip it.
+      - name: Check generated code is up to date
+        run: |
+          paths="internal/api frontend/src/gen internal/database/models"
+          status="$(git status --porcelain -- $paths)"
+          if [ -n "$status" ]; then
+            echo "::error::Generated code is out of date. Run 'make buf sqlc-gen' and commit the result."
+            echo "$status"
+            git diff --stat -- $paths
+            exit 1
+          fi
 
       - name: Build daemon and check comms races
         run: |
