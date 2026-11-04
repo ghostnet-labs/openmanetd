@@ -49,7 +49,7 @@ Management and operations daemon for OpenMANET mesh networks. Runs on OpenMANET 
 
 ### API
 - Protobuf-defined services exposed via [Connect RPC](https://connectrpc.com/) (gRPC + HTTP/JSON)
-- Services: `CommsService`, `DashboardService`, `WifiConfigService`, `NetworkInterfaceService`, `BLOSService`, `MeshTopologyService`, `GNSSService`, node and status endpoints
+- Services: `NodeService`, `InterfaceService`, `MeshNeighborService`, `StatusService`, `CommsService`, `BLOSService`, `NetworkInterfaceService`, `DashboardService`, `GNSSService`, `HardwareService`, `SetupService`, `MeshTopologyService`, `WifiConfigService`, `RadioService`, `ChannelMigrationService`, `MeshJoinService`, `ScannerService`, `LogsService`, `SysupgradeService`
 - Server-streaming RPCs for audio (`CommsService`) and BLOS events (`BLOSService`)
 - WebSocket endpoint for real-time audio streaming
 - Session-based authentication (PAM-backed); works via cookie for the Web UI or `Authorization: Bearer` header for direct callers — see [docs/api-authentication.md](docs/api-authentication.md)
@@ -108,8 +108,8 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 | `gnss.*` | gpsd enable, NMEA/CoT output |
 | `meshTopology.*` | Delta-tracker sample interval and ring size (powers the 60s churn panel) |
 | `frontend.*` | HTTP/HTTPS listen addresses, TLS cert paths |
-| `api.*` | gRPC API listen address |
-| `database.*` | SQLite file path |
+| `openmanetAPIAddress`, `openmanetWebsocketPort`, `openmanetCommsAPIAddress` | API listen addresses (top-level keys, not a section) |
+| `dbFile`, `resetDBOnStart` | SQLite file path and reset-on-start toggle (top-level keys, not a section) |
 | `instrumentation.*` | Periodic JSON snapshot capture (see `docs/instrumentation-snapshot.md`) |
 | `runtime.*` | Memory limit, GC tuning |
 | `sysupgrade.*` | Firmware update source: `releasesRepo` (GitHub `owner/name`, default `OpenMANET/firmware`) and `onlineCheck` (default `true`; `false` disables online offers, manual upload still works) |
@@ -117,7 +117,7 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 ## Developer Tools
 
 - A **DevContainer** is included with all required native libraries (CGO, PortAudio, SQLite, etc.).
-- The protobuf specs live in `proto/`, a git submodule from [OpenMANET/protobuf](https://github.com/OpenMANET/protobufs). If empty: `git submodule update --init --recursive`, then `make buf`.
+- The protobuf specs live in `proto/`, a git submodule from [ghostnet-labs/protobufs](https://github.com/ghostnet-labs/protobufs). If empty: `git submodule update --init --recursive`, then `make buf`.
 - **CGO is required** for the full build (`go-sqlite3`, `portaudio`, `go-alfred`). Use `make build-lite` to skip comms/whisper.
 - Never edit `internal/api/`, `frontend/src/gen/`, or `internal/database/models/` — these are generated and will be overwritten.
 
