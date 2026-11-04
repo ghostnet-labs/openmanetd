@@ -85,7 +85,7 @@ make build          # fmt → vet → buf → sqlc-gen → frontend → compile
 ./bin/openmanetd
 ```
 
-Use `make build-lite` for a smaller binary (~5 MB) without audio/comms hardware dependencies.
+Use `make build-lite` for a smaller binary (~5 MB) without the whisper WASM assets.
 
 **Frontend dev server** (hot-reload, pointed at a remote node):
 ```bash
@@ -116,15 +116,15 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 
 ## Developer Tools
 
-- A **DevContainer** is included with all required native libraries (CGO, PortAudio, SQLite, etc.).
+- A **DevContainer** is included with all required native libraries (CGO, miniaudio/malgo (ALSA), SQLite, etc.).
 - The protobuf specs live in `proto/`, a git submodule from [ghostnet-labs/protobufs](https://github.com/ghostnet-labs/protobufs). If empty: `git submodule update --init --recursive`, then `make buf`.
-- **CGO is required** for the full build (`go-sqlite3`, `portaudio`, `go-alfred`). Use `make build-lite` to skip comms/whisper.
+- **CGO is required** for the full build (`go-sqlite3`, `malgo`, `go-alfred`). `make build-lite` only omits the whisper WASM assets and UPX-compresses the binary; comms/malgo is still compiled in, so CGO is still required.
 - Never edit `internal/api/`, `frontend/src/gen/`, or `internal/database/models/` — these are generated and will be overwritten.
 
 | Task | Command |
 |------|---------|
 | Full build | `make build` |
-| Lite build (no hardware deps) | `make build-lite` |
+| Lite build (no whisper WASM, UPX) | `make build-lite` |
 | Run Go tests | `make test` |
 | Integration tests | `make integration-test` |
 | Frontend tests | `make test-frontend` |

@@ -31,7 +31,7 @@ internal/api/                     AUTO-GENERATED protobuf + ConnectRPC Go stubs 
 internal/frontend/                HTTP server: serves React SPA, proxies /api/* and /ws to port 8087
 internal/database/                SQLite: schema.sql + query.sql; models/ is generated
 internal/config/                  Viper-backed config (reads /etc/openmanetd/config.yml)
-internal/comms/                   Opus/RTP audio (portaudio, CGO required)
+internal/comms/                   Opus/RTP audio (malgo/miniaudio, CGO required)
 internal/blos/                    BLOS/Tailscale overlay
 internal/mgmt/                    Alfred mesh management + wireless config
 proto/                            Git submodule — .proto source files
@@ -89,7 +89,7 @@ Run `make lint-frontend` before committing frontend changes. The ESLint config a
 
 ## Gotchas
 
-- **CGO required** for full build (`go-sqlite3`, `malgo`/miniaudio, `go-alfred`). Use `make build-lite` to skip comms/whisper. The DevContainer has all required native libraries.
+- **CGO required** for full build (`go-sqlite3`, `malgo`/miniaudio, `go-alfred`). `make build-lite` only omits the whisper WASM assets and UPX-compresses the binary; comms/malgo is still compiled in, so CGO is still required. The DevContainer has all required native libraries.
 - **`proto/` is a git submodule.** If empty: `git submodule update --init --recursive`, then `make buf`.
 - **`static/` must be populated** before compiling the Go binary. The `//go:embed static/*` directive in `static.go` fails at compile time if the directory is empty. Run `make frontend` first, or use `make build`.
 - **Never edit `internal/api/`, `frontend/src/gen/`, or `internal/database/models/`** — generated, will be overwritten.
