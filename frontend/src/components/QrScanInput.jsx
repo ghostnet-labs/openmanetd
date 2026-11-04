@@ -2,8 +2,8 @@
 // QrScanInput.jsx — photograph or paste a "share mesh" QR code
 // =============================================================================
 //
-// Live camera (getUserMedia) needs a secure context and the WebUI is plain
-// HTTP, so the camera is reached through <input type="file" capture>, which
+// Live camera (getUserMedia) needs a secure context and the WebUI may be on
+// plain HTTP (:8080), so the camera is reached through <input type="file" capture>, which
 // iOS Safari and Android Chrome honour over HTTP (and which also accepts a
 // screenshot from the gallery). The photo is downscaled on a canvas and
 // decoded with jsQR — the phone does the work, never the node. A "Paste

@@ -51,10 +51,12 @@ The payload is never logged and the WebUI never stores it.
 ## Joining from the WebUI
 
 The phone's browser does the decoding — nothing about the photo reaches
-the node. Live camera preview needs HTTPS, which the WebUI does not use,
-so **Scan QR** opens the phone's camera app through a file picker (works on
-iOS Safari and Android Chrome) and also accepts a screenshot from the
-gallery. **Paste code** accepts the text form.
+the node. The WebUI is served on plain HTTP (`:8080`) and on HTTPS
+(`:8081`, self-signed unless a certificate is configured). Live camera
+preview needs a secure context, which plain HTTP is not, so **Scan QR**
+opens the phone's camera app through a file picker that works on either
+origin (iOS Safari and Android Chrome) and also accepts a screenshot from
+the gallery. **Paste code** accepts the text form.
 
 - **Configured node** — Settings › Wireless › Share Mesh › Join from QR.
   The scanned values fill the HaLow radio and the 2.4 GHz radio that is
