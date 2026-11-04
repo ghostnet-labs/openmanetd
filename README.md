@@ -49,7 +49,7 @@ Management and operations daemon for OpenMANET mesh networks. Runs on OpenMANET 
 
 ### API
 - Protobuf-defined services exposed via [Connect RPC](https://connectrpc.com/) (gRPC + HTTP/JSON)
-- Services: `CommsService`, `DashboardService`, `WifiConfigService`, `NetworkInterfaceService`, `BLOSService`, `MeshTopologyService`, `GNSSService`, node and status endpoints
+- Services: `NodeService`, `InterfaceService`, `MeshNeighborService`, `StatusService`, `CommsService`, `BLOSService`, `NetworkInterfaceService`, `DashboardService`, `GNSSService`, `HardwareService`, `SetupService`, `MeshTopologyService`, `WifiConfigService`, `RadioService`, `ChannelMigrationService`, `MeshJoinService`, `ScannerService`, `LogsService`, `SysupgradeService`
 - Server-streaming RPCs for audio (`CommsService`) and BLOS events (`BLOSService`)
 - WebSocket endpoint for real-time audio streaming
 - Session-based authentication (PAM-backed); works via cookie for the Web UI or `Authorization: Bearer` header for direct callers — see [docs/api-authentication.md](docs/api-authentication.md)
@@ -67,14 +67,14 @@ internal/blos/                    BLOS/Tailscale/VXLAN overlay
 internal/mgmt/                    Alfred mesh management, wireless config
 internal/gpsd/                    gpsd integration, NMEA/CoT publishing
 internal/network/                 Network interface, DHCP, routing, UCI config
-internal/frontend/                Embedded HTTP server (serves SPA, proxies /api and /ws)
+internal/frontend/                Embedded HTTP server (serves SPA, /ws, /api/*; proxies /rpc/, /auth/, /api/sysupgrade/ to 8087)
 internal/database/                SQLite: schema.sql + query.sql; models/ is generated
 internal/config/                  Viper-backed config (/etc/openmanetd/config.yml)
 proto/                            Git submodule — .proto source files
 frontend/                         React SPA (Vite); build output → static/
 ```
 
-**Ports:** API + WebSocket = **8087**. Frontend = **8081** (proxies `/api/*` and `/ws` to 8087).
+**Ports:** API = **8087**. Frontend = **8080** (plain HTTP; **8081** is the optional TLS listener). The frontend serves the SPA, `/ws` and `/api/{system,network,settings,whisper,terminal}` itself, and proxies only `/rpc/`, `/auth/` and `/api/sysupgrade/` to 8087.
 
 ## Quickstart
 
@@ -85,11 +85,11 @@ make build          # fmt → vet → buf → sqlc-gen → frontend → compile
 ./bin/openmanetd
 ```
 
-Use `make build-lite` for a smaller binary (~5 MB) without audio/comms hardware dependencies.
+Use `make build-lite` for a smaller binary (~5 MB) without the whisper WASM assets.
 
 **Frontend dev server** (hot-reload, pointed at a remote node):
 ```bash
-cd frontend && VITE_API_TARGET=http://<node-ip>:8081 pnpm run dev
+cd frontend && VITE_API_TARGET=http://<node-ip>:8080 pnpm run dev
 ```
 
 **Frontend-only mode** (no local database or hardware):
@@ -108,23 +108,23 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 | `gnss.*` | gpsd enable, NMEA/CoT output |
 | `meshTopology.*` | Delta-tracker sample interval and ring size (powers the 60s churn panel) |
 | `frontend.*` | HTTP/HTTPS listen addresses, TLS cert paths |
-| `api.*` | gRPC API listen address |
-| `database.*` | SQLite file path |
+| `openmanetAPIAddress`, `openmanetWebsocketPort`, `openmanetCommsAPIAddress` | API listen addresses (top-level keys, not a section) |
+| `dbFile`, `resetDBOnStart` | SQLite file path and reset-on-start toggle (top-level keys, not a section) |
 | `instrumentation.*` | Periodic JSON snapshot capture (see `docs/instrumentation-snapshot.md`) |
 | `runtime.*` | Memory limit, GC tuning |
 | `sysupgrade.*` | Firmware update source: `releasesRepo` (GitHub `owner/name`, default `OpenMANET/firmware`) and `onlineCheck` (default `true`; `false` disables online offers, manual upload still works) |
 
 ## Developer Tools
 
-- A **DevContainer** is included with all required native libraries (CGO, PortAudio, SQLite, etc.).
-- The protobuf specs live in `proto/`, a git submodule from [OpenMANET/protobuf](https://github.com/OpenMANET/protobufs). If empty: `git submodule update --init --recursive`, then `make buf`.
-- **CGO is required** for the full build (`go-sqlite3`, `portaudio`, `go-alfred`). Use `make build-lite` to skip comms/whisper.
+- A **DevContainer** is included with all required native libraries (CGO, miniaudio/malgo (ALSA), SQLite, etc.).
+- The protobuf specs live in `proto/`, a git submodule from [ghostnet-labs/protobufs](https://github.com/ghostnet-labs/protobufs). If empty: `git submodule update --init --recursive`, then `make buf`.
+- **CGO is required** for the full build (`go-sqlite3`, `malgo`, `go-alfred`). `make build-lite` only omits the whisper WASM assets and UPX-compresses the binary; comms/malgo is still compiled in, so CGO is still required.
 - Never edit `internal/api/`, `frontend/src/gen/`, or `internal/database/models/` — these are generated and will be overwritten.
 
 | Task | Command |
 |------|---------|
 | Full build | `make build` |
-| Lite build (no hardware deps) | `make build-lite` |
+| Lite build (no whisper WASM, UPX) | `make build-lite` |
 | Run Go tests | `make test` |
 | Integration tests | `make integration-test` |
 | Frontend tests | `make test-frontend` |

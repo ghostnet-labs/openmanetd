@@ -79,7 +79,7 @@ Flags:
 | Flag             | Default | Description                                                |
 |------------------|---------|------------------------------------------------------------|
 | `--api-address`  | _(required)_ | URL of the remote openmanetd API                     |
-| `--port`         | `8081`  | Local port for the frontend server                         |
+| `--port`         | `8080`  | Local port for the frontend server                         |
 
 Example with a custom port:
 
@@ -87,8 +87,10 @@ Example with a custom port:
 ./bin/openmanetd frontend --api-address http://10.41.1.1:8087 --port 3000
 ```
 
-The server will serve the embedded React SPA and proxy all `/api/*` and `/ws`
-requests to the remote openmanetd instance.
+The server serves the embedded React SPA, `/ws` and
+`/api/{system,network,settings,whisper,terminal}` itself, and proxies only
+`/rpc/`, `/auth/` and `/api/sysupgrade/` requests to the remote openmanetd
+instance.
 
 ### Option 2: Vite dev server (hot reload)
 
@@ -99,7 +101,7 @@ remote openmanetd frontend server or a local `openmanetd frontend` instance:
 ```shell
 cd frontend
 pnpm install
-VITE_API_TARGET=http://10.41.1.1:8081 pnpm run dev
+VITE_API_TARGET=http://10.41.1.1:8080 pnpm run dev
 ```
 
 If `VITE_API_TARGET` is not set, the proxy defaults to `http://localhost:8080`.

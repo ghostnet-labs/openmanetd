@@ -11,17 +11,15 @@ import (
 
 	"github.com/rs/zerolog"
 
+	netv1 "github.com/openmanet/openmanetd/internal/api/openmanet/network/v1"
 	"github.com/openmanet/openmanetd/internal/chanmig"
 )
 
-// alfred data type reservation. The values 100..103 are taken by
-// openmanet.network.v1.DataType (gateway, address reservation, node,
-// mesh neighbors); 104 is reserved here for channel migration and must be
-// added to proto/openmanet/network/v1/datatype.proto as
-// DATA_TYPE_CHANNEL_MIGRATION when that file is next revised.
+// alfred data type for channel migration. The value comes from
+// openmanet.network.v1.DataType (DATA_TYPE_CHANNEL_MIGRATION = 104).
 const (
 	// AlfredDataType is the alfred data type carrying chanmig bundles.
-	AlfredDataType uint8 = 104
+	AlfredDataType uint8 = uint8(netv1.DataType_DATA_TYPE_CHANNEL_MIGRATION)
 	// AlfredDataVersion is the alfred record version for the bundle
 	// format below. Bump it on any non-additive framing change.
 	AlfredDataVersion uint8 = 1

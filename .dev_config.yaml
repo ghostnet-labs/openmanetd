@@ -37,6 +37,6 @@ comms:
     deviceName: Generic AB13X USB Audio
   bluetoothPtt:
     enable: false
-    audioDeviceHint: ""
-    inputDevice: ""
-    outputDevice: ""
+    BluetoothAudioDeviceHint: ""
+    BluetoothInputDevice: ""
+    BluetoothOutputDevice: ""
