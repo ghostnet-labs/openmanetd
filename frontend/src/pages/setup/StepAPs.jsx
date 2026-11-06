@@ -2,10 +2,11 @@
 // StepAPs.jsx — Per-radio Wi-Fi access point configuration
 // =============================================================================
 //
-// One toggle + form per non-mesh radio. Disabled by default — the user
-// opts in for each radio they want broadcasting an AP. The "client
-// device Wi-Fi" framing comes from the plan: this is where end users'
-// phones / laptops join the mesh through.
+// One toggle + form per non-mesh radio. The 5 GHz radio starts as the
+// access point for the user's EUD (D-055, seeded by
+// HYDRATE_FROM_STATUS); every other radio starts Off and the user opts
+// in. The "client device Wi-Fi" framing comes from the plan: this is
+// where end users' phones / laptops join the mesh through.
 
 import LatSelect from '../../components/LatSelect.jsx';
 import { useSetup, SETUP_ACTIONS } from '../../contexts/SetupContext.jsx';
@@ -80,14 +81,14 @@ export default function StepAPs({ status }) {
     );
   }
 
+  const intro = apRadios.some(r => r.band === '5g')
+    ? 'The 5 GHz radio starts as the access point your phone or EUD joins. Set its SSID and passphrase, or switch it off. You can also add an access point on another radio or, on a supported 2.4 GHz radio, run a second mesh link to nearby nodes instead.'
+    : 'Optional: configure a Wi-Fi access point on each radio so phones and laptops can join your mesh — or, on a supported 2.4 GHz radio, run a second mesh link to nearby nodes instead.';
+
   return (
     <div className="setup-step">
       <h3>Client Device Wi-Fi</h3>
-      <p className="setup-help">
-        Optional: configure a Wi-Fi access point on each radio so phones
-        and laptops can join your mesh — or, on a supported 2.4 GHz radio,
-        run a second mesh link to nearby nodes instead.
-      </p>
+      <p className="setup-help">{intro}</p>
 
       {apRadios.map(radio => (
         <APRow key={radio.name} radio={radio} state={state} dispatch={dispatch} status={status} />

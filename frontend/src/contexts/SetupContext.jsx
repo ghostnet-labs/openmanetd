@@ -250,6 +250,21 @@ export function reducer(state, action) {
         }
       }
 
+      // D-055: the EUD access point defaults to the node's 5 GHz radio
+      // (the factory image already runs it on non-DFS channel 36 at low
+      // power, which the wizard keeps). Seed it once: skip when any AP
+      // is already on, or when the 5 GHz radio already has an entry —
+      // a user who switched it off stays off. The SSID starts as the
+      // node's hostname so neighbouring nodes don't share one; the
+      // passphrase is left for the user.
+      const ap5g = (action.status?.radios ?? []).find(r => !r.isHalow && r.band === '5g');
+      if (ap5g && !state.aps.some(ap => ap.enabled || ap.radioName === ap5g.name)) {
+        next.aps = [
+          ...state.aps,
+          { ...apDefaults(ap5g.name), enabled: true, ssid: (next.hostname ?? '').slice(0, 32) },
+        ];
+      }
+
       return next;
     }
 

@@ -245,6 +245,35 @@ describe('TestStepReviewMeshBackhaul', () => {
     expect(screen.getByRole('button', { name: /^apply$/i })).toBeDisabled();
   });
 
+  function APHarness({ ssid, passphrase }) {
+    const { dispatch } = useSetup();
+    useEffect(() => {
+      dispatch({ type: SETUP_ACTIONS.SET_HOSTNAME, value: 'node1' });
+      dispatch({ type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'radioName', value: 'radio2' });
+      dispatch({ type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'meshId', value: 'mesh1' });
+      dispatch({ type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'countryCode', value: 'US' });
+      dispatch({ type: SETUP_ACTIONS.SET_ADMIN_PASSWORD, value: 'longenough123' });
+      dispatch({ type: SETUP_ACTIONS.SET_ADMIN_PASSWORD_CONFIRM, value: 'longenough123' });
+      dispatch({ type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio1', mode: 'ap' });
+      dispatch({ type: SETUP_ACTIONS.SET_AP, value: { radioName: 'radio1', ssid, passphrase } });
+    }, [dispatch, ssid, passphrase]);
+    return <StepReview />;
+  }
+
+  it('blocks Apply while an access point has no SSID', async () => {
+    render(<SetupProvider><APHarness ssid="" passphrase="longenough123" /></SetupProvider>);
+
+    expect(await screen.findByText(/access point on radio1 needs an ssid/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^apply$/i })).toBeDisabled();
+  });
+
+  it('blocks Apply while an access point passphrase is too short', async () => {
+    render(<SetupProvider><APHarness ssid="node1" passphrase="short" /></SetupProvider>);
+
+    expect(await screen.findByText(/access point on radio1 needs a passphrase/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^apply$/i })).toBeDisabled();
+  });
+
   function LongMeshIdHarness() {
     const { dispatch } = useSetup();
     useEffect(() => {

@@ -85,6 +85,22 @@ describe('StepAPsRadioMode', () => {
     expect(screen.getByText('MediaTek MT7915AN')).toBeInTheDocument();
   });
 
+  it('after hydrate the 5 GHz radio is the access point and the others stay Off (D-055)', () => {
+    function Hydrated() {
+      const { dispatch } = useSetup();
+      useEffect(() => {
+        dispatch({ type: SETUP_ACTIONS.HYDRATE_FROM_STATUS, status: { ...STATUS, currentHostname: 'node-7' } });
+      }, [dispatch]);
+      return <StepAPs status={STATUS} />;
+    }
+    render(<SetupProvider><Hydrated /></SetupProvider>);
+
+    expect(within(modeGroup('radio2')).getByRole('radio', { name: 'Access point' }).getAttribute('aria-checked')).toBe('true');
+    expect(within(modeGroup('radio0')).getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByLabelText('SSID')).toHaveValue('node-7');
+    expect(screen.getByText(/5 GHz radio starts as the access point/i)).toBeInTheDocument();
+  });
+
   it('choosing Mesh backhaul shows mesh ID + passphrase and hides the AP form', () => {
     renderStep();
 

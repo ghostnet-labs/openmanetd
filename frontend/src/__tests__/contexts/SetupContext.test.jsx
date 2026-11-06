@@ -124,6 +124,52 @@ describe('SetupContext.reducer', () => {
     expect(next.hostname).toBe('mynode');
   });
 
+  it('HYDRATE_FROM_STATUS seeds the 5 GHz radio as the EUD access point (D-055)', () => {
+    const next = reducer(initialState, {
+      type: SETUP_ACTIONS.HYDRATE_FROM_STATUS,
+      status: {
+        currentHostname: 'BCM2712-1a2b',
+        radios: [
+          { name: 'radio0', band: '2g', isHalow: false },
+          { name: 'radio1', band: '5g', isHalow: false },
+          { name: 'radio2', band: 's1g', isHalow: true },
+        ],
+      },
+    });
+    expect(next.aps).toHaveLength(1);
+    expect(next.aps[0]).toMatchObject({
+      radioName: 'radio1', enabled: true, meshBackhaul: false,
+      ssid: 'BCM2712-1a2b', passphrase: '', encryption: WifiEncryption.PSK2,
+    });
+  });
+
+  it('HYDRATE_FROM_STATUS seeds no AP without a 5 GHz radio', () => {
+    const next = reducer(initialState, {
+      type: SETUP_ACTIONS.HYDRATE_FROM_STATUS,
+      status: { radios: [{ name: 'radio0', band: '2g', isHalow: false }, { name: 'radio1', isHalow: true }] },
+    });
+    expect(next.aps).toEqual([]);
+  });
+
+  it('HYDRATE_FROM_STATUS keeps a 5 GHz radio the user switched off', () => {
+    const off = reducer(initialState, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio1', mode: 'off' });
+    const next = reducer(off, {
+      type: SETUP_ACTIONS.HYDRATE_FROM_STATUS,
+      status: { radios: [{ name: 'radio1', band: '5g', isHalow: false }] },
+    });
+    expect(next.aps).toHaveLength(1);
+    expect(next.aps[0].enabled).toBe(false);
+  });
+
+  it('HYDRATE_FROM_STATUS adds no second AP when one is already on', () => {
+    const on = reducer(initialState, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'ap' });
+    const next = reducer(on, {
+      type: SETUP_ACTIONS.HYDRATE_FROM_STATUS,
+      status: { radios: [{ name: 'radio0', band: '2g', isHalow: false }, { name: 'radio1', band: '5g', isHalow: false }] },
+    });
+    expect(next.aps.map(ap => ap.radioName)).toEqual(['radio0']);
+  });
+
   it('unknown action returns the same state reference', () => {
     const next = reducer(initialState, { type: 'NOT_A_REAL_ACTION' });
     expect(next).toBe(initialState);
