@@ -257,6 +257,16 @@ function applyBlockers(state, status) {
     out.push('Admin password and confirmation do not match (Password step).');
   }
   for (const ap of state.aps) {
+    if (!ap.enabled) continue;
+    if (!ap.ssid) {
+      out.push(`Access point on ${ap.radioName} needs an SSID (Wi-Fi step).`);
+    }
+    const secured = ap.encryption !== WifiEncryption.NONE && ap.encryption !== WifiEncryption.OWE;
+    if (secured && (!ap.passphrase || ap.passphrase.length < 8)) {
+      out.push(`Access point on ${ap.radioName} needs a passphrase of at least 8 characters (Wi-Fi step).`);
+    }
+  }
+  for (const ap of state.aps) {
     if (!ap.meshBackhaul) continue;
     if (!ap.backhaulMeshId) {
       out.push(`Mesh backhaul on ${ap.radioName} needs a mesh ID (Wi-Fi step).`);
