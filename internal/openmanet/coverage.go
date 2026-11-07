@@ -18,7 +18,7 @@ import (
 )
 
 // alfred record identity for coverage maps. The data type comes from
-// openmanet.network.v1.DataType (DATA_TYPE_COVERAGE = 106).
+// openmanet.network.v1.DataType (DATA_TYPE_COVERAGE = 107).
 const (
 	coverageAlfredDataType    = uint8(netv1.DataType_DATA_TYPE_COVERAGE)
 	coverageAlfredDataVersion = uint8(1)

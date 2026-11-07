@@ -29,12 +29,12 @@ func TestCoverageGossip(t *testing.T) {
 	g := coverageGossip{client: client}
 
 	require.NoError(t, g.Publish([]byte("mine")))
-	assert.Equal(t, []fakeAlfredSet{{dataType: 106, version: coverageAlfredDataVersion, payload: []byte("mine")}}, client.setCalls())
+	assert.Equal(t, []fakeAlfredSet{{dataType: 107, version: coverageAlfredDataVersion, payload: []byte("mine")}}, client.setCalls())
 
 	recs, err := g.Fetch()
 	require.NoError(t, err)
 	assert.Equal(t, []coverage.GossipRecord{{Source: src, Data: []byte("map")}}, recs)
-	assert.Equal(t, []uint8{106}, client.requestCalls())
+	assert.Equal(t, []uint8{107}, client.requestCalls())
 
 	client.setErr = errFakeAlfred
 	require.ErrorIs(t, g.Publish([]byte("x")), errFakeAlfred)
