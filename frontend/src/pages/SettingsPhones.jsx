@@ -66,9 +66,13 @@ export default function SettingsPhones() {
     }
   }, [load]);
 
-  if (state.loading) return <div className="lat-panel">Loading…</div>;
+  if (state.loading) return <PhonesShell><div className="lat-panel">Loading…</div></PhonesShell>;
   if (state.error) {
-    return <div className="lat-alert crit">Phone onboarding is unavailable ({state.error}).</div>;
+    return (
+      <PhonesShell>
+        <div className="lat-alert crit">Phone onboarding is unavailable ({state.error}).</div>
+      </PhonesShell>
+    );
   }
 
   const { status } = state;
@@ -77,6 +81,7 @@ export default function SettingsPhones() {
   const pct = upload?.total ? Math.round((upload.loaded / upload.total) * 100) : 0;
 
   return (
+    <PhonesShell>
     <div className="lat-body grid-2x">
       <section className="lat-panel">
         <div className="panel-head"><h3>ATAK for phones</h3></div>
@@ -117,14 +122,14 @@ export default function SettingsPhones() {
               e.target.value = '';
             }}
           />
-          <button className="lat-btn primary" type="button" disabled={!!upload} onClick={() => fileRef.current?.click()}>
+          <button className="lat-btn primary phones-touch" type="button" disabled={!!upload} onClick={() => fileRef.current?.click()}>
             {apk.available ? 'Replace APK' : 'Upload APK'}
           </button>
           {upload && (
-            <button className="lat-btn ghost" type="button" onClick={() => abortRef.current?.abort()}>Cancel</button>
+            <button className="lat-btn ghost phones-touch" type="button" onClick={() => abortRef.current?.abort()}>Cancel</button>
           )}
           {apk.available && !upload && (
-            <button className="lat-btn danger" type="button" onClick={onRemove}>Remove</button>
+            <button className="lat-btn danger phones-touch" type="button" onClick={onRemove}>Remove</button>
           )}
         </div>
         <p className="phones-help">
@@ -143,6 +148,16 @@ export default function SettingsPhones() {
           A phone on this node&apos;s Wi-Fi opens this link to install ATAK and load its callsign, team and maps.
         </p>
       </section>
+    </div>
+    </PhonesShell>
+  );
+}
+
+function PhonesShell({ children }) {
+  return (
+    <div className="settings-phones">
+      <h2 className="settings-h2">◇ Phones</h2>
+      {children}
     </div>
   );
 }

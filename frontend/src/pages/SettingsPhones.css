@@ -4,6 +4,9 @@
 
 .phones-file { display: none; }
 
+/* Phone actions: 44px touch targets. */
+.phones-touch { min-height: 44px; }
+
 .phones-actions {
   display: flex;
   flex-wrap: wrap;
