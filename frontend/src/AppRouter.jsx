@@ -28,6 +28,8 @@ const SettingsNetwork = lazy(() => import('./pages/SettingsNetwork.jsx'));
 const SettingsFirmware = lazy(() => import('./pages/SettingsFirmware.jsx'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard.jsx'));
 const ScannerPage = lazy(() => import('./pages/Scanner.jsx'));
+const SettingsPhones = lazy(() => import('./pages/SettingsPhones.jsx'));
+const JoinPage = lazy(() => import('./pages/JoinPage.jsx'));
 
 export default function AppRouter() {
   return (
@@ -35,6 +37,7 @@ export default function AppRouter() {
       <SetupGate>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/join" element={<JoinPage />} />
           <Route path="/setup/*" element={<SetupWizard />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/" element={<DashboardPage />} />
@@ -48,6 +51,7 @@ export default function AppRouter() {
               <Route path="wireless" element={<SettingsWireless />} />
               <Route path="network" element={<SettingsNetwork />} />
               <Route path="firmware" element={<SettingsFirmware />} />
+              <Route path="phones" element={<SettingsPhones />} />
               <Route path="terminal" element={<SettingsTerminal />} />
               <Route path="logs" element={<SettingsLogs />} />
             </Route>
