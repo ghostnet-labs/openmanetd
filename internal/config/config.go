@@ -372,6 +372,7 @@ type Config struct {
 	Radio                                     RadioConfig
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
+	Onboard                                   OnboardConfig
 	Chanmig                                   ChanmigConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
@@ -1031,6 +1032,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	c.Chanmig = c.loadChanmig()
 	c.Scanner = c.loadScanner()
 	c.Radio = c.loadRadio()
+	c.Onboard = c.loadOnboard()
 }
 
 // loadRadio reads the radio capacity gate section, applying defaults. An

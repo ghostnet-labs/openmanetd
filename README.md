@@ -112,6 +112,7 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 | `dbFile`, `resetDBOnStart` | SQLite file path and reset-on-start toggle (top-level keys, not a section) |
 | `instrumentation.*` | Periodic JSON snapshot capture (see `docs/instrumentation-snapshot.md`) |
 | `runtime.*` | Memory limit, GC tuning |
+| `onboard.*` | Phone onboarding: ATAK APK storage dir and size cap, map sources written into the ATAK settings package (see `docs/phone-onboarding.md`) |
 | `sysupgrade.*` | Firmware update source: `releasesRepo` (GitHub `owner/name`, default `OpenMANET/firmware`) and `onlineCheck` (default `true`; `false` disables online offers, manual upload still works) |
 
 ## Developer Tools
