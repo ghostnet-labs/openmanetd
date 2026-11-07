@@ -373,6 +373,7 @@ type Config struct {
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
 	TAK                                       TAKConfig
+	Weather                                   WeatherConfig
 	Chanmig                                   ChanmigConfig
 	Jamdetect                                 JamdetectConfig
 	AlfredNodeExpiry                          time.Duration
@@ -1034,6 +1035,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	c.Jamdetect = c.loadJamdetect()
 	c.Scanner = c.loadScanner()
 	c.TAK = c.loadTAK()
+	c.Weather = c.loadWeather()
 	c.Radio = c.loadRadio()
 }
 

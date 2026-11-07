@@ -14,6 +14,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/scanner"
 	"github.com/openmanet/openmanetd/internal/takfeed"
 	"github.com/openmanet/openmanetd/internal/util/board"
+	"github.com/openmanet/openmanetd/internal/weather"
 )
 
 // gpsPosition adapts the GNSS service to takfeed.PositionSource. A nil
@@ -56,9 +57,15 @@ func startTAKFeed(
 	db *models.Queries,
 	api *server.APIServer,
 	scannerMgr *scanner.Manager,
+	weatherMon *weather.Monitor,
 	log zerolog.Logger,
 ) <-chan struct{} {
 	opts := takFeedOptions(cfg, gps, db, api, scannerMgr, log)
+
+	if weatherMon != nil {
+		opts.Weather = weatherMon
+		opts.WeatherMaxAge = cfg.GetWeather().StaleAfter
+	}
 
 	if problems := cfg.GetTAK().Problems; len(problems) > 0 {
 		log.Warn().Strs("problems", problems).Msg("ATAK feed: rejected tak settings, using defaults for them")
@@ -95,7 +102,7 @@ func takFeedOptions(
 		Position: gpsPosition{gps: gps},
 		Callsign: gpsd.NodeCallsign(),
 		Hostname: hostname,
-		// takfeed.AircraftSource and JamSource stay nil until wired below;
+		// takfeed.JamSource stays nil until wired;
 		// a nil interface (not a typed nil pointer) disables that layer.
 	}
 

@@ -231,6 +231,11 @@ func Start(staticFS fs.FS) {
 	// the P25 monitor's one goroutine idles without touching a receiver.
 	scannerMgr, scannerMonDone := newScannerManager(ctx, cfg, gps)
 
+	// Weather stations: polls the sensor wired to this node (weather.
+	// sensor.enable, normally a mast) and lists every station the mesh
+	// shares over alfred. One goroutine bound to ctx.
+	weatherMon, weatherDone := startWeather(ctx, cfg, manager, gps, log)
+
 	// Set up session-based authentication when enabled.
 	var (
 		sessionStore  *auth.SessionStore
@@ -310,6 +315,7 @@ func Start(staticFS fs.FS) {
 	apiServer.Hardware = hardwareAPI(hwManager)
 	apiServer.Chanmig = chanmigAPI(chanmigSvc)
 	apiServer.Scanner = scannerMgr
+	apiServer.Weather = weatherAPI(weatherMon)
 
 	apiServer.JamDetector = jamDetectorAPI(jamDetector)
 
@@ -322,7 +328,7 @@ func Start(staticFS fs.FS) {
 
 	// ATAK feed (GHO-94): this node, its mesh links, aircraft and jamming
 	// as CoT on the ATAK SA multicast group, for every phone on the mesh.
-	takDone := startTAKFeed(ctx, cfg, gps, db, api, scannerMgr, logger.GetLogger("takfeed"))
+	takDone := startTAKFeed(ctx, cfg, gps, db, api, scannerMgr, weatherMon, logger.GetLogger("takfeed"))
 
 	log.Info().Msg("OpenMANETd API Server starting on port 8087")
 
@@ -376,6 +382,8 @@ func Start(staticFS fs.FS) {
 	waitChanmig(chanmigSvc, log)
 	scannerMgr.Disable()
 	<-scannerMonDone
+
+	<-weatherDone
 
 	if cfg.GetEnableGNSS() {
 		gps.Close()
