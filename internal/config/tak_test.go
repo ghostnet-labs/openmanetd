@@ -27,6 +27,7 @@ func TestGetTAK_defaults(t *testing.T) {
 		Interval:        10 * time.Second,
 		Links:           true,
 		Jamming:         true,
+		Weather:         true,
 		AircraftEnable:  true,
 		AircraftMax:     32,
 		AircraftRangeKm: 150,
@@ -41,6 +42,7 @@ tak:
   interval: 30s
   links: false
   jamming: false
+  weather: false
   aircraft:
     enable: false
     max: 0
@@ -53,6 +55,7 @@ tak:
 		Interval:        30 * time.Second,
 		Links:           false,
 		Jamming:         false,
+		Weather:         false,
 		AircraftEnable:  false,
 		AircraftMax:     0,
 		AircraftRangeKm: 0,
