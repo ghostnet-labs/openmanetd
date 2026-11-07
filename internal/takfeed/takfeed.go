@@ -27,6 +27,7 @@ import (
 	"github.com/coreywagehoft/go-tak/pkg/cotproto"
 	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
 	"github.com/openmanet/openmanetd/internal/config"
+	"github.com/openmanet/openmanetd/internal/coverage"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/scanner/aircraft"
 	"github.com/openmanet/openmanetd/internal/system"
@@ -103,6 +104,9 @@ type Options struct {
 	// the node marker. Signals adds signal strength to link lines.
 	Status  StatusSource
 	Signals SignalSource
+	// Coverage records a coverage sample on each link tick (needs
+	// Signals) and draws its cells as a heatmap.
+	Coverage CoverageMap
 	// Now defaults to time.Now.
 	Now func() time.Time
 	Log zerolog.Logger
@@ -127,6 +131,7 @@ type Publisher struct {
 	links        map[string]struct{}
 	jams         map[string]struct{}
 	aircraftBuf  []aircraft.Aircraft
+	coverageBuf  []coverage.Cell
 	mesh         meshSummary
 	tick         uint64
 	sendFailing  bool
@@ -205,7 +210,7 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	pos, havePos := p.position(now)
 
 	if tick%linkEvery == 0 {
-		p.refreshMesh(ctx, pos, havePos)
+		p.refreshMesh(ctx, cfg, now, pos, havePos)
 	}
 
 	if havePos && !p.opts.CameraOwnsMarker {
@@ -221,6 +226,10 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	}
 
 	p.publishJams(cfg, now, pos, havePos)
+
+	if cfg.CoverageEnable {
+		p.publishCoverage(cfg, now)
+	}
 }
 
 func (p *Publisher) position(now time.Time) (Position, bool) {
@@ -274,7 +283,7 @@ func (p *Publisher) nodeInfo(ctx context.Context, cfg config.TAKConfig, pos Posi
 
 // refreshMesh reads the topology and gossiped node positions once per
 // link period and keeps the summary the node marker and links use.
-func (p *Publisher) refreshMesh(ctx context.Context, pos Position, havePos bool) {
+func (p *Publisher) refreshMesh(ctx context.Context, cfg config.TAKConfig, now time.Time, pos Position, havePos bool) {
 	if p.opts.Topology == nil {
 		return
 	}
@@ -299,6 +308,8 @@ func (p *Publisher) refreshMesh(ctx context.Context, pos Position, havePos bool)
 	if p.opts.Signals != nil {
 		signals = p.opts.Signals.StationSignals(ctx)
 	}
+
+	p.recordCoverage(cfg, now, pos, havePos, signals)
 
 	p.mesh = summarizeMesh(resp.GetTopology(), nodes, signals, p.opts.Hostname, p.opts.Callsign, pos, havePos)
 	p.haveMeshRead = true
@@ -580,4 +591,42 @@ func distanceKm(lat1, lon1, lat2, lon2 float64) float64 {
 		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
 
 	return 2 * earthRadiusKm * math.Asin(math.Min(1, math.Sqrt(a)))
+}
+
+// recordCoverage adds one coverage sample at this node's position. A nil
+// station list means the read failed, which says nothing about coverage,
+// so it is skipped; an empty one is a real "no mesh link here". A fix
+// coarser than a cell would put the sample in the wrong cell.
+func (p *Publisher) recordCoverage(cfg config.TAKConfig, now time.Time, pos Position, havePos bool, signals map[string]StationSignal) {
+	if !cfg.CoverageEnable || p.opts.Coverage == nil || !havePos || signals == nil {
+		return
+	}
+
+	if pos.CE > p.opts.Coverage.CellMeters() {
+		return
+	}
+
+	p.opts.Coverage.Record(now, pos.Lat, pos.Lon, coverageSample(signals))
+}
+
+// publishCoverage sends a few coverage cells per tick. Cells live long
+// enough that each one is resent before it goes stale.
+func (p *Publisher) publishCoverage(cfg config.TAKConfig, now time.Time) {
+	if p.opts.Coverage == nil {
+		return
+	}
+
+	n := p.opts.Coverage.Len()
+	if n == 0 {
+		return
+	}
+
+	cycles := (n + coveragePerTick - 1) / coveragePerTick
+	stale := 2 * time.Duration(cycles) * cfg.Interval
+	cellM := p.opts.Coverage.CellMeters()
+
+	p.coverageBuf = p.opts.Coverage.NextToPublish(p.coverageBuf[:0], coveragePerTick)
+	for i := range p.coverageBuf {
+		p.send(CoverageEvent(&p.coverageBuf[i], cellM, p.opts.Callsign, now, stale))
+	}
 }

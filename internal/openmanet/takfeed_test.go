@@ -1,14 +1,18 @@
 package openmanet
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/openmanet/openmanetd/internal/config"
+	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/jamdetect"
 	"github.com/openmanet/openmanetd/internal/takfeed"
@@ -73,4 +77,32 @@ func TestToTAKJam(t *testing.T) {
 	ev.State = jamdetect.State(0)
 	_, ok = toTAKJam(&ev)
 	assert.False(t, ok, "a closed episode is not a marker")
+}
+
+func TestStartCoverage_loadsSavedCellsIntoTheFeed(t *testing.T) {
+	v := viper.New()
+	v.Set("tak.coverage.cellMeters", 25)
+	cfg := config.NewWithoutWatch(v)
+	store := &fakeCoverageStore{rows: []models.CoverageCell{{CellM: 25, CellRow: 7, CellCol: 9, Samples: 3, LastSeen: time.Now()}}}
+
+	var opts takfeed.Options
+
+	rec := startCoverage(context.Background(), cfg, store, &opts, zerolog.Nop())
+
+	require.NotNil(t, rec)
+	require.NotNil(t, opts.Coverage)
+	assert.InDelta(t, 25, opts.Coverage.CellMeters(), 1e-9)
+	assert.Equal(t, 1, opts.Coverage.Len())
+}
+
+func TestStartCoverage_loadFailureStartsEmpty(t *testing.T) {
+	cfg := config.NewWithoutWatch(viper.New())
+	store := &fakeCoverageStore{listErr: errors.New("corrupt")}
+
+	var opts takfeed.Options
+
+	startCoverage(context.Background(), cfg, store, &opts, zerolog.Nop())
+
+	require.NotNil(t, opts.Coverage, "a bad database must not cost the live map")
+	assert.Zero(t, opts.Coverage.Len())
 }

@@ -3,12 +3,14 @@ package openmanet
 import (
 	"context"
 	"os"
+	"sync"
 
 	"github.com/rs/zerolog"
 
 	"github.com/openmanet/openmanetd/internal/comms"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/cotmcast"
+	"github.com/openmanet/openmanetd/internal/coverage"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/jamdetect"
@@ -115,15 +117,48 @@ func startTAKFeed(
 		log.Warn().Strs("problems", problems).Msg("ATAK feed: rejected tak settings, using defaults for them")
 	}
 
+	var rec *coverage.Recorder
+	if db != nil {
+		rec = startCoverage(ctx, cfg, db, &opts, log)
+	}
+
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
 
+		var wg sync.WaitGroup
+
+		if rec != nil {
+			wg.Go(func() { rec.Run(ctx) })
+		}
+
 		takfeed.New(opts).Run(ctx)
+		wg.Wait()
 	}()
 
 	return done
+}
+
+// startCoverage builds this node's coverage map from the database and
+// hands it to the feed. The map is always built, so turning
+// tak.coverage.enable on later needs no restart; the cell size is read
+// once here.
+func startCoverage(ctx context.Context, cfg *config.Config, store coverage.Store, opts *takfeed.Options, log zerolog.Logger) *coverage.Recorder {
+	tc := cfg.GetTAK()
+	rec := &coverage.Recorder{
+		Grid:  coverage.New(float64(tc.CoverageCellM), tc.CoverageMaxCells),
+		Store: store,
+		Log:   log,
+	}
+
+	if err := rec.Load(ctx); err != nil {
+		log.Warn().Err(err).Msg("Coverage map: could not load saved cells, starting empty")
+	}
+
+	opts.Coverage = rec.Grid
+
+	return rec
 }
 
 func takFeedOptions(

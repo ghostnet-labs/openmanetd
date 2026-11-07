@@ -48,7 +48,7 @@ Management and operations daemon for OpenMANET mesh networks. Runs on OpenMANET 
 - Publishes in NMEA and/or Cursor-on-Target (CoT) formats
 
 ### ATAK feed
-- Puts every node (radio or mast icon, with battery, mesh, system health, radio, GPS, voice, scanner and uplink state, and alerts for faults), its mesh links (lines colored by link quality, with signal strength), aircraft heard by the scanner and jamming detections on every ATAK map on the mesh
+- Puts every node (radio or mast icon, with battery, mesh, system health, radio, GPS, voice, scanner and uplink state, and alerts for faults), its mesh links (lines colored by link quality, with signal strength), aircraft heard by the scanner, jamming detections and a coverage heatmap (how well each node heard the mesh at each spot it has been) on every ATAK map on the mesh
 - Plain CoT on the ATAK SA multicast group, so phones need no plugin and no setup
 
 ### API
@@ -70,7 +70,8 @@ internal/comms/                   Opus/RTP audio, PTT control, jitter buffer
 internal/blos/                    BLOS/Tailscale/VXLAN overlay
 internal/mgmt/                    Alfred mesh management, wireless config
 internal/gpsd/                    gpsd integration, NMEA/CoT publishing
-internal/takfeed/                 ATAK feed: node, link, aircraft and jamming CoT
+internal/takfeed/                 ATAK feed: node, link, aircraft, jamming and coverage CoT
+internal/coverage/                Bounded coverage grid (signal per spot) persisted to SQLite
 internal/cotmcast/                Interface-pinned sender for the ATAK SA multicast group
 internal/network/                 Network interface, DHCP, routing, UCI config
 internal/frontend/                Embedded HTTP server (serves SPA, /ws, /api/*; proxies /rpc/, /auth/, /api/sysupgrade/ to 8087)
@@ -112,7 +113,7 @@ The config file lives at `/etc/openmanetd/config.yml`. Key sections:
 | `alfred.*` | Batman-adv alfred socket, data type publish toggles |
 | `blos.*` | Tailscale enable, auth key, status poll interval, advertised mesh subnet |
 | `gnss.*` | gpsd enable, NMEA/CoT output |
-| `tak.*` | ATAK feed: enable, node role (radio/mast), interval, links, jamming, aircraft cap and range |
+| `tak.*` | ATAK feed: enable, node role (radio/mast), interval, links, jamming, aircraft cap and range, coverage heatmap (enable, cell size, cell cap) |
 | `meshTopology.*` | Delta-tracker sample interval and ring size (powers the 60s churn panel) |
 | `frontend.*` | HTTP/HTTPS listen addresses, TLS cert paths |
 | `openmanetAPIAddress`, `openmanetWebsocketPort`, `openmanetCommsAPIAddress` | API listen addresses (top-level keys, not a section) |

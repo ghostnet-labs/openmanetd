@@ -2,6 +2,7 @@ package openmanet
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"slices"
 	"sync"
@@ -14,6 +15,7 @@ import (
 
 	jamv1 "github.com/openmanet/openmanetd/internal/api/openmanet/jamdetect/v1"
 	"github.com/openmanet/openmanetd/internal/chanmig"
+	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/scanner"
@@ -353,4 +355,30 @@ func (f *fakeStationLister) StationInfo(iface *wifi.Interface) ([]*wifi.StationI
 	}
 
 	return st, nil
+}
+
+// fakeCoverageStore is a coverage.Store that serves fixed rows.
+type fakeCoverageStore struct {
+	mu      sync.Mutex
+	rows    []models.CoverageCell
+	listErr error
+}
+
+func (f *fakeCoverageStore) ListCoverageCells(_ context.Context, _ models.ListCoverageCellsParams) ([]models.CoverageCell, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.rows, f.listErr
+}
+
+func (f *fakeCoverageStore) UpsertCoverageCell(_ context.Context, _ models.UpsertCoverageCellParams) error {
+	return nil
+}
+
+func (f *fakeCoverageStore) DeleteCoverageCell(_ context.Context, _ models.DeleteCoverageCellParams) error {
+	return nil
+}
+
+func (f *fakeCoverageStore) DeleteCoverageCellsOtherSizes(_ context.Context, _ int64) error {
+	return nil
 }
