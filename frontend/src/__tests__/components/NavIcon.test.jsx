@@ -17,6 +17,7 @@ describe('TestNavIcon', () => {
       'dashboard',
       'comms',
       'topology',
+      'coverage',
       'gps',
       'blos',
       'scanner',

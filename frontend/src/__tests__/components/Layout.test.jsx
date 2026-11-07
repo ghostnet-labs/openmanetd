@@ -98,6 +98,7 @@ describe('TestLayoutNavIcons', () => {
       'dashboard',
       'comms',
       'topology',
+      'coverage',
       'gps',
       'blos',
       'scanner',
@@ -116,6 +117,7 @@ describe('TestLayoutNavIcons', () => {
       'dashboard',
       'comms',
       'topology',
+      'coverage',
       'gps',
       'blos',
       'scanner',
@@ -137,7 +139,7 @@ describe('TestLayoutNavIcons', () => {
   it('gives every overflow sheet row its own icon', () => {
     const { container } = renderLayout(500);
     fireEvent.click(screen.getByText('More').closest('button'));
-    expect(iconsIn(container, '.tab-sheet')).toEqual(['blos', 'scanner', 'settings', 'signout']);
+    expect(iconsIn(container, '.tab-sheet')).toEqual(['coverage', 'blos', 'scanner', 'settings', 'signout']);
   });
 
   it('leaves no icon slot empty in either shell', () => {
@@ -366,7 +368,7 @@ describe('TestLayoutAdvancedEntry', () => {
     const icons = Array.from(container.querySelectorAll('.tab-sheet svg[data-icon]')).map((el) =>
       el.getAttribute('data-icon')
     );
-    expect(icons).toEqual(['blos', 'scanner', 'settings', 'advanced', 'signout']);
+    expect(icons).toEqual(['coverage', 'blos', 'scanner', 'settings', 'advanced', 'signout']);
   });
 });
 

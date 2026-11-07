@@ -20,12 +20,14 @@ import (
 	"database/sql"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/coreywagehoft/go-tak/pkg/cot"
 	"github.com/coreywagehoft/go-tak/pkg/cotproto"
 	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
 	"github.com/openmanet/openmanetd/internal/config"
+	"github.com/openmanet/openmanetd/internal/coverage"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/scanner/aircraft"
 	"github.com/openmanet/openmanetd/internal/system"
@@ -98,6 +100,13 @@ type Options struct {
 	Battery  BatterySource
 	Aircraft AircraftSource
 	Jams     JamSource
+	// Status adds health, radio, GNSS, comms, scanner and uplink lines to
+	// the node marker. Signals adds signal strength to link lines.
+	Status  StatusSource
+	Signals SignalSource
+	// Coverage records a coverage sample on each link tick (needs
+	// Signals) and draws its cells as a heatmap.
+	Coverage CoverageMap
 	// Now defaults to time.Now.
 	Now func() time.Time
 	Log zerolog.Logger
@@ -122,6 +131,7 @@ type Publisher struct {
 	links        map[string]struct{}
 	jams         map[string]struct{}
 	aircraftBuf  []aircraft.Aircraft
+	coverageBuf  []coverage.Cell
 	mesh         meshSummary
 	tick         uint64
 	sendFailing  bool
@@ -200,11 +210,11 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	pos, havePos := p.position(now)
 
 	if tick%linkEvery == 0 {
-		p.refreshMesh(ctx, pos, havePos)
+		p.refreshMesh(ctx, cfg, now, pos, havePos)
 	}
 
 	if havePos && !p.opts.CameraOwnsMarker {
-		p.send(NodeEvent(p.nodeInfo(cfg, pos), now))
+		p.send(NodeEvent(p.nodeInfo(ctx, cfg, pos), now))
 	}
 
 	if tick%linkEvery == 0 {
@@ -216,6 +226,10 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	}
 
 	p.publishJams(cfg, now, pos, havePos)
+
+	if cfg.CoverageEnable {
+		p.publishCoverage(cfg, now)
+	}
 }
 
 func (p *Publisher) position(now time.Time) (Position, bool) {
@@ -235,7 +249,7 @@ func (p *Publisher) position(now time.Time) (Position, bool) {
 	return pos, true
 }
 
-func (p *Publisher) nodeInfo(cfg config.TAKConfig, pos Position) *NodeInfo {
+func (p *Publisher) nodeInfo(ctx context.Context, cfg config.TAKConfig, pos Position) *NodeInfo {
 	n := &NodeInfo{
 		Callsign:  p.opts.Callsign,
 		Role:      cfg.Role,
@@ -246,6 +260,11 @@ func (p *Publisher) nodeInfo(cfg config.TAKConfig, pos Position) *NodeInfo {
 		MeshNodes: p.mesh.nodes,
 		Gateway:   p.mesh.gateway,
 		HaveMesh:  p.haveMeshRead,
+	}
+
+	if p.opts.Status != nil {
+		st := p.opts.Status.NodeStatus(ctx)
+		n.Status = &st
 	}
 
 	if p.opts.Battery == nil {
@@ -264,7 +283,7 @@ func (p *Publisher) nodeInfo(cfg config.TAKConfig, pos Position) *NodeInfo {
 
 // refreshMesh reads the topology and gossiped node positions once per
 // link period and keeps the summary the node marker and links use.
-func (p *Publisher) refreshMesh(ctx context.Context, pos Position, havePos bool) {
+func (p *Publisher) refreshMesh(ctx context.Context, cfg config.TAKConfig, now time.Time, pos Position, havePos bool) {
 	if p.opts.Topology == nil {
 		return
 	}
@@ -285,13 +304,21 @@ func (p *Publisher) refreshMesh(ctx context.Context, pos Position, havePos bool)
 		}
 	}
 
-	p.mesh = summarizeMesh(resp.GetTopology(), nodes, p.opts.Hostname, p.opts.Callsign, pos, havePos)
+	var signals map[string]StationSignal
+	if p.opts.Signals != nil {
+		signals = p.opts.Signals.StationSignals(ctx)
+	}
+
+	p.recordCoverage(cfg, now, pos, havePos, signals)
+
+	p.mesh = summarizeMesh(resp.GetTopology(), nodes, signals, p.opts.Hostname, p.opts.Callsign, pos, havePos)
 	p.haveMeshRead = true
 }
 
 func summarizeMesh(
 	topo *meshtopov1.MeshTopology,
 	nodes []models.MeshNode,
+	signals map[string]StationSignal,
 	hostname, callsign string,
 	pos Position,
 	havePos bool,
@@ -360,17 +387,48 @@ func summarizeMesh(
 			continue
 		}
 
-		s.links = append(s.links, Link{
+		link := Link{
 			UID:       linkUID(hostname, peer.GetHostname()),
 			Algorithm: topo.GetAlgorithm(),
 			A:         self,
 			B:         end,
 			Metric:    e.GetMetric(),
 			BLOS:      e.GetBlos(),
-		})
+		}
+
+		if sig, ok := peerSignal(signals, peerMAC, peer); ok && !link.BLOS {
+			link.SignalDBm, link.TxBitrateKbps, link.HaveSignal = sig.SignalDBm, sig.TxBitrateKbps, true
+		}
+
+		s.links = append(s.links, link)
 	}
 
 	return s
+}
+
+// peerSignal finds the station entry for a neighbor. The edge names the
+// neighbor by the interface MAC batman heard it on, which is the station
+// address on that radio; its other interfaces are tried too.
+func peerSignal(signals map[string]StationSignal, edgeMAC string, peer *meshtopov1.MeshNode) (StationSignal, bool) {
+	if len(signals) == 0 {
+		return StationSignal{}, false
+	}
+
+	if sig, ok := signals[strings.ToLower(edgeMAC)]; ok {
+		return sig, true
+	}
+
+	if sig, ok := signals[strings.ToLower(peer.GetMac())]; ok {
+		return sig, true
+	}
+
+	for _, mac := range peer.GetSecondaryMacs() {
+		if sig, ok := signals[strings.ToLower(mac)]; ok {
+			return sig, true
+		}
+	}
+
+	return StationSignal{}, false
 }
 
 // linkUID is the same on both ends of a link, so the two nodes that
@@ -533,4 +591,42 @@ func distanceKm(lat1, lon1, lat2, lon2 float64) float64 {
 		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
 
 	return 2 * earthRadiusKm * math.Asin(math.Min(1, math.Sqrt(a)))
+}
+
+// recordCoverage adds one coverage sample at this node's position. A nil
+// station list means the read failed, which says nothing about coverage,
+// so it is skipped; an empty one is a real "no mesh link here". A fix
+// coarser than a cell would put the sample in the wrong cell.
+func (p *Publisher) recordCoverage(cfg config.TAKConfig, now time.Time, pos Position, havePos bool, signals map[string]StationSignal) {
+	if !cfg.CoverageEnable || p.opts.Coverage == nil || !havePos || signals == nil {
+		return
+	}
+
+	if pos.CE > p.opts.Coverage.CellMeters() {
+		return
+	}
+
+	p.opts.Coverage.Record(now, pos.Lat, pos.Lon, coverageSample(signals))
+}
+
+// publishCoverage sends a few coverage cells per tick. Cells live long
+// enough that each one is resent before it goes stale.
+func (p *Publisher) publishCoverage(cfg config.TAKConfig, now time.Time) {
+	if p.opts.Coverage == nil {
+		return
+	}
+
+	n := p.opts.Coverage.Len()
+	if n == 0 {
+		return
+	}
+
+	cycles := (n + coveragePerTick - 1) / coveragePerTick
+	stale := 2 * time.Duration(cycles) * cfg.Interval
+	cellM := p.opts.Coverage.CellMeters()
+
+	p.coverageBuf = p.opts.Coverage.NextToPublish(p.coverageBuf[:0], coveragePerTick)
+	for i := range p.coverageBuf {
+		p.send(CoverageEvent(&p.coverageBuf[i], cellM, p.opts.Callsign, now, stale))
+	}
 }

@@ -26,6 +26,18 @@ CREATE TABLE IF NOT EXISTS mesh_nodes (
   uci_dhcp_limit integer,
   created_at     timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS coverage_cells (
+  cell_m          integer NOT NULL,
+  cell_row        integer NOT NULL,
+  cell_col        integer NOT NULL,
+  samples         integer NOT NULL,
+  no_link_samples integer NOT NULL,
+  signal_dbm      real NOT NULL,
+  max_links       integer NOT NULL,
+  first_seen      timestamp NOT NULL,
+  last_seen       timestamp NOT NULL,
+  PRIMARY KEY (cell_m, cell_row, cell_col)
 );`
 
 // newDB opens a fresh in-memory SQLite database, applies the schema, and
@@ -523,4 +535,52 @@ func TestDeleteMeshNodesUpdatedBefore(t *testing.T) {
 	assert.NotContains(t, macs, "aa:00:00:00:00:01")
 	assert.Contains(t, macs, "aa:00:00:00:00:02")
 	assert.Contains(t, macs, "aa:00:00:00:00:03")
+}
+
+// ── coverage_cells ───────────────────────────────────────────────────────────
+
+func coverageParams(m, row, col int64, last time.Time) models.UpsertCoverageCellParams {
+	return models.UpsertCoverageCellParams{
+		CellM: m, CellRow: row, CellCol: col,
+		Samples: 4, NoLinkSamples: 1, SignalDbm: -67.5, MaxLinks: 2,
+		FirstSeen: last.Add(-time.Hour), LastSeen: last,
+	}
+}
+
+func TestCoverageCells_upsertListDelete(t *testing.T) {
+	q := newQueries(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+
+	require.NoError(t, q.UpsertCoverageCell(ctx, coverageParams(50, 1, 1, now)))
+	require.NoError(t, q.UpsertCoverageCell(ctx, coverageParams(50, -2, 3, now.Add(time.Minute))))
+	require.NoError(t, q.UpsertCoverageCell(ctx, coverageParams(100, 1, 1, now)))
+
+	updated := coverageParams(50, 1, 1, now.Add(2*time.Minute))
+	updated.Samples = 9
+	require.NoError(t, q.UpsertCoverageCell(ctx, updated), "same cell upserts in place")
+
+	cells, err := q.ListCoverageCells(ctx, models.ListCoverageCellsParams{CellM: 50, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, cells, 2)
+	assert.Equal(t, int64(1), cells[0].CellRow, "newest first")
+	assert.Equal(t, int64(9), cells[0].Samples)
+	assert.InDelta(t, -67.5, cells[0].SignalDbm, 1e-9)
+	assert.True(t, cells[0].LastSeen.Equal(now.Add(2*time.Minute)))
+	assert.Equal(t, int64(-2), cells[1].CellRow, "negative rows (southern hemisphere) round-trip")
+
+	limited, err := q.ListCoverageCells(ctx, models.ListCoverageCellsParams{CellM: 50, Limit: 1})
+	require.NoError(t, err)
+	assert.Len(t, limited, 1)
+
+	require.NoError(t, q.DeleteCoverageCell(ctx, models.DeleteCoverageCellParams{CellM: 50, CellRow: -2, CellCol: 3}))
+	require.NoError(t, q.DeleteCoverageCellsOtherSizes(ctx, 50))
+
+	cells, err = q.ListCoverageCells(ctx, models.ListCoverageCellsParams{CellM: 50, Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, cells, 1)
+
+	other, err := q.ListCoverageCells(ctx, models.ListCoverageCellsParams{CellM: 100, Limit: 10})
+	require.NoError(t, err)
+	assert.Empty(t, other, "cells of another size are dropped")
 }
