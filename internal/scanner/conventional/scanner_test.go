@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -255,9 +256,13 @@ func TestScanner_captureFailureRetries(t *testing.T) {
 	require.NoError(t, s.Scan(fixturePlan()))
 	require.Eventually(t, func() bool { return len(r.Starts()) >= 3 }, waitTimeout, time.Millisecond)
 
-	st := s.Status()
-	assert.Equal(t, scanner.ConventionalError, st.State)
-	assert.Contains(t, st.Detail, "usb_claim_interface")
+	// The runner records a start before the scanner records its failure,
+	// so a single Status read can land between the two. Wait for it.
+	require.Eventually(t, func() bool {
+		st := s.Status()
+
+		return st.State == scanner.ConventionalError && strings.Contains(st.Detail, "usb_claim_interface")
+	}, waitTimeout, time.Millisecond)
 }
 
 func TestScanner_waitIdleWhileCapturing(t *testing.T) {
