@@ -16,8 +16,8 @@ import (
 	"github.com/mdlayher/arp"
 	"github.com/openmanet/openmanetd/internal/camera"
 	"github.com/openmanet/openmanetd/internal/config"
+	"github.com/openmanet/openmanetd/internal/cotmcast"
 	"github.com/openmanet/openmanetd/internal/util/board"
-	"golang.org/x/net/ipv4"
 )
 
 // SendIfRequiredAsCoT sends the GPS position as a Cursor-on-Target (CoT) message to End User Devices (EUDs).
@@ -43,6 +43,14 @@ func (g *GPSService) SendIfRequiredAsCoT() {
 	}
 
 	if g.sendCameraCoTIfPresent(context.Background()) {
+		return
+	}
+
+	// With the ATAK feed on (tak.enable, the default) internal/takfeed
+	// publishes this node's radio marker on its own ticker, with mesh
+	// health attached; sending it here too would make the two fight over
+	// one uid.
+	if g.takFeedOwnsMarker() {
 		return
 	}
 
@@ -106,6 +114,19 @@ func (g *GPSService) sendCameraCoTIfPresent(ctx context.Context) bool {
 	return true
 }
 
+// takFeedOwnsMarker reports whether internal/takfeed publishes this
+// node's radio marker.
+func (g *GPSService) takFeedOwnsMarker() bool {
+	return g.Config != nil && g.Config.GetTAK().Enable
+}
+
+// CameraPresent reports whether a camera was detected at startup, in
+// which case this service publishes the node as a camera sensor marker
+// under NodeCallsign. It never changes after construction.
+func (g *GPSService) CameraPresent() bool {
+	return g.cameraPresent
+}
+
 func (g *GPSService) reserveCoTMulticastSend() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -130,7 +151,7 @@ func (g *GPSService) sendCameraCoTToMulticast(ctx context.Context) error {
 		return fmt.Errorf("resolve camera stream: %w", err)
 	}
 
-	callsign := nodeCallsign()
+	callsign := NodeCallsign()
 
 	return camera.Publish(ctx, camera.Position{
 		Altitude:        pos.Altitude,
@@ -264,7 +285,7 @@ func (g *GPSService) sendCoTToMulticast() error {
 		g.Log.Warn().Err(err).Msg("Failed to get board config info for CoT message")
 	}
 
-	hostname := nodeCallsign()
+	hostname := NodeCallsign()
 
 	// Get platform name, handle nil deviceInfo
 	platformName := "OpenMANET"
@@ -342,7 +363,7 @@ func (g *GPSService) sendCoTToMulticast() error {
 	return nil
 }
 
-func nodeCallsign() string {
+func NodeCallsign() string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "openmanet-node"
@@ -484,7 +505,7 @@ func (g *GPSService) sendCoTMulticast(data []byte) error {
 
 	write := g.writeMulticast
 	if write == nil {
-		write = writeMulticastOn
+		write = cotmcast.WriteOn
 	}
 
 	dst := &net.UDPAddr{IP: net.ParseIP(config.ATAKSAAddress), Port: atakSAMulticastPortNum}
@@ -515,32 +536,6 @@ func (g *GPSService) sendCoTMulticast(data []byte) error {
 	return nil
 }
 
-// writeMulticastOn sends data to dst with the socket's multicast egress
-// forced to ifi.
-func writeMulticastOn(ifi *net.Interface, dst *net.UDPAddr, data []byte) error {
-	conn, err := net.ListenUDP("udp4", nil)
-	if err != nil {
-		return fmt.Errorf("open multicast socket: %w", err)
-	}
-	defer conn.Close()
-
-	pconn := ipv4.NewPacketConn(conn)
-
-	if err := pconn.SetMulticastInterface(ifi); err != nil {
-		return fmt.Errorf("set multicast interface: %w", err)
-	}
-
-	if err := pconn.SetMulticastTTL(atakMulticastTTL); err != nil {
-		return fmt.Errorf("set multicast TTL: %w", err)
-	}
-
-	if _, err := pconn.WriteTo(data, nil, dst); err != nil {
-		return fmt.Errorf("write: %w", err)
-	}
-
-	return nil
-}
-
 // meshInterfaceName returns the configured mesh bridge name, or the
 // package default when no Config was wired up.
 func (g *GPSService) meshInterfaceName() string {
@@ -552,36 +547,11 @@ func (g *GPSService) meshInterfaceName() string {
 }
 
 // selectMulticastInterfaces picks the interfaces a CoT multicast datagram
-// is sent on. The named mesh interface wins when it resolves and is up;
-// otherwise every up, multicast-capable, non-loopback interface is a
-// candidate. An empty result means no usable interface exists.
+// is sent on; see cotmcast.SelectInterfaces.
 func selectMulticastInterfaces(
 	meshName string,
 	byName func(string) (*net.Interface, error),
 	list func() ([]net.Interface, error),
 ) []net.Interface {
-	if ifi, err := byName(meshName); err == nil && multicastCapable(ifi) {
-		return []net.Interface{*ifi}
-	}
-
-	ifaces, err := list()
-	if err != nil {
-		return nil
-	}
-
-	out := make([]net.Interface, 0, len(ifaces))
-
-	for i := range ifaces {
-		if multicastCapable(&ifaces[i]) {
-			out = append(out, ifaces[i])
-		}
-	}
-
-	return out
-}
-
-func multicastCapable(ifi *net.Interface) bool {
-	return ifi.Flags&net.FlagUp != 0 &&
-		ifi.Flags&net.FlagMulticast != 0 &&
-		ifi.Flags&net.FlagLoopback == 0
+	return cotmcast.SelectInterfaces(meshName, byName, list)
 }

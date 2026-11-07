@@ -8,8 +8,6 @@ const (
 	atakSAMulticastPort string = "6969" // Port for ATAK SA multicast
 	// atakSAMulticastPortNum is atakSAMulticastPort as an int for net.UDPAddr.
 	atakSAMulticastPortNum int = 6969
-	// atakMulticastTTL is the Time-To-Live value for CoT multicast packets sent to ATAK SA address
-	atakMulticastTTL int = 64
 	// defaultSelfMarkerType is the CoT type for self markers
 	// defaultSelfMarkerType string = "a-f-G-U-C" // SELF MARKER
 	// radioUnitType is the CoT type for a ground radio unit

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/network"
 	"github.com/rs/zerolog"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +103,7 @@ func TestSendIfRequiredAsCoT_noLeasesSendsPingThenMarker(t *testing.T) {
 
 	markerType, markerUID := decodeMesh(t, packets[1])
 	assert.Equal(t, radioUnitType, markerType)
-	assert.Equal(t, nodeCallsign(), markerUID)
+	assert.Equal(t, NodeCallsign(), markerUID)
 }
 
 func TestSendIfRequiredAsCoT_leaseErrorSendsNothing(t *testing.T) {
@@ -413,4 +415,31 @@ func TestSendCoTMulticast_failsWhenEveryInterfaceRejects(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "br-lan")
 	assert.ErrorContains(t, err, "bat0")
+}
+
+func TestSendIfRequiredAsCoT_takFeedOwnsRadioMarker(t *testing.T) {
+	tests := []struct {
+		name      string
+		yaml      string
+		wantSends int
+	}{
+		{name: "feed on by default", yaml: "", wantSends: 0},
+		{name: "feed disabled", yaml: "tak:\n  enable: false\n", wantSends: 2},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := viper.New()
+			v.SetConfigType("yaml")
+			require.NoError(t, v.ReadConfig(strings.NewReader(tc.yaml)))
+
+			sender := &fakeMulticastSender{}
+			gps := newNoLeaseGPS(sender, emptyLeases)
+			gps.Config = config.NewWithoutWatch(v)
+
+			gps.SendIfRequiredAsCoT()
+
+			assert.Len(t, sender.sent(), tc.wantSends)
+		})
+	}
 }
