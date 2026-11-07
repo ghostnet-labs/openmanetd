@@ -24,8 +24,10 @@ frontend:
 ```
 
 `upstream` must be an `http` or `https` URL with a host and no path, query or
-credentials. An invalid value disables the proxy (logged at error level) and
-hides the Advanced entry. Both keys are re-read on a config reload, so no
+credentials. An invalid value disables the proxy (logged at error level).
+The Advanced entry is always shown: with the proxy on it opens LuCI on this
+origin, and with it off (or invalid) it opens LuCI on its own address,
+`http://<node>/cgi-bin/luci/` on uhttpd. Both keys are re-read on a config reload, so no
 restart is needed. The SPA reads the flag once per page load, so reload the
 page after you change it.
 
