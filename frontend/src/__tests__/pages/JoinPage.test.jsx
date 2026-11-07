@@ -100,6 +100,23 @@ describe('JoinPage', () => {
     expect(screen.queryByText('1 · Install ATAK')).toBeNull();
   });
 
+  it('offers the address for Chrome inside the Wi-Fi sign-in window', async () => {
+    setUA('Mozilla/5.0 (Linux; Android 14; SM-G556B Build/UP1A; wv) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36');
+    serve(status());
+    render(<JoinPage />);
+
+    expect(await screen.findByText(/sign-in window/)).toBeInTheDocument();
+    expect(screen.getByText('http://10.41.3.7:8080/join')).toBeInTheDocument();
+  });
+
+  it('shows no sign-in window notice in Chrome', async () => {
+    serve(status());
+    render(<JoinPage />);
+
+    await screen.findByText('1 · Install ATAK');
+    expect(screen.queryByText(/sign-in window/)).toBeNull();
+  });
+
   it('shows an error when the node cannot be reached', async () => {
     serve(null, false);
     render(<JoinPage />);

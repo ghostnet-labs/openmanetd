@@ -17,6 +17,7 @@ import {
   detectPlatform,
   fetchOnboardStatus,
   formatBytes,
+  isSignInWindow,
   isValidCallsign,
 } from '../services/onboardApi.js';
 import './JoinPage.css';
@@ -53,6 +54,7 @@ export default function JoinPage() {
     () => detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0),
     [],
   );
+  const signInWindow = useMemo(() => isSignInWindow(navigator.userAgent), []);
 
   const { status } = state;
   const teamOptions = useMemo(() => toOptions(status?.teams, 'Keep ATAK default'), [status]);
@@ -112,6 +114,13 @@ export default function JoinPage() {
 
       {platform === 'other' && (
         <div className="lat-alert">Open this page on the Android phone you are setting up.</div>
+      )}
+
+      {signInWindow && !onHttps && (
+        <div className="lat-alert warn join-https">
+          <span>If the download does not start in this sign-in window, open Chrome and go to:</span>
+          <span className="join-address">{httpJoinUrl}</span>
+        </div>
       )}
 
       {onHttps && (

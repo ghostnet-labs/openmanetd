@@ -64,6 +64,13 @@ sources.
 
 Give phones `http://<node address>:8080/join`.
 
+With the `openmanet-phone-portal` package (ghostnet-labs/packages, pulled
+in by the openmanetd package), a phone that joins a node with no internet
+gets a "Sign in to network" prompt that opens `/join` by itself. Android
+shows the page in a sign-in window where downloads and `tak://` links may
+not work, so `/join` detects that window and shows the address to open in
+Chrome.
+
 ## Configuration
 
 See `onboard.*` in `example_config.yml`. Onboarding is on by default and
@@ -72,11 +79,10 @@ persistent storage.
 
 ## Still to come
 
-1. The setup page popping up when a phone joins the access point.
-2. Plug-in setup: the node installs and configures ATAK over USB or
+1. Plug-in setup: the node installs and configures ATAK over USB or
    wireless debugging, with permissions granted and battery optimization
    off.
-3. Copying the APK to every node on the mesh.
+2. Copying the APK to every node on the mesh.
 
 ## Licensing note
 

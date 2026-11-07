@@ -9,6 +9,7 @@ import {
   detectPlatform,
   fetchOnboardStatus,
   formatBytes,
+  isSignInWindow,
   isValidCallsign,
   removeAtakApk,
   uploadAtakApk,
@@ -57,6 +58,17 @@ describe('DetectPlatform', () => {
     ['', 0, 'other'],
   ])('%s (%i touch points) is %s', (ua, touch, want) => {
     expect(detectPlatform(ua, touch)).toBe(want);
+  });
+});
+
+describe('IsSignInWindow', () => {
+  it.each([
+    ['Mozilla/5.0 (Linux; Android 14; SM-G556B Build/UP1A; wv) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36', true],
+    ['Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36', false],
+    ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15', false],
+    ['', false],
+  ])('%s → %s', (ua, want) => {
+    expect(isSignInWindow(ua)).toBe(want);
   });
 });
 

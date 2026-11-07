@@ -44,6 +44,14 @@ export function detectPlatform(ua = '', maxTouchPoints = 0) {
   return 'other';
 }
 
+// isSignInWindow reports whether the page is open in Android's "Sign in
+// to network" window (a WebView, marked "; wv)" in its user agent), which
+// the node's phone portal opens. Downloads and tak:// links may not work
+// there, so the page offers the address to open in Chrome.
+export function isSignInWindow(ua = '') {
+  return /android/i.test(ua) && /;\s*wv\)/.test(ua);
+}
+
 // CALLSIGN_RE mirrors the server's rule: up to 40 letters, digits,
 // space, '-', '_' or '.'.
 const CALLSIGN_RE = /^[\p{L}\p{N} ._-]{0,40}$/u;

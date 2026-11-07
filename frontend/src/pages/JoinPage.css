@@ -47,6 +47,12 @@
   gap: 8px;
 }
 
+.join-address {
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+
 .join-steps {
   margin: 12px 0 0;
   padding-left: 18px;
