@@ -76,6 +76,32 @@ func (q *Queries) DeleteAllMeshNodes(ctx context.Context) error {
 	return err
 }
 
+const deleteCoverageCell = `-- name: DeleteCoverageCell :exec
+DELETE FROM coverage_cells
+WHERE cell_m = ? AND cell_row = ? AND cell_col = ?
+`
+
+type DeleteCoverageCellParams struct {
+	CellM   int64
+	CellRow int64
+	CellCol int64
+}
+
+func (q *Queries) DeleteCoverageCell(ctx context.Context, arg DeleteCoverageCellParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCoverageCell, arg.CellM, arg.CellRow, arg.CellCol)
+	return err
+}
+
+const deleteCoverageCellsOtherSizes = `-- name: DeleteCoverageCellsOtherSizes :exec
+DELETE FROM coverage_cells
+WHERE cell_m != ?
+`
+
+func (q *Queries) DeleteCoverageCellsOtherSizes(ctx context.Context, cellM int64) error {
+	_, err := q.db.ExecContext(ctx, deleteCoverageCellsOtherSizes, cellM)
+	return err
+}
+
 const deleteDuplicateMeshNodes = `-- name: DeleteDuplicateMeshNodes :exec
 DELETE FROM mesh_nodes
 WHERE rowid NOT IN (
@@ -160,6 +186,51 @@ func (q *Queries) GetMeshNodeByHostname(ctx context.Context, hostname string) (M
 	return i, err
 }
 
+const listCoverageCells = `-- name: ListCoverageCells :many
+SELECT cell_m, cell_row, cell_col, samples, no_link_samples, signal_dbm, max_links, first_seen, last_seen FROM coverage_cells
+WHERE cell_m = ?
+ORDER BY last_seen DESC
+LIMIT ?
+`
+
+type ListCoverageCellsParams struct {
+	CellM int64
+	Limit int64
+}
+
+func (q *Queries) ListCoverageCells(ctx context.Context, arg ListCoverageCellsParams) ([]CoverageCell, error) {
+	rows, err := q.db.QueryContext(ctx, listCoverageCells, arg.CellM, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoverageCell
+	for rows.Next() {
+		var i CoverageCell
+		if err := rows.Scan(
+			&i.CellM,
+			&i.CellRow,
+			&i.CellCol,
+			&i.Samples,
+			&i.NoLinkSamples,
+			&i.SignalDbm,
+			&i.MaxLinks,
+			&i.FirstSeen,
+			&i.LastSeen,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMeshNodes = `-- name: ListMeshNodes :many
 SELECT mac_addr, hostname, ip_addr, latitude, longitude, altitude, uci_dhcp_start, uci_dhcp_limit, created_at, updated_at FROM mesh_nodes
 ORDER BY hostname
@@ -233,6 +304,46 @@ func (q *Queries) UpdateMeshNode(ctx context.Context, arg UpdateMeshNodeParams) 
 		arg.UciDhcpStart,
 		arg.UciDhcpLimit,
 		arg.MacAddr,
+	)
+	return err
+}
+
+const upsertCoverageCell = `-- name: UpsertCoverageCell :exec
+INSERT INTO coverage_cells (
+  cell_m, cell_row, cell_col, samples, no_link_samples, signal_dbm, max_links, first_seen, last_seen
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cell_m, cell_row, cell_col) DO UPDATE SET
+  samples = excluded.samples,
+  no_link_samples = excluded.no_link_samples,
+  signal_dbm = excluded.signal_dbm,
+  max_links = excluded.max_links,
+  first_seen = excluded.first_seen,
+  last_seen = excluded.last_seen
+`
+
+type UpsertCoverageCellParams struct {
+	CellM         int64
+	CellRow       int64
+	CellCol       int64
+	Samples       int64
+	NoLinkSamples int64
+	SignalDbm     float64
+	MaxLinks      int64
+	FirstSeen     time.Time
+	LastSeen      time.Time
+}
+
+func (q *Queries) UpsertCoverageCell(ctx context.Context, arg UpsertCoverageCellParams) error {
+	_, err := q.db.ExecContext(ctx, upsertCoverageCell,
+		arg.CellM,
+		arg.CellRow,
+		arg.CellCol,
+		arg.Samples,
+		arg.NoLinkSamples,
+		arg.SignalDbm,
+		arg.MaxLinks,
+		arg.FirstSeen,
+		arg.LastSeen,
 	)
 	return err
 }

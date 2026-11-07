@@ -13,6 +13,7 @@ import (
 	blosconnect "github.com/openmanet/openmanetd/internal/api/openmanet/blos/v1/blosv1connect"
 	chanmigconnect "github.com/openmanet/openmanetd/internal/api/openmanet/chanmig/v1/chanmigv1connect"
 	commsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/comms/v1/commsv1connect"
+	coverageconnect "github.com/openmanet/openmanetd/internal/api/openmanet/coverage/v1/coveragev1connect"
 	dashboardconnect "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1/dashboardv1connect"
 	gnssconnect "github.com/openmanet/openmanetd/internal/api/openmanet/gnss/v1/gnssv1connect"
 	hardwareconnect "github.com/openmanet/openmanetd/internal/api/openmanet/hardware/v1/hardwarev1connect"
@@ -90,6 +91,9 @@ type APIServer struct {
 	// false. Like Hardware it must be a nil interface, not a typed nil
 	// pointer.
 	JamDetector handlers.JamDetector
+	// Coverage is the mesh coverage map; nil without a database. Like
+	// Hardware it must be a nil interface, not a typed nil pointer.
+	Coverage handlers.CoverageMap
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -363,6 +367,14 @@ func NewAPIServer(cfg APIServer) *APIServer {
 	api.Handle(jamdetectconnect.NewJamDetectServiceHandler(&handlers.JamDetectService{
 		Log:      cfg.Log.With().Str("service", "jamdetect").Logger(),
 		Detector: cfg.JamDetector,
+	}, connect.WithInterceptors(validateInterceptor)))
+
+	// CoverageService (GHO-94) serves this node's coverage map and the
+	// maps other nodes gossip. Session-gated (not in isAPISkipPath).
+	api.Handle(coverageconnect.NewCoverageServiceHandler(&handlers.CoverageService{
+		Log: cfg.Log.With().Str("service", "coverage").Logger(),
+		Cfg: cfg.Cfg,
+		Map: cfg.Coverage,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

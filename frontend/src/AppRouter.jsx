@@ -30,6 +30,7 @@ const SetupWizard = lazy(() => import('./pages/SetupWizard.jsx'));
 const ScannerPage = lazy(() => import('./pages/Scanner.jsx'));
 const SettingsPhones = lazy(() => import('./pages/SettingsPhones.jsx'));
 const JoinPage = lazy(() => import('./pages/JoinPage.jsx'));
+const CoveragePage = lazy(() => import('./pages/Coverage.jsx'));
 
 export default function AppRouter() {
   return (
@@ -43,6 +44,7 @@ export default function AppRouter() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/comms" element={<CommsPage />} />
             <Route path="/topology" element={<TopologyPage />} />
+            <Route path="/coverage" element={<CoveragePage />} />
             <Route path="/gps" element={<GpsStatusPage />} />
             <Route path="/blos" element={<BLOSPage />} />
             <Route path="/scanner" element={<ScannerPage />} />

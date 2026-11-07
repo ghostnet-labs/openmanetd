@@ -61,3 +61,29 @@ WHERE rowid NOT IN (
 -- name: DeleteMeshNodesUpdatedBefore :exec
 DELETE FROM mesh_nodes
 WHERE updated_at < ?;
+
+-- name: ListCoverageCells :many
+SELECT * FROM coverage_cells
+WHERE cell_m = ?
+ORDER BY last_seen DESC
+LIMIT ?;
+
+-- name: UpsertCoverageCell :exec
+INSERT INTO coverage_cells (
+  cell_m, cell_row, cell_col, samples, no_link_samples, signal_dbm, max_links, first_seen, last_seen
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cell_m, cell_row, cell_col) DO UPDATE SET
+  samples = excluded.samples,
+  no_link_samples = excluded.no_link_samples,
+  signal_dbm = excluded.signal_dbm,
+  max_links = excluded.max_links,
+  first_seen = excluded.first_seen,
+  last_seen = excluded.last_seen;
+
+-- name: DeleteCoverageCell :exec
+DELETE FROM coverage_cells
+WHERE cell_m = ? AND cell_row = ? AND cell_col = ?;
+
+-- name: DeleteCoverageCellsOtherSizes :exec
+DELETE FROM coverage_cells
+WHERE cell_m != ?;

@@ -43,6 +43,16 @@ tak:
     # farther away (0 keeps all).
     max: 32
     rangeKm: 150
+  coverage:
+    # enable records how well this node hears the mesh at each spot it
+    # visits (every 3rd tick, with a fix better than one cell) and draws it
+    # in ATAK as a heatmap: green good, yellow fair, red weak or no link.
+    enable: true
+    # cellMeters is the grid size (10 to 500). Read at startup; changing it
+    # starts a fresh map.
+    cellMeters: 50
+    # maxCells caps the saved map (64 to 8192); oldest cells go first.
+    maxCells: 1024
 blos:
   enable: false
 comms:
