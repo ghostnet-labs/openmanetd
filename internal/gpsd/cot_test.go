@@ -108,7 +108,7 @@ func TestSendCoTToMulticast(t *testing.T) {
 
 	typ, uid := decodeMesh(t, packets[0])
 	assert.Equal(t, radioUnitType, typ)
-	assert.Equal(t, nodeCallsign(), uid)
+	assert.Equal(t, NodeCallsign(), uid)
 }
 
 func TestSendCoTToMulticast_InvalidPosition(t *testing.T) {

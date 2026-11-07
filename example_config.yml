@@ -22,6 +22,27 @@ gnss:
   # "internal" (local gpsd receiver, default) or "external_cot" (adopt the
   # position broadcast by a connected EUD, e.g. ATAK, as Cursor-on-Target).
   source: internal
+# tak puts this node, its mesh links, aircraft and jamming on every ATAK map
+# on the mesh, as Cursor-on-Target on the ATAK SA multicast group
+# (239.2.3.1:6969). ATAK listens there by default, so phones need no setup.
+# Every key is optional; the values below are the defaults.
+tak:
+  enable: true
+  # role picks the map icon: "radio" (person-worn node) or "mast" (tower).
+  role: radio
+  # interval is the publish period (2s to 5m). Links go out every 3rd tick.
+  interval: 10s
+  # links draws this node's direct mesh links, colored by link quality.
+  links: true
+  # jamming places a marker for each jamming detection on this node.
+  jamming: true
+  aircraft:
+    # enable forwards aircraft this node's scanner hears (scanner.enable).
+    enable: true
+    # max caps aircraft per tick, nearest first; rangeKm drops aircraft
+    # farther away (0 keeps all).
+    max: 32
+    rangeKm: 150
 blos:
   enable: false
 comms:
