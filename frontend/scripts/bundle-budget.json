@@ -1,8 +1,8 @@
 {
   "tolerancePercent": 5,
   "baseline": {
-    "initialJs": 205763,
-    "totalJs": 395086,
-    "totalCss": 16207
+    "initialJs": 208440,
+    "totalJs": 405384,
+    "totalCss": 17063
   }
 }

@@ -75,6 +75,14 @@ export const ICONS = Object.assign(Object.create(null), {
     </svg>
   ),
 
+  // A 3x3 heatmap grid with the cells lit unevenly.
+  coverage: (
+    <svg {...SVG_PROPS} data-icon="coverage">
+      <path d="M2 2h12v12H2zM6 2v12M10 2v12M2 6h12M2 10h12" />
+      <path d="M2 2h4v4H2zM6 6h4v4H6zM10 10h4v4h-4z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+
   // Crosshair over a fix.
   gps: (
     <svg {...SVG_PROPS} data-icon="gps">

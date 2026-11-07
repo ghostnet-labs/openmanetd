@@ -319,6 +319,12 @@ func Start(staticFS fs.FS) {
 
 	apiServer.JamDetector = jamDetectorAPI(jamDetector)
 
+	// Coverage map (GHO-94): how well this node hears the mesh at each
+	// spot it visits, saved to the database and shared over alfred. The
+	// ATAK feed records and draws it; CoverageService serves it to the app.
+	covMap := newCoverageMap(ctx, cfg, coverageStore(db), alfredClient(manager), logger.GetLogger("coverage"))
+	apiServer.Coverage = covMap.api()
+
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider
 		interfaceProvider.WifiInterfaces = wifiProvider.Interfaces
@@ -328,7 +334,7 @@ func Start(staticFS fs.FS) {
 
 	// ATAK feed (GHO-94): this node, its mesh links, aircraft and jamming
 	// as CoT on the ATAK SA multicast group, for every phone on the mesh.
-	takDone := startTAKFeed(ctx, cfg, gps, db, api, scannerMgr, weatherMon, logger.GetLogger("takfeed"))
+	takDone := startTAKFeed(ctx, cfg, gps, db, api, scannerMgr, jamDetector, covMap, weatherMon, logger.GetLogger("takfeed"))
 
 	log.Info().Msg("OpenMANETd API Server starting on port 8087")
 

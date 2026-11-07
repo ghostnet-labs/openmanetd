@@ -79,7 +79,9 @@ type Battery struct {
 
 // NodeInfo is everything this node shows about itself.
 type NodeInfo struct {
-	Battery   *Battery
+	Battery *Battery
+	// Status is the rest of the node's state; nil leaves it out.
+	Status    *Status
 	Callsign  string
 	Role      string
 	Platform  string
@@ -107,7 +109,13 @@ type Link struct {
 	A         Endpoint
 	B         Endpoint
 	Metric    float64
-	BLOS      bool
+	// SignalDBm and TxBitrateKbps come from this node's station list;
+	// they are left out when HaveSignal is false (a BLOS link, or a
+	// neighbor heard only through another interface).
+	SignalDBm     int
+	TxBitrateKbps int
+	HaveSignal    bool
+	BLOS          bool
 }
 
 // JamState is how sure a detector is about a jamming episode.
@@ -119,17 +127,23 @@ const (
 	JamActive
 )
 
-// Jam is one active jamming episode seen by this node's radios.
+// Jam is one active jamming episode seen by this node's radios. Band is
+// "s1g", "2g4", "5g" or "6g". UnexplainedBusyPct is busy time the radio
+// spent neither receiving nor sending, the jamming signature.
 type Jam struct {
-	Started          time.Time
-	ID               string
-	Radio            string
-	Band             string
-	FreqMHz          float64
-	NoiseDBm         float64
-	BaselineNoiseDBm float64
-	BusyPct          float64
-	State            JamState
+	Started            time.Time
+	ID                 string
+	Radio              string
+	Band               string
+	FreqMHz            float64
+	NoiseDBm           float64
+	BaselineNoiseDBm   float64
+	BusyPct            float64
+	UnexplainedBusyPct float64
+	State              JamState
+	// NoiseKnown is false when the driver reports no noise floor; the
+	// noise figures are then left out.
+	NoiseKnown bool
 }
 
 func baseEvent(typ, uid string, now time.Time, stale time.Duration) *cotproto.CotEvent {
@@ -181,7 +195,8 @@ func NodeEvent(n *NodeInfo, now time.Time) *cotproto.TakMessage {
 func nodeRemarks(n *NodeInfo) string {
 	var b strings.Builder
 
-	b.Grow(160)
+	b.Grow(640)
+	writeAlerts(&b, n.Status)
 
 	if n.Role == config.TAKRoleMast {
 		b.WriteString("OpenMANET mast")
@@ -219,6 +234,7 @@ func nodeRemarks(n *NodeInfo) string {
 	}
 
 	b.WriteString(".")
+	writeStatus(&b, n.Status)
 
 	return b.String()
 }
@@ -261,6 +277,13 @@ func LinkEvent(l *Link, now time.Time, stale time.Duration) *cotproto.TakMessage
 		}
 
 		remarks += ")"
+	}
+
+	if l.HaveSignal {
+		remarks += ", signal " + strconv.Itoa(l.SignalDBm) + " dBm"
+		if l.TxBitrateKbps > 0 {
+			remarks += ", sending at " + strconv.FormatFloat(float64(l.TxBitrateKbps)/1000, 'f', 1, 64) + " Mbit/s"
+		}
 	}
 
 	if l.BLOS {
@@ -436,19 +459,31 @@ func JamEvent(j *Jam, callsign string, pos Position, now time.Time, stale time.D
 	b.WriteString(" detected by ")
 	b.WriteString(callsign)
 
-	if j.Radio != "" || j.Band != "" {
+	if label := bandLabel(j.Band); label != "" || j.Radio != "" {
 		b.WriteString(" (")
-		b.WriteString(strings.TrimSpace(j.Band + " " + j.Radio))
+		b.WriteString(strings.TrimSpace(label + " " + j.Radio))
 		b.WriteString(")")
 	}
 
-	b.WriteString(". Noise ")
-	b.WriteString(strconv.FormatFloat(j.NoiseDBm, 'f', 0, 64))
-	b.WriteString(" dBm vs baseline ")
-	b.WriteString(strconv.FormatFloat(j.BaselineNoiseDBm, 'f', 0, 64))
-	b.WriteString(" dBm, channel busy ")
+	b.WriteString(".")
+
+	if j.NoiseKnown {
+		b.WriteString(" Noise ")
+		b.WriteString(strconv.FormatFloat(j.NoiseDBm, 'f', 0, 64))
+		b.WriteString(" dBm vs baseline ")
+		b.WriteString(strconv.FormatFloat(j.BaselineNoiseDBm, 'f', 0, 64))
+		b.WriteString(" dBm,")
+	}
+
+	b.WriteString(" channel busy ")
 	b.WriteString(strconv.FormatFloat(j.BusyPct, 'f', 0, 64))
 	b.WriteString("%")
+
+	if j.UnexplainedBusyPct > 0 {
+		b.WriteString(" (")
+		b.WriteString(strconv.FormatFloat(j.UnexplainedBusyPct, 'f', 0, 64))
+		b.WriteString("% not explained by traffic)")
+	}
 
 	if !j.Started.IsZero() {
 		b.WriteString(", since ")
@@ -463,6 +498,21 @@ func JamEvent(j *Jam, callsign string, pos Position, now time.Time, stale time.D
 	}
 
 	return &cotproto.TakMessage{CotEvent: ev}
+}
+
+func bandLabel(band string) string {
+	switch band {
+	case "s1g":
+		return "HaLow"
+	case "2g4":
+		return "2.4 GHz"
+	case "5g":
+		return "5 GHz"
+	case "6g":
+		return "6 GHz"
+	default:
+		return band
+	}
 }
 
 // DeleteEvent tells every ATAK to drop the item with uid now, instead of

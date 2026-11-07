@@ -20,11 +20,18 @@ const (
 	DefaultTAKAircraftEnable  = true
 	DefaultTAKAircraftMax     = 32
 	DefaultTAKAircraftRangeKm = 150.0
+	DefaultTAKCoverageEnable  = true
+	DefaultTAKCoverageCellM   = 50
+	DefaultTAKCoverageMax     = 1024
 
 	minTAKInterval       = 2 * time.Second
 	maxTAKInterval       = 5 * time.Minute
 	maxTAKAircraft       = 256
 	maxTAKAircraftRangeK = 1000.0
+	minTAKCoverageCellM  = 10
+	maxTAKCoverageCellM  = 500
+	minTAKCoverageMax    = 64
+	maxTAKCoverageMax    = 8192
 )
 
 // Node roles shown on the ATAK map.
@@ -50,6 +57,11 @@ type TAKConfig struct {
 	// AircraftRangeKm drops aircraft farther than this from the node; 0
 	// keeps every aircraft.
 	AircraftRangeKm float64
+	// CoverageCellM is the coverage map's grid cell size in meters. It is
+	// read once at startup; changing it starts a fresh map.
+	CoverageCellM int
+	// CoverageMaxCells caps the cells kept; the oldest are dropped first.
+	CoverageMaxCells int
 	// Enable turns the whole feed on. While it is on, the feed owns this
 	// node's radio marker and gpsd stops sending its own.
 	Enable bool
@@ -61,20 +73,26 @@ type TAKConfig struct {
 	Weather bool
 	// AircraftEnable forwards aircraft heard by this node's scanner.
 	AircraftEnable bool
+	// CoverageEnable records how well this node hears the mesh at each
+	// spot it visits and draws that as a coverage heatmap in ATAK.
+	CoverageEnable bool
 }
 
 // loadTAK reads the tak section, applying defaults. The caller holds c.mu.
 func (c *Config) loadTAK() TAKConfig {
 	tc := TAKConfig{
-		Enable:          DefaultTAKEnable,
-		Role:            DefaultTAKRole,
-		Interval:        DefaultTAKInterval,
-		Links:           DefaultTAKLinks,
-		Jamming:         DefaultTAKJamming,
-		Weather:         DefaultTAKWeather,
-		AircraftEnable:  DefaultTAKAircraftEnable,
-		AircraftMax:     DefaultTAKAircraftMax,
-		AircraftRangeKm: DefaultTAKAircraftRangeKm,
+		Enable:           DefaultTAKEnable,
+		Role:             DefaultTAKRole,
+		Interval:         DefaultTAKInterval,
+		Links:            DefaultTAKLinks,
+		Jamming:          DefaultTAKJamming,
+		Weather:          DefaultTAKWeather,
+		AircraftEnable:   DefaultTAKAircraftEnable,
+		AircraftMax:      DefaultTAKAircraftMax,
+		AircraftRangeKm:  DefaultTAKAircraftRangeKm,
+		CoverageEnable:   DefaultTAKCoverageEnable,
+		CoverageCellM:    DefaultTAKCoverageCellM,
+		CoverageMaxCells: DefaultTAKCoverageMax,
 	}
 
 	boolKeys := []struct {
@@ -86,6 +104,7 @@ func (c *Config) loadTAK() TAKConfig {
 		{&tc.Jamming, "tak.jamming"},
 		{&tc.Weather, "tak.weather"},
 		{&tc.AircraftEnable, "tak.aircraft.enable"},
+		{&tc.CoverageEnable, "tak.coverage.enable"},
 	}
 	for _, b := range boolKeys {
 		if c.v.IsSet(b.key) {
@@ -127,7 +146,27 @@ func (c *Config) loadTAK() TAKConfig {
 		}
 	}
 
+	tc.Problems = c.intInRange(tc.Problems, "tak.coverage.cellMeters", minTAKCoverageCellM, maxTAKCoverageCellM, &tc.CoverageCellM)
+	tc.Problems = c.intInRange(tc.Problems, "tak.coverage.maxCells", minTAKCoverageMax, maxTAKCoverageMax, &tc.CoverageMaxCells)
+
 	return tc
+}
+
+// intInRange sets *dst from key when it is set and within [lo, hi], and
+// otherwise records a problem and leaves the default.
+func (c *Config) intInRange(problems []string, key string, lo, hi int, dst *int) []string {
+	if !c.v.IsSet(key) {
+		return problems
+	}
+
+	v := c.v.GetInt(key)
+	if v < lo || v > hi {
+		return append(problems, fmt.Sprintf("%s: %d is outside [%d, %d]", key, v, lo, hi))
+	}
+
+	*dst = v
+
+	return problems
 }
 
 // GetTAK returns the ATAK feed settings.

@@ -232,3 +232,39 @@ func (f *fakeConfig) GetTAK() config.TAKConfig {
 
 	return f.cfg.GetTAK()
 }
+
+// fakeStatus returns a fixed node status and counts reads.
+type fakeStatus struct {
+	mu    sync.Mutex
+	st    takfeed.Status
+	calls int
+}
+
+func (f *fakeStatus) NodeStatus(_ context.Context) takfeed.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+
+	return f.st
+}
+
+func (f *fakeStatus) getCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.calls
+}
+
+// fakeSignals returns a fixed station list.
+type fakeSignals struct {
+	mu      sync.Mutex
+	signals map[string]takfeed.StationSignal
+}
+
+func (f *fakeSignals) StationSignals(_ context.Context) map[string]takfeed.StationSignal {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.signals
+}

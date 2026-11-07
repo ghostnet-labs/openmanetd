@@ -168,7 +168,8 @@ func TestJamEvent_states(t *testing.T) {
 	pos := takfeed.Position{Lat: 40.4, Lon: -112}
 	jam := takfeed.Jam{
 		ID: "morse0-915", State: takfeed.JamActive, Radio: "morse0", Band: "s1g", FreqMHz: 915,
-		NoiseDBm: -72, BaselineNoiseDBm: -98, BusyPct: 95, Started: testNow.Add(-time.Minute),
+		NoiseDBm: -72, BaselineNoiseDBm: -98, BusyPct: 95, UnexplainedBusyPct: 80,
+		NoiseKnown: true, Started: testNow.Add(-time.Minute),
 	}
 
 	ev := takfeed.JamEvent(&jam, "manet01", pos, testNow, 30*time.Second).GetCotEvent()
@@ -177,7 +178,7 @@ func TestJamEvent_states(t *testing.T) {
 	assert.Equal(t, "manet01-jam-morse0-915", ev.GetUid())
 	assert.Equal(t, "JAMMING 915 MHz", ev.GetDetail().GetContact().GetCallsign())
 	assert.InDelta(t, 1000, ev.GetCe(), 1e-9, "the uncertainty ring shows the jammer is near, not at, the node")
-	assert.Contains(t, ev.GetDetail().GetXmlDetail(), "Noise -72 dBm vs baseline -98 dBm, channel busy 95%, since 01:29Z")
+	assert.Contains(t, ev.GetDetail().GetXmlDetail(), "detected by manet01 (HaLow morse0). Noise -72 dBm vs baseline -98 dBm, channel busy 95% (80% not explained by traffic), since 01:29Z")
 	assert.Equal(t, cot.TimeToMillis(testNow.Add(time.Minute)), ev.GetStaleTime())
 
 	jam.State = takfeed.JamSuspected
@@ -185,6 +186,11 @@ func TestJamEvent_states(t *testing.T) {
 
 	assert.Equal(t, takfeed.TypeJamSuspected, ev.GetType())
 	assert.Equal(t, "Possible jamming 915 MHz", ev.GetDetail().GetContact().GetCallsign())
+
+	jam.NoiseKnown = false
+	ev = takfeed.JamEvent(&jam, "manet01", pos, testNow, 30*time.Second).GetCotEvent()
+
+	assert.NotContains(t, ev.GetDetail().GetXmlDetail(), "dBm", "no noise figures when the driver reports none")
 }
 
 func TestDeleteEvent(t *testing.T) {

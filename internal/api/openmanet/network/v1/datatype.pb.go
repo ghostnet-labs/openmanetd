@@ -55,6 +55,10 @@ const (
 	// its latest reading every 30 s.
 	// Payload: openmanet.weather.v1.WeatherReport (see weather.proto).
 	DataType_DATA_TYPE_WEATHER DataType = 106
+	// Coverage map data type. Each node publishes its coverage grid (how
+	// well it heard the mesh at each spot it has been) every 5 minutes.
+	// Payload: openmanet.coverage.v1.CoverageReport (see coverage.proto).
+	DataType_DATA_TYPE_COVERAGE DataType = 107
 )
 
 // Enum value maps for DataType.
@@ -68,6 +72,7 @@ var (
 		104: "DATA_TYPE_CHANNEL_MIGRATION",
 		105: "DATA_TYPE_JAM_REPORT",
 		106: "DATA_TYPE_WEATHER",
+		107: "DATA_TYPE_COVERAGE",
 	}
 	DataType_value = map[string]int32{
 		"DATA_TYPE_UNSPECIFIED":         0,
@@ -78,6 +83,7 @@ var (
 		"DATA_TYPE_CHANNEL_MIGRATION":   104,
 		"DATA_TYPE_JAM_REPORT":          105,
 		"DATA_TYPE_WEATHER":             106,
+		"DATA_TYPE_COVERAGE":            107,
 	}
 )
 
@@ -112,7 +118,7 @@ var File_openmanet_network_v1_datatype_proto protoreflect.FileDescriptor
 
 const file_openmanet_network_v1_datatype_proto_rawDesc = "" +
 	"\n" +
-	"#openmanet/network/v1/datatype.proto\x12\x14openmanet.network.v1*\xe7\x01\n" +
+	"#openmanet/network/v1/datatype.proto\x12\x14openmanet.network.v1*\xff\x01\n" +
 	"\bDataType\x12\x19\n" +
 	"\x15DATA_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11DATA_TYPE_GATEWAY\x10d\x12%\n" +
@@ -121,7 +127,8 @@ const file_openmanet_network_v1_datatype_proto_rawDesc = "" +
 	"\x18DATA_TYPE_MESH_NEIGHBORS\x10g\x12\x1f\n" +
 	"\x1bDATA_TYPE_CHANNEL_MIGRATION\x10h\x12\x18\n" +
 	"\x14DATA_TYPE_JAM_REPORT\x10i\x12\x15\n" +
-	"\x11DATA_TYPE_WEATHER\x10jB\xe8\x01\n" +
+	"\x11DATA_TYPE_WEATHER\x10j\x12\x16\n" +
+	"\x12DATA_TYPE_COVERAGE\x10kB\xe8\x01\n" +
 	"\x18com.openmanet.network.v1B\rDatatypeProtoP\x01ZKgithub.com/openmanet/openmanetd/internal/api/openmanet/network/v1;networkv1\xa2\x02\x03ONX\xaa\x02\x14Openmanet.Network.V1\xca\x02\x14Openmanet\\Network\\V1\xe2\x02 Openmanet\\Network\\V1\\GPBMetadata\xea\x02\x16Openmanet::Network::V1b\x06proto3"
 
 var (

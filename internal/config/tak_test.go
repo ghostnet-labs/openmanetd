@@ -22,15 +22,18 @@ func takFromYAML(t *testing.T, doc string) TAKConfig {
 
 func TestGetTAK_defaults(t *testing.T) {
 	assert.Equal(t, TAKConfig{
-		Enable:          true,
-		Role:            TAKRoleRadio,
-		Interval:        10 * time.Second,
-		Links:           true,
-		Jamming:         true,
-		Weather:         true,
-		AircraftEnable:  true,
-		AircraftMax:     32,
-		AircraftRangeKm: 150,
+		Enable:           true,
+		Role:             TAKRoleRadio,
+		Interval:         10 * time.Second,
+		Links:            true,
+		Jamming:          true,
+		Weather:          true,
+		AircraftEnable:   true,
+		AircraftMax:      32,
+		AircraftRangeKm:  150,
+		CoverageEnable:   true,
+		CoverageCellM:    50,
+		CoverageMaxCells: 1024,
 	}, NewWithoutWatch(viper.New()).GetTAK(), "the feed is on with no config so ATAK works with zero setup")
 }
 
@@ -47,18 +50,25 @@ tak:
     enable: false
     max: 0
     rangeKm: 0
+  coverage:
+    enable: false
+    cellMeters: 25
+    maxCells: 4096
 `)
 
 	assert.Equal(t, TAKConfig{
-		Enable:          false,
-		Role:            TAKRoleMast,
-		Interval:        30 * time.Second,
-		Links:           false,
-		Jamming:         false,
-		Weather:         false,
-		AircraftEnable:  false,
-		AircraftMax:     0,
-		AircraftRangeKm: 0,
+		Enable:           false,
+		Role:             TAKRoleMast,
+		Interval:         30 * time.Second,
+		Links:            false,
+		Jamming:          false,
+		Weather:          false,
+		AircraftEnable:   false,
+		AircraftMax:      0,
+		AircraftRangeKm:  0,
+		CoverageEnable:   false,
+		CoverageCellM:    25,
+		CoverageMaxCells: 4096,
 	}, tc)
 }
 
@@ -97,6 +107,22 @@ func TestGetTAK_invalidValuesFallBack(t *testing.T) {
 			t.Helper()
 			assert.InDelta(t, DefaultTAKAircraftRangeKm, tc.AircraftRangeKm, 1e-9)
 		}},
+		{"cell too small", "tak:\n  coverage:\n    cellMeters: 9\n", "tak.coverage.cellMeters", func(t *testing.T, tc TAKConfig) {
+			t.Helper()
+			assert.Equal(t, DefaultTAKCoverageCellM, tc.CoverageCellM)
+		}},
+		{"cell too big", "tak:\n  coverage:\n    cellMeters: 501\n", "tak.coverage.cellMeters", func(t *testing.T, tc TAKConfig) {
+			t.Helper()
+			assert.Equal(t, DefaultTAKCoverageCellM, tc.CoverageCellM)
+		}},
+		{"too few cells", "tak:\n  coverage:\n    maxCells: 63\n", "tak.coverage.maxCells", func(t *testing.T, tc TAKConfig) {
+			t.Helper()
+			assert.Equal(t, DefaultTAKCoverageMax, tc.CoverageMaxCells)
+		}},
+		{"too many cells", "tak:\n  coverage:\n    maxCells: 8193\n", "tak.coverage.maxCells", func(t *testing.T, tc TAKConfig) {
+			t.Helper()
+			assert.Equal(t, DefaultTAKCoverageMax, tc.CoverageMaxCells)
+		}},
 	}
 
 	for _, tc := range tests {
@@ -114,6 +140,16 @@ func TestGetTAK_boundaries(t *testing.T) {
 	tc := takFromYAML(t, "tak:\n  interval: 2s\n  aircraft:\n    max: 256\n    rangeKm: 1000\n")
 
 	assert.Empty(t, tc.Problems)
+
+	lo := takFromYAML(t, "tak:\n  coverage:\n    cellMeters: 10\n    maxCells: 64\n")
+	assert.Empty(t, lo.Problems)
+	assert.Equal(t, 10, lo.CoverageCellM)
+	assert.Equal(t, 64, lo.CoverageMaxCells)
+
+	hi := takFromYAML(t, "tak:\n  coverage:\n    cellMeters: 500\n    maxCells: 8192\n")
+	assert.Empty(t, hi.Problems)
+	assert.Equal(t, 500, hi.CoverageCellM)
+	assert.Equal(t, 8192, hi.CoverageMaxCells)
 	assert.Equal(t, 2*time.Second, tc.Interval)
 	assert.Equal(t, 256, tc.AircraftMax)
 	assert.InDelta(t, 1000, tc.AircraftRangeKm, 1e-9)
