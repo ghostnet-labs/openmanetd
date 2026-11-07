@@ -54,11 +54,21 @@ export function gateStateFromStatus(status, dismissed = false) {
   return trapped;
 }
 
+// PUBLIC_PATHS are never gated: a phone that has just joined the access
+// point opens /join to get ATAK, whatever state the wizard is in.
+const PUBLIC_PATHS = ['/join'];
+
+export function isPublicPath(pathname) {
+  return PUBLIC_PATHS.includes(pathname.replace(/\/+$/, '') || '/');
+}
+
 export default function SetupGate({ children }) {
   const [gate, setGate] = useState(null); // null = loading
   const location = useLocation();
+  const isPublic = isPublicPath(location.pathname);
 
   useEffect(() => {
+    if (isPublic) return undefined;
     let cancelled = false;
 
     setupClient.getSetupStatus({})
@@ -73,7 +83,9 @@ export default function SetupGate({ children }) {
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [isPublic]);
+
+  if (isPublic) return children;
 
   if (gate === null) {
     return <div className="lat-panel">Loading…</div>;

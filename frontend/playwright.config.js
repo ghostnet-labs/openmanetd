@@ -69,6 +69,8 @@ const webServer = external ? undefined : [
       `--tls-listen 127.0.0.1:${ports.https}`,
       `--api http://127.0.0.1:${ports.api}`,
       `--luci-upstream http://127.0.0.1:${ports.luci}`,
+      // Throwaway phone onboarding store, so /onboard/* answers like a node.
+      '--onboard-dir e2e/.onboard',
     ].join(' '),
     url: `http://127.0.0.1:${ports.http}/`,
     stderr: 'ignore',
