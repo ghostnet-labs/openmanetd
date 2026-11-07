@@ -30,11 +30,13 @@ import { useBLOSStatus } from '../hooks/useBLOSStatus.js';
 import { useNetworkInterfaces } from '../hooks/useNetworkInterfaces.js';
 import { useHardwareBattery } from '../hooks/useHardwareBattery.js';
 import { useJamStatus } from '../hooks/useJamStatus.js';
+import { useWeatherStations } from '../hooks/useWeatherStations.js';
 import { pushSparklineSample, useSparklineSamples } from '../services/sparklineStore.js';
 import { classifyAlerts, findLostPeers } from './dashboardAlerts.js';
 import { batteryView } from './dashboardBattery.js';
 import { jamAlerts, jamRadioRows, jamSummary } from './dashboardJam.js';
 import DataTable from '../components/DataTable.jsx';
+import DashboardWeather from './DashboardWeather.jsx';
 import './Dashboard.css';
 
 // Key used by the module-scoped sparkline store. Kept as a constant so
@@ -44,6 +46,8 @@ const LQ_SERIES_KEY = 'dashboard.linkQualityPct';
 const dashClient = createClient(DashboardService, transport);
 
 const DASH_POLL_MS = 5000;
+// Stations share a reading every 30 s; polling faster only repeats it.
+const WEATHER_POLL_MS = 10000;
 // Interface state (UP/DOWN, IPs, link types) changes on the order of
 // minutes, not seconds — and the same data is already shared with
 // buildNetworkSummary via the backend's CachedInterfaceProvider. Polling
@@ -427,6 +431,9 @@ export default function DashboardPage() {
   // stale / absent flags. Null when the daemon runs no hardware manager.
   const hwBattery = useHardwareBattery(DASH_POLL_MS);
   const jamStatus = useJamStatus(DASH_POLL_MS);
+  // Weather stations on the mesh. Null on a daemon without WeatherService.
+  const weather = useWeatherStations(WEATHER_POLL_MS);
+  const hasWeather = (weather?.stations?.length ?? 0) > 0;
   const interfaces = useMemo(
     () => ifaceSnapshot?.interfaces ?? [],
     [ifaceSnapshot],
@@ -708,8 +715,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="lat-body grid-4">
-        {/* Row 1: 3 KPIs — PTT Latency lives on Comms, not here. */}
-        <div className="dashboard-kpi-row">
+        {/* Row 1: KPIs — PTT Latency lives on Comms, not here. Weather
+            joins the row only when a station is heard. */}
+        <div className={`dashboard-kpi-row${hasWeather ? ' with-weather' : ''}`}>
           <div className="lat-panel">
             <div className="panel-head"><h3>Mesh Peers</h3></div>
             <div className="big-num">{peerCount}<span className="unit">nodes</span></div>
@@ -730,6 +738,7 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+          <DashboardWeather stations={weather} />
         </div>
 
         {/* Row 2: peers table + alerts */}

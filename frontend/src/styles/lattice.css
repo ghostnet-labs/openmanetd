@@ -613,6 +613,8 @@ button.lat-select:disabled { color: var(--dim); cursor: not-allowed; }
 .big-num.ok { color: var(--ok); }
 .big-num.warn { color: var(--warn); }
 .big-num.crit { color: var(--crit); }
+/* A reading that is no longer current (stale weather, lost feed). */
+.big-num.muted { color: var(--muted); }
 
 /* ------------------------------------------------------------------ progress bars */
 

@@ -22,6 +22,7 @@ const NAV_GROUPS = [
       { to: '/gps',       label: 'GPS / GNSS', short: 'GPS',  icon: 'gps' },
       { to: '/blos',      label: 'BLOS',      short: 'BLOS',  icon: 'blos' },
       { to: '/scanner',   label: 'Scanner',   short: 'Scan',  icon: 'scanner' },
+      { to: '/weather',   label: 'Weather',   short: 'Wx',    icon: 'weather' },
     ],
   },
   {
@@ -58,6 +59,7 @@ const SIGN_OUT_TITLE_LUCI = `${SIGN_OUT_TITLE} (LuCI keeps its own sign-in)`;
 const OVERFLOW_TABS = [
   { to: '/blos',     label: 'BLOS',     icon: 'blos' },
   { to: '/scanner',  label: 'Scanner',  icon: 'scanner' },
+  { to: '/weather',  label: 'Weather',  icon: 'weather' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
