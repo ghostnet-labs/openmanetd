@@ -483,12 +483,12 @@ func TestLuCIProxyCache_RebuildsOnUpstreamChange(t *testing.T) {
 	assert.Nil(t, l.handlerFor("bogus", srv.log))
 }
 
-func TestLuCIProxy_NilCacheIsOffDefaultIsOn(t *testing.T) {
+func TestLuCIProxy_NilConfigOrCacheIsOff(t *testing.T) {
 	srv := newTestServer()
 	assert.False(t, srv.luciProxyActive(), "a server without a LuCI cache never proxies")
 
 	srv.luci = &luciProxy{}
-	assert.True(t, srv.luciProxyActive(), "default config proxies LuCI: one web address")
+	assert.False(t, srv.luciProxyActive(), "default config leaves the proxy off")
 }
 
 func TestSystemInfo_ReportsLuCIProxy(t *testing.T) {

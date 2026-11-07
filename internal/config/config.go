@@ -322,11 +322,10 @@ var sysupgradeReleasesRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.
 // LuCI reverse-proxy defaults (Unified UI, GHO-69 / GHO-70).
 const (
 	// DefaultFrontendLuCIProxyEnable is the default for
-	// frontend.luciProxy.enable. On by default: the node has one web
-	// address, with LuCI at /cgi-bin/luci/ on the OpenMANET origin and
-	// uhttpd on :80 kept as the direct recovery route. Set it false to
-	// stop proxying.
-	DefaultFrontendLuCIProxyEnable bool = true
+	// frontend.luciProxy.enable. Off by default: the frontend server only
+	// reverse-proxies LuCI's paths once an operator opts in, so a node
+	// that does not set the key behaves exactly as before.
+	DefaultFrontendLuCIProxyEnable bool = false
 	// DefaultFrontendLuCIProxyUpstream is the default for
 	// frontend.luciProxy.upstream: uhttpd serving LuCI on the loopback
 	// interface of the same node.

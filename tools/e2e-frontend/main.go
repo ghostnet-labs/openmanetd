@@ -143,11 +143,8 @@ func newConfig(opts options) *config.Config {
 		v.Set("onboard.dir", opts.onboardDir)
 	}
 
-	// The proxy is on by default on a node; the harness only proxies when
-	// it has a LuCI upstream to proxy to.
-	v.Set("frontend.luciProxy.enable", opts.luciUpstream != "")
-
 	if opts.luciUpstream != "" {
+		v.Set("frontend.luciProxy.enable", true)
 		v.Set("frontend.luciProxy.upstream", opts.luciUpstream)
 	}
 

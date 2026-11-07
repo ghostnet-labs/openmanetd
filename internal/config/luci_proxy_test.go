@@ -15,7 +15,7 @@ func TestGetFrontendLuCIProxyEnable(t *testing.T) {
 	}{
 		{name: "returns configured true", setValue: boolPtr(true), want: true},
 		{name: "returns configured false", setValue: boolPtr(false), want: false},
-		{name: "defaults to on when not set", setValue: nil, want: true},
+		{name: "defaults to off when not set", setValue: nil, want: false},
 	}
 
 	for _, tt := range tests {
@@ -88,8 +88,8 @@ frontend:
 }
 
 func TestDefaultFrontendLuCIProxy(t *testing.T) {
-	if !DefaultFrontendLuCIProxyEnable {
-		t.Error("DefaultFrontendLuCIProxyEnable must be true so the node has one web address")
+	if DefaultFrontendLuCIProxyEnable {
+		t.Error("DefaultFrontendLuCIProxyEnable must be false so the proxy is opt-in")
 	}
 
 	if DefaultFrontendLuCIProxyUpstream != "http://127.0.0.1:80" {

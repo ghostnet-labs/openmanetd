@@ -12,16 +12,14 @@ entry is GHO-71.
 
 ## Configuration
 
-The proxy is on by default, so a node has one web address: typing
-`http://<node>` (uhttpd on port 80) opens the OpenMANET app, and LuCI is
-inside it. Set `enable: false` to stop proxying; the server then behaves
-exactly as it did before the feature existed.
+The proxy is off by default. With it off, the server behaves exactly as it
+did before the feature existed.
 
 ```yaml
 # /etc/openmanetd/config.yml
 frontend:
   luciProxy:
-    enable: true                   # default true
+    enable: true                   # default false
     upstream: http://127.0.0.1:80  # default; uhttpd on loopback
 ```
 
