@@ -17,6 +17,7 @@ export const PAGES = [
   { path: '/settings', heading: 'Settings' },
   { path: '/settings/wireless', heading: 'Wireless Radios' },
   { path: '/settings/network', heading: 'Network' },
+  { path: '/settings/phones', heading: 'Phones' },
 ];
 
 export const LUCI_PATH = '/cgi-bin/luci/';

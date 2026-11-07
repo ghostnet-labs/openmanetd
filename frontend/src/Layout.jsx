@@ -7,7 +7,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from './contexts/useAuth.js';
 import SetupDismissBanner from './components/SetupDismissBanner.jsx';
 import NavIcon from './components/NavIcon.jsx';
-import useLuciProxy, { LUCI_PATH } from './hooks/useLuciProxy.js';
+import useLuciProxy, { luciUrl } from './hooks/useLuciProxy.js';
 import { MOBILE_BREAKPOINT } from './constants.js';
 import './Layout.css';
 
@@ -43,7 +43,8 @@ const PRIMARY_TABS = [
 ];
 // The Advanced entry is a plain link, not a NavLink: LuCI is served by the
 // frontend daemon's reverse proxy, so this is a full-page handoff that leaves
-// the SPA. Shown only when the daemon reports the proxy is enabled.
+// the SPA. It is always shown: with the proxy on it opens LuCI on this
+// origin, with it off it opens LuCI on its own address (port 80).
 // LuCI keeps its own root login (the sign-ins are separate by design, D-037),
 // so the entry says so up front: the LuCI login screen is expected, and the
 // OpenMANET session is untouched, so Back returns without signing in again.
@@ -77,6 +78,7 @@ export default function Layout() {
   );
   const [sheetOpen, setSheetOpen] = useState(false);
   const luciEnabled = useLuciProxy();
+  const luciHref = luciUrl(luciEnabled);
   const signOutTitle = luciEnabled ? SIGN_OUT_TITLE_LUCI : SIGN_OUT_TITLE;
 
   useEffect(() => {
@@ -127,15 +129,13 @@ export default function Layout() {
                   <span>{item.label}</span>
                 </NavLink>
               ))}
-              {luciEnabled ? (
-                <a className="tab-sheet-item" href={LUCI_PATH} title={ADVANCED_TITLE}>
-                  <span className="nav-icon"><NavIcon name="advanced" /></span>
-                  <span className="nav-text">
-                    <span>{ADVANCED_LABEL}</span>
-                    <span className="nav-desc">{ADVANCED_DESC}</span>
-                  </span>
-                </a>
-              ) : null}
+              <a className="tab-sheet-item" href={luciHref} title={ADVANCED_TITLE}>
+                <span className="nav-icon"><NavIcon name="advanced" /></span>
+                <span className="nav-text">
+                  <span>{ADVANCED_LABEL}</span>
+                  <span className="nav-desc">{ADVANCED_DESC}</span>
+                </span>
+              </a>
               <button
                 className="tab-sheet-item danger"
                 onClick={() => { setSheetOpen(false); logout(); }}
@@ -212,17 +212,15 @@ export default function Layout() {
               ))}
             </React.Fragment>
           ))}
-          {luciEnabled ? (
-            <a className="nav-item nav-item-handoff" href={LUCI_PATH} title={ADVANCED_TITLE}>
-              <span className="nav-icon"><NavIcon name="advanced" /></span>
-              {!collapsed && (
-                <span className="nav-label nav-text">
-                  <span>{ADVANCED_LABEL}</span>
-                  <span className="nav-desc">{ADVANCED_DESC}</span>
-                </span>
-              )}
-            </a>
-          ) : null}
+          <a className="nav-item nav-item-handoff" href={luciHref} title={ADVANCED_TITLE}>
+            <span className="nav-icon"><NavIcon name="advanced" /></span>
+            {!collapsed && (
+              <span className="nav-label nav-text">
+                <span>{ADVANCED_LABEL}</span>
+                <span className="nav-desc">{ADVANCED_DESC}</span>
+              </span>
+            )}
+          </a>
         </div>
         <div className="sidebar-footer">
           {!collapsed && <div className="operator">Operator</div>}

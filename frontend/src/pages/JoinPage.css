@@ -1,0 +1,80 @@
+/* =============================================================================
+ * JoinPage.css — public phone setup page layout (phone-first)
+ * ============================================================================= */
+
+.join-screen {
+  min-height: 100vh;
+  background: var(--bg);
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.join-head h2 { margin: 4px 0 0; }
+
+.join-node {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.join-loading {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 48px 0;
+}
+
+/* Primary phone actions: 44px touch targets. */
+.join-touch { min-height: 44px; }
+
+.join-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
+}
+
+.join-https {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.join-address {
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+
+.join-steps {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.join-note {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.join-link { color: var(--accent); }
+
+.join-error { color: var(--crit); }

@@ -19,6 +19,7 @@ const luciState = { enabled: false };
 vi.mock('../../hooks/useLuciProxy.js', () => ({
   default: () => luciState.enabled,
   LUCI_PATH: '/cgi-bin/luci/',
+  luciUrl: (proxied) => (proxied ? '/cgi-bin/luci/' : 'http://node.test/cgi-bin/luci/'),
 }));
 
 vi.mock('../../services/setupDismiss.js', () => ({
@@ -104,6 +105,7 @@ describe('TestLayoutNavIcons', () => {
       'scanner',
       'weather',
       'settings',
+      'advanced',
     ]);
   });
 
@@ -124,6 +126,7 @@ describe('TestLayoutNavIcons', () => {
       'scanner',
       'weather',
       'settings',
+      'advanced',
     ]);
   });
 
@@ -141,7 +144,7 @@ describe('TestLayoutNavIcons', () => {
   it('gives every overflow sheet row its own icon', () => {
     const { container } = renderLayout(500);
     fireEvent.click(screen.getByText('More').closest('button'));
-    expect(iconsIn(container, '.tab-sheet')).toEqual(['coverage', 'blos', 'scanner', 'weather', 'settings', 'signout']);
+    expect(iconsIn(container, '.tab-sheet')).toEqual(['coverage', 'blos', 'scanner', 'weather', 'settings', 'advanced', 'signout']);
   });
 
   it('leaves no icon slot empty in either shell', () => {
@@ -311,17 +314,17 @@ describe('TestLayoutBodyClass', () => {
 });
 
 describe('TestLayoutAdvancedEntry', () => {
-  it('hides the Advanced entry on desktop when the LuCI proxy is off', () => {
-    const { container } = renderLayout(1024);
-    expect(screen.queryByText('Advanced')).toBeNull();
-    expect(container.querySelector('a[href="/cgi-bin/luci/"]')).toBeNull();
+  it('links Advanced to LuCI on its own address on desktop when the proxy is off', () => {
+    renderLayout(1024);
+    const link = screen.getByText('Advanced').closest('a');
+    expect(link.getAttribute('href')).toBe('http://node.test/cgi-bin/luci/');
   });
 
-  it('hides the Advanced entry in the mobile sheet when the LuCI proxy is off', () => {
-    const { container } = renderLayout(360);
+  it('links Advanced to LuCI on its own address in the mobile sheet when the proxy is off', () => {
+    renderLayout(360);
     fireEvent.click(screen.getByText('More').closest('button'));
-    expect(screen.queryByText('Advanced')).toBeNull();
-    expect(container.querySelector('a[href="/cgi-bin/luci/"]')).toBeNull();
+    const link = screen.getByText('Advanced').closest('a');
+    expect(link.getAttribute('href')).toBe('http://node.test/cgi-bin/luci/');
   });
 
   it('shows Advanced with its description in the desktop sidebar after Settings', () => {

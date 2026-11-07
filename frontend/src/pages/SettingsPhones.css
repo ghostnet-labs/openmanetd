@@ -1,0 +1,34 @@
+/* =============================================================================
+ * SettingsPhones.css — phone onboarding settings layout
+ * ============================================================================= */
+
+.phones-file { display: none; }
+
+/* Phone actions: 44px touch targets. */
+.phones-touch { min-height: 44px; }
+
+.phones-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.phones-progress,
+.phones-notice { margin-top: 12px; }
+
+.phones-hash { word-break: break-all; }
+
+.phones-empty {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  padding: 8px 0;
+}
+
+.phones-help {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 12px 0 0;
+}
