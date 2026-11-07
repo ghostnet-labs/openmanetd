@@ -625,7 +625,7 @@ func TestReserveOnce_GatewayFirstPick(t *testing.T) {
 	assert.Equal(t, network.DefaultNetworkProto, firstValue(f.network, "network", "ahwlan", "proto"))
 	assert.Equal(t, network.DefaultNetworkMask, firstValue(f.network, "network", "ahwlan", "netmask"))
 	assert.Equal(t, "br-ahwlan", firstValue(f.network, "network", "ahwlan", "device"))
-	assert.Equal(t, "100", f.dhcpStart(), "pool offset 100 is preferred")
+	assert.Equal(t, wantPool(t, nil, f.iface.MAC, "10.41.0.1"), f.dhcpStart(), "the pool comes from the MAC")
 	assert.Equal(t, strconv.Itoa(network.DefaultDHCPAddressLimit), firstValue(f.dhcp, "dhcp", "ahwlan", "limit"))
 	assert.Equal(t, network.DefaultDHCPLeaseTime, firstValue(f.dhcp, "dhcp", "ahwlan", "leasetime"))
 	assert.Equal(t, "1", firstValue(f.dhcp, "dhcp", "ahwlan", "force"))
@@ -643,7 +643,8 @@ func TestReserveOnce_GatewaySkipsReservedAddressesAndPools(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.3", f.ahwlanIP())
-	assert.Equal(t, "132", f.dhcpStart(), "first 16-address window after 100 and 116")
+	assert.Equal(t, wantPool(t, nil, f.iface.MAC, "10.41.0.3"), f.dhcpStart(),
+		"the MAC's pool is clear of the peers' pools at 100 and 116")
 	assert.Equal(t, 1, f.restarts)
 }
 
@@ -690,7 +691,7 @@ func TestReserveOnce_PointAddressComesFromMAC(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, want, f.ahwlanIP(), "a point takes the address its MAC hashes to")
-	assert.Equal(t, "132", f.dhcpStart())
+	assert.Equal(t, wantPool(t, nil, f.iface.MAC, want), f.dhcpStart())
 	assert.Equal(t, 1, f.restarts)
 }
 
@@ -852,12 +853,14 @@ func TestReserveOnce_RefreshesGossipBeforeDeciding(t *testing.T) {
 	f := newReservationFixture(t)
 	f.gwMode = batmanadv.GwModeServer
 	// The peer exists only in Alfred, not yet in the database.
-	f.client.records = []alfred.Record{gossipRecord(t, "aa:bb:cc:dd:ee:02", "peer-gate", "10.41.0.1", "100")}
+	// It advertises the pool this node's MAC would otherwise pick.
+	ownPool := wantPool(t, nil, f.iface.MAC, "10.41.0.2")
+	f.client.records = []alfred.Record{gossipRecord(t, "aa:bb:cc:dd:ee:02", "peer-gate", "10.41.0.1", ownPool)}
 
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.2", f.ahwlanIP(), "the address heard this tick must be treated as reserved")
-	assert.Equal(t, "116", f.dhcpStart(), "the pool heard this tick must be treated as reserved")
+	assert.NotEqual(t, ownPool, f.dhcpStart(), "the pool heard this tick must be treated as reserved")
 
 	peer, err := f.db.GetMeshNode(context.Background(), "aa:bb:cc:dd:ee:02")
 	require.NoError(t, err)
@@ -981,5 +984,15 @@ func TestReserveOnce_ExpiredPeerNoLongerReserves(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.1", f.ahwlanIP(), "a peer silent for longer than nodeExpiry releases its address")
-	assert.Equal(t, "100", f.dhcpStart(), "…and its DHCP window")
+	assert.Equal(t, wantPool(t, nil, f.iface.MAC, "10.41.0.1"), f.dhcpStart(), "…and its DHCP window")
+}
+
+// wantPool is the DHCP start the reservation should write for mac.
+func wantPool(t *testing.T, nodes []models.MeshNode, mac, ownIP string) string {
+	t.Helper()
+
+	start, err := network.SelectDHCPStartForMAC(nodes, mac, ownIP, network.DefaultDHCPAddressLimit)
+	require.NoError(t, err)
+
+	return strconv.Itoa(start)
 }

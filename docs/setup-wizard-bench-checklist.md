@@ -33,7 +33,9 @@ done. None of them is a CI acceptance criterion; they are field checks.
   x86; confirm on the CM5).
 - A point node's address comes from its `br-ahwlan` MAC (FNV-1a hash into
   10.41.1.1–10.41.252.254, stepping past addresses peers already hold).
-  Confirm two nodes powered on together get different addresses.
+  Its DHCP pool (16 addresses for phones) is also picked from the MAC, as a
+  block inside one /24 of that range, clear of peers' pools and addresses.
+  Confirm two nodes powered on together get different addresses and pools.
 - Alfred propagation latency between a peer's `Set` and this node's `Request` is
   within the 60 s / 125 s worker cadence.
 - Two fresh gates that both take `10.41.0.1` converge after one extra in-place

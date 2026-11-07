@@ -257,7 +257,9 @@ func (arw *AddressReservationWorker) applyReservationWithDeps(
 		return fmt.Errorf("set network config: %w", err)
 	}
 
-	dhcpStart, err := network.CalculateAvailableDHCPStart(nodes, network.DefaultNetworkAddress, network.DefaultNetworkMask, network.DefaultDHCPAddressLimit)
+	// The phone address pool comes from the MAC too, so nodes that join
+	// together don't lease phones the same addresses.
+	dhcpStart, err := network.SelectDHCPStartForMAC(nodes, mac, staticIP, network.DefaultDHCPAddressLimit)
 	if err != nil {
 		return fmt.Errorf("calculate DHCP start: %w", err)
 	}
