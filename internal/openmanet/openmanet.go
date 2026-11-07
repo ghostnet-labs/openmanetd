@@ -311,6 +311,10 @@ func Start(staticFS fs.FS) {
 
 	api := server.NewAPIServer(apiServer)
 
+	// ATAK feed (GHO-94): this node, its mesh links, aircraft and jamming
+	// as CoT on the ATAK SA multicast group, for every phone on the mesh.
+	takDone := startTAKFeed(ctx, cfg, gps, db, api, scannerMgr, logger.GetLogger("takfeed"))
+
 	log.Info().Msg("OpenMANETd API Server starting on port 8087")
 
 	if cfg.BLOSEnabled() && board.BLOSsupported() {
@@ -350,6 +354,9 @@ func Start(staticFS fs.FS) {
 	_ = api.Stop(shutdownCtx)
 
 	shutdownCancel()
+
+	// The feed reads the database; let it exit before closing it.
+	<-takDone
 
 	_ = database.CloseConnection()
 

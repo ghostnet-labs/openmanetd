@@ -99,7 +99,13 @@ type APIServer struct {
 	// pathsel capacity input) is exposed here for later wiring. Callers do
 	// not set it.
 	RadioCapacity *radiogate.Gate
-	AuthEnabled   bool
+	// MeshTopology and Battery are the topology handler and cached
+	// battery reader NewAPIServer builds, exposed so the ATAK feed
+	// (internal/takfeed) shares them instead of building its own.
+	// Callers do not set them.
+	MeshTopology *handlers.MeshTopologyService
+	Battery      *system.CachedBatteryProvider
+	AuthEnabled  bool
 }
 
 func NewAPIServer(cfg APIServer) *APIServer {
@@ -209,6 +215,8 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		dashBattery = system.NewHwmonBatteryProviderForBoard(b.Model.ID)
 	}
 
+	cachedBattery := system.NewCachedBatteryProvider(dashBattery, nil)
+
 	api.Handle(dashboardconnect.NewDashboardServiceHandler(&handlers.DashboardService{
 		Log:         cfg.Log,
 		Board:       dashBoard,
@@ -220,7 +228,7 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Tailscale:   cfg.Tailscale,
 		Services:    dashServices,
 		Actions:     &system.InitDActionExecutor{},
-		Battery:     system.NewCachedBatteryProvider(dashBattery, nil),
+		Battery:     cachedBattery,
 		Hardware:    cfg.Hardware,
 	}, connect.WithInterceptors(validateInterceptor)))
 
@@ -408,6 +416,8 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		DB:            cfg.DB,
 		ApiServer:     &server,
 		RadioCapacity: radioCapacity,
+		MeshTopology:  meshTopoSvc,
+		Battery:       cachedBattery,
 	}
 }
 
