@@ -159,28 +159,32 @@ func TestCheckDeviceActive_InvalidIP(t *testing.T) {
 }
 
 func TestCheckDeviceActive_NoMatchingInterface(t *testing.T) {
-	log := zerolog.Nop()
-	gps := &GPSService{
-		Log: log,
-	}
+	// Fake interfaces, not the host's: some CI and sandbox hosts sit on
+	// TEST-NET-1 themselves, which made this pass or fail by machine.
+	lan := &fakeLAN{}
+	gps := newLANGPS(lan)
 
 	// An IP outside every local subnet cannot be a directly-connected EUD.
-	result := gps.checkDeviceActive("192.0.2.1") // TEST-NET-1 address
-	if result {
+	if gps.checkDeviceActive("192.0.2.1") { // TEST-NET-1 address
 		t.Error("Expected false when no local interface contains the address")
+	}
+
+	if got := lan.probed(); len(got) != 0 {
+		t.Errorf("Expected no ARP probe, got %v", got)
 	}
 }
 
 func TestCheckDeviceActive_Localhost(t *testing.T) {
-	log := zerolog.Nop()
-	gps := &GPSService{
-		Log: log,
-	}
+	lan := &fakeLAN{}
+	gps := newLANGPS(lan)
 
 	// Loopback is skipped, so no interface matches: not an EUD.
-	result := gps.checkDeviceActive("127.0.0.1")
-	if result {
+	if gps.checkDeviceActive("127.0.0.1") {
 		t.Error("Expected false for localhost")
+	}
+
+	if got := lan.probed(); len(got) != 0 {
+		t.Errorf("Expected no ARP probe, got %v", got)
 	}
 }
 

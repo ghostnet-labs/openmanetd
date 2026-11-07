@@ -23,6 +23,7 @@ const NAV_GROUPS = [
       { to: '/gps',       label: 'GPS / GNSS', short: 'GPS',  icon: 'gps' },
       { to: '/blos',      label: 'BLOS',      short: 'BLOS',  icon: 'blos' },
       { to: '/scanner',   label: 'Scanner',   short: 'Scan',  icon: 'scanner' },
+      { to: '/weather',   label: 'Weather',   short: 'Wx',    icon: 'weather' },
     ],
   },
   {
@@ -61,6 +62,7 @@ const OVERFLOW_TABS = [
   { to: '/coverage', label: 'Coverage', icon: 'coverage' },
   { to: '/blos',     label: 'BLOS',     icon: 'blos' },
   { to: '/scanner',  label: 'Scanner',  icon: 'scanner' },
+  { to: '/weather',  label: 'Weather',  icon: 'weather' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 

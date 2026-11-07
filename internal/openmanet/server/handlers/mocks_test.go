@@ -15,6 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdlayher/wifi"
 	coveragev1 "github.com/openmanet/openmanetd/internal/api/openmanet/coverage/v1"
+	weatherv1 "github.com/openmanet/openmanetd/internal/api/openmanet/weather/v1"
 	"github.com/openmanet/openmanetd/internal/blos"
 	"github.com/openmanet/openmanetd/internal/chanmig"
 	"github.com/openmanet/openmanetd/internal/comms/control/alsa"
@@ -593,6 +594,37 @@ func (f *fakeHardwareManager) subscriberCount() int {
 }
 
 // ── fakeRadioCapacityGate ─────────────────────────────────────────────────────
+
+// fakeWeatherStations serves a scripted station list.
+type fakeWeatherStations struct {
+	mu       sync.Mutex
+	enabled  bool
+	stations []*weatherv1.WeatherStation
+	calls    int
+}
+
+func (f *fakeWeatherStations) SensorEnabled() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.enabled
+}
+
+func (f *fakeWeatherStations) Stations() []*weatherv1.WeatherStation {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+
+	return f.stations
+}
+
+func (f *fakeWeatherStations) getCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.calls
+}
 
 // fakeRadioCapacityGate implements handlers.RadioCapacityGate: it records
 // every request and returns evaluateErr.

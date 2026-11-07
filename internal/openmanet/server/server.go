@@ -27,6 +27,7 @@ import (
 	services "github.com/openmanet/openmanetd/internal/api/openmanet/service/v1/servicev1connect"
 	setupconnect "github.com/openmanet/openmanetd/internal/api/openmanet/setup/v1/setupv1connect"
 	supconnect "github.com/openmanet/openmanetd/internal/api/openmanet/sysupgrade/v1/sysupgradev1connect"
+	"github.com/openmanet/openmanetd/internal/api/openmanet/weather/v1/weatherv1connect"
 	wificonfigconnect "github.com/openmanet/openmanetd/internal/api/openmanet/wifi_config/v1/wifi_configv1connect"
 	"github.com/openmanet/openmanetd/internal/auth"
 	batmanadv "github.com/openmanet/openmanetd/internal/batman-adv"
@@ -94,6 +95,11 @@ type APIServer struct {
 	// Coverage is the mesh coverage map; nil without a database. Like
 	// Hardware it must be a nil interface, not a typed nil pointer.
 	Coverage handlers.CoverageMap
+
+	// Weather is the weather station monitor; nil when weather.enable is
+	// false. Like Hardware it must be a nil interface, not a typed nil
+	// pointer.
+	Weather handlers.WeatherStations
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -375,6 +381,14 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Log: cfg.Log.With().Str("service", "coverage").Logger(),
 		Cfg: cfg.Cfg,
 		Map: cfg.Coverage,
+	}, connect.WithInterceptors(validateInterceptor)))
+
+	// WeatherService lists the weather stations on the mesh: this node's
+	// sensor, if it has one, and every station heard over alfred.
+	// Session-gated (not in isAPISkipPath).
+	api.Handle(weatherv1connect.NewWeatherServiceHandler(&handlers.WeatherService{
+		Log:     cfg.Log.With().Str("service", "weather").Logger(),
+		Monitor: cfg.Weather,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

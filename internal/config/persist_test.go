@@ -478,11 +478,9 @@ func TestPersistBLOSConfig_FileWriteError(t *testing.T) {
   enable: false
 `)
 
-	// Make config file read-only
-	err := os.Chmod(cfg.GetConfigFilePath(), 0444)
-	require.NoError(t, err)
+	makeReadOnly(t, cfg.GetConfigFilePath())
 
-	err = cfg.PersistBLOSConfig(true)
+	err := cfg.PersistBLOSConfig(true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writing config file")
 
@@ -766,10 +764,9 @@ auth:
   enable: false
 `)
 
-	err := os.Chmod(cfg.GetConfigFilePath(), 0444)
-	require.NoError(t, err)
+	makeReadOnly(t, cfg.GetConfigFilePath())
 
-	err = cfg.PersistSetupAndAuth(true, true)
+	err := cfg.PersistSetupAndAuth(true, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writing config file")
 
@@ -939,4 +936,21 @@ func rereadConfig(t *testing.T, path string) *Config {
 	require.NoError(t, v.ReadInConfig())
 
 	return NewWithoutWatch(v)
+}
+
+// makeReadOnly chmods path to 0444 so writing the config file fails. Root
+// (or CAP_DAC_OVERRIDE) writes through file modes, so when a write probe
+// still succeeds the test is skipped rather than failing for the wrong
+// reason; run it as a normal user to cover the write-error path.
+func makeReadOnly(t *testing.T, path string) {
+	t.Helper()
+	require.NoError(t, os.Chmod(path, 0o444))
+
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return
+	}
+
+	require.NoError(t, f.Close())
+	t.Skip("chmod 0444 does not block writes for this user (root or CAP_DAC_OVERRIDE); run as a non-root user")
 }

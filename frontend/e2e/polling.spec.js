@@ -37,6 +37,7 @@ const POLL_BUDGET = {
     ListBLOSPeers: perMinute(10_000), // CHIP_POLL_MS
     ListNetworkInterfaces: perMinute(30_000), // IFACE_POLL_MS
     GetJamStatus: perMinute(5_000), // useJamStatus(DASH_POLL_MS)
+    ListWeatherStations: perMinute(10_000), // WEATHER_POLL_MS
   },
   '/comms': {
     GetAudioMixer: perMinute(5_000), // DeviceAudioPanel POLL_MS
@@ -44,6 +45,7 @@ const POLL_BUDGET = {
     GetMeshSnapshot: perMinute(10_000), // MESH_STATUS_POLL_INTERVAL
   },
   '/gps': { GetGNSSStatus: perMinute(2_000) }, // GpsStatus POLL_INTERVAL
+  '/weather': { ListWeatherStations: perMinute(10_000) }, // Weather POLL_MS
   '/topology': {
     GetMeshSnapshot: perMinute(5_000), // Topology POLL_INTERVAL
     GetMeshTopology: perMinute(5_000),
@@ -51,7 +53,7 @@ const POLL_BUDGET = {
   },
 };
 
-const HEADINGS = { '/': 'Dashboard', '/comms': 'Comms', '/gps': 'GPS / GNSS', '/topology': 'Topology' };
+const HEADINGS = { '/': 'Dashboard', '/comms': 'Comms', '/gps': 'GPS / GNSS', '/topology': 'Topology', '/weather': 'Weather' };
 
 function endpoint(url) {
   const { pathname } = new URL(url);

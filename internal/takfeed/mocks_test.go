@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
+	weatherv1 "github.com/openmanet/openmanetd/internal/api/openmanet/weather/v1"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/scanner/aircraft"
@@ -174,6 +175,26 @@ func (f *fakeJams) set(j []takfeed.Jam) {
 	defer f.mu.Unlock()
 
 	f.jams = j
+}
+
+// fakeWeather serves a scripted local weather report.
+type fakeWeather struct {
+	mu  sync.Mutex
+	rep *weatherv1.WeatherReport
+}
+
+func (f *fakeWeather) Local() *weatherv1.WeatherReport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.rep
+}
+
+func (f *fakeWeather) set(rep *weatherv1.WeatherReport) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.rep = rep
 }
 
 // fakeConfig serves a real *config.Config built from YAML so tests see
