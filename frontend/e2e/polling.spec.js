@@ -36,6 +36,7 @@ const POLL_BUDGET = {
     GetBLOSStatus: perMinute(10_000), // CHIP_POLL_MS
     ListBLOSPeers: perMinute(10_000), // CHIP_POLL_MS
     ListNetworkInterfaces: perMinute(30_000), // IFACE_POLL_MS
+    GetJamStatus: perMinute(5_000), // useJamStatus(DASH_POLL_MS)
   },
   '/comms': {
     GetAudioMixer: perMinute(5_000), // DeviceAudioPanel POLL_MS

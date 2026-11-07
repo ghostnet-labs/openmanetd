@@ -28,8 +28,10 @@ export function findLostPeers(peerHistory, currentNamesUpper, nowMs, lostMs, for
   return out;
 }
 
-export function classifyAlerts({ mesh, lostPeers = [], delta }) {
-  const out = [];
+// jam is the jamming alert list from dashboardJam.jamAlerts. It goes first:
+// a jammed radio is the most urgent thing on the panel.
+export function classifyAlerts({ mesh, lostPeers = [], delta, jam = [] }) {
+  const out = [...jam];
   if (mesh?.status?.connected) {
     out.push({ level: 'ok', text: 'MESH UP · CONVERGED' });
   } else {

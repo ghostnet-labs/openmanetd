@@ -26,6 +26,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
 	"github.com/openmanet/openmanetd/internal/instrumentation"
+	"github.com/openmanet/openmanetd/internal/jamdetect"
 	"github.com/openmanet/openmanetd/internal/logs"
 	"github.com/openmanet/openmanetd/internal/mgmt"
 	"github.com/openmanet/openmanetd/internal/network"
@@ -156,7 +157,13 @@ func Start(staticFS fs.FS) {
 	// when hardware.enable is false.
 	hwManager := startHardwareManager(ctx, cfg)
 
-	startInstrumentationWorker(ctx, cfg, blosManager, sysupgradeMgr, mixerVol, wifiProvider, hwManager, log)
+	// Jamming detection (GHO-93): reads every radio's channel survey,
+	// flags sudden noise-floor and unexplained busy-time jumps, and shares
+	// reports over alfred. On by default; read-only. One goroutine bound
+	// to ctx. nil when jamdetect.enable is false.
+	jamDetector := startJamdetect(ctx, cfg, manager, gps, log)
+
+	startInstrumentationWorker(ctx, cfg, blosManager, sysupgradeMgr, mixerVol, wifiProvider, hwManager, jamDetector, log)
 
 	// BatctlSnapshotter owns one background goroutine that refreshes the
 	// outputs of batctl oj / nj / mj / gwj plus /tmp/bat-hosts every 5s.
@@ -304,6 +311,8 @@ func Start(staticFS fs.FS) {
 	apiServer.Chanmig = chanmigAPI(chanmigSvc)
 	apiServer.Scanner = scannerMgr
 
+	apiServer.JamDetector = jamDetectorAPI(jamDetector)
+
 	if wifiProvider != nil {
 		apiServer.Wifi = wifiProvider
 		interfaceProvider.WifiInterfaces = wifiProvider.Interfaces
@@ -412,13 +421,13 @@ func newSysupgradeManager(cfg *config.Config, log zerolog.Logger) *sysupgrade.Ma
 }
 
 // startInstrumentationWorker constructs the instrumentation snapshot
-// registry, registers the comms, BLOS, sysupgrade, wireless and hardware
+// registry, registers the comms, BLOS, sysupgrade, wireless, hardware and jamdetect
 // adapters, and starts the periodic worker goroutine when the config
 // flag is enabled. The registry itself is cheap; only the worker has
 // runtime cost. Errors during setup are logged but never fatal — a
 // misconfigured snapshot subsystem must not prevent the daemon from
 // serving traffic.
-func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosManager *blos.BLOSManager, sysupgradeMgr *sysupgrade.Manager, mixerVol *alsa.Volume, wifiProvider *handlers.CachedWirelessProvider, hwManager *hardware.Manager, log zerolog.Logger) {
+func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosManager *blos.BLOSManager, sysupgradeMgr *sysupgrade.Manager, mixerVol *alsa.Volume, wifiProvider *handlers.CachedWirelessProvider, hwManager *hardware.Manager, jamDetector *jamdetect.Detector, log zerolog.Logger) {
 	if !cfg.GetInstrumentationEnable() {
 		return
 	}
@@ -477,6 +486,14 @@ func startInstrumentationWorker(ctx context.Context, cfg *config.Config, blosMan
 	if hwManager != nil {
 		if err = reg.Register("hardware", &hardware.Snapshotter{Manager: hwManager}); err != nil {
 			log.Error().Err(err).Msg("instrumentation: failed to register hardware snapshotter")
+
+			return
+		}
+	}
+
+	if jamDetector != nil {
+		if err = reg.Register("jamdetect", &jamdetect.Snapshotter{Detector: jamDetector}); err != nil {
+			log.Error().Err(err).Msg("instrumentation: failed to register jamdetect snapshotter")
 
 			return
 		}

@@ -104,6 +104,11 @@ linters:
       - examples$
       - node_modules/
 formatters:
+  # gofmt makes `golangci-lint run --fix` (make lint-go) apply canonical
+  # formatting and makes CI fail on unformatted files. It was documented in
+  # .claude/rules/linting.md but missing here, so gofmt-only breaks passed.
+  enable:
+    - gofmt
   exclusions:
     generated: lax
     paths:
