@@ -45,3 +45,21 @@ jobs:
           UPDATE_TOKEN: ${{ secrets.MANET_UPDATE_TOKEN }}
           REPO: ${{ github.repository }}
         run: python3 project/scripts/merge_policy.py merge --repo "$REPO"
+      - name: Fetch the stale-run tool
+        if: always()
+        uses: actions/checkout@v4
+        with:
+          repository: ghostnet-labs/docs
+          ref: c970a132316efc30a842565c945b783d15e21fd7
+          path: stale-run-tool
+          sparse-checkout: tools/stale-runs
+          persist-credentials: false
+      # Clears this repo's own runs that are provably dead for a day: PR closed,
+      # head superseded, or an unstarted push run on a moved or deleted branch.
+      # Never holds up a merge, and never touches a current-head run of an open PR.
+      - name: Cancel dead runs older than a day
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 stale-run-tool/tools/stale-runs/stale_runs.py --cancel --min-age-hours 24 --repos "${GITHUB_REPOSITORY#*/}"

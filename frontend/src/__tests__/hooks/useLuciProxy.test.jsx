@@ -89,3 +89,16 @@ describe('TestUseLuciProxy', () => {
     expect(result.current).toBe(true);
   });
 });
+
+describe('TestLuciUrl', () => {
+  it('points at this origin when the proxy is on', async () => {
+    const { luciUrl } = await import('../../hooks/useLuciProxy.js');
+    expect(luciUrl(true, '10.41.3.7')).toBe('/cgi-bin/luci/');
+  });
+
+  it('points at LuCI on port 80 of the same node when the proxy is off', async () => {
+    const { luciUrl } = await import('../../hooks/useLuciProxy.js');
+    expect(luciUrl(false, '10.41.3.7')).toBe('http://10.41.3.7/cgi-bin/luci/');
+    expect(luciUrl(false, 'node7.lan')).toBe('http://node7.lan/cgi-bin/luci/');
+  });
+});

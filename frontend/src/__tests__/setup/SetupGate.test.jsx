@@ -369,3 +369,27 @@ describe('SetupGate', () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Public paths: the phone setup page is never gated
+// ---------------------------------------------------------------------------
+
+describe('PublicPaths', () => {
+  afterEach(() => cleanup());
+
+  it('isPublicPath matches /join with or without a trailing slash', async () => {
+    const { isPublicPath } = await import('../../components/SetupGate.jsx');
+    expect(isPublicPath('/join')).toBe(true);
+    expect(isPublicPath('/join/')).toBe(true);
+    expect(isPublicPath('/joined')).toBe(false);
+    expect(isPublicPath('/')).toBe(false);
+  });
+
+  it('renders /join while the wizard is active, without asking setup status', () => {
+    resolveStatus(ACTIVE);
+    renderGate('/join');
+    expect(screen.getByTestId('app')).toBeInTheDocument();
+    expect(screen.getByTestId('loc').textContent).toBe('/join');
+    expect(setupState.getSetupStatus).not.toHaveBeenCalled();
+  });
+});

@@ -122,6 +122,21 @@ instrumentation:
 sysupgrade:
   releasesRepo: OpenMANET/firmware
   onlineCheck: true
+# Phone onboarding: a phone on the node's access point opens
+# /onboard/status, downloads ATAK from /onboard/atak.apk and imports
+# /onboard/atak-setup.zip (callsign, team, role, map sources) with no
+# internet. Nothing is offered until an admin uploads an ATAK APK
+# (POST /api/onboard/atak, multipart field "file"). The APK (~200 MB)
+# needs persistent storage, so dir must not be under /tmp. Map source
+# URLs point at /tiles/<layer>/{z}/{x}/{y} on whichever address the
+# phone used; mapSources: [] leaves maps out.
+onboard:
+  enable: true
+  dir: /srv/openmanet/onboard
+  maxApkBytes: 629145600
+  # mapSources:
+  #   - {name: Manet Satellite, layer: satellite, tileType: jpg, minZoom: 0, maxZoom: 17}
+  #   - {name: Manet Topo, layer: topo, tileType: png, minZoom: 0, maxZoom: 16}
 # Ghostnet V1 hardware manager: battery telemetry, radio power state machine
 # and recovery ladder. On other boards it runs telemetry-only. Every GPIO
 # write, bus reset, watchdog pet and low-battery poweroff is OFF by default

@@ -7,6 +7,7 @@ const TABS = [
   { to: '/settings/wireless', label: 'Wireless', end: false },
   { to: '/settings/network', label: 'Network', end: false },
   { to: '/settings/firmware', label: 'Firmware', end: false },
+  { to: '/settings/phones', label: 'Phones', end: false },
   { to: '/settings/terminal', label: 'Terminal', end: false },
   { to: '/settings/logs', label: 'Logs', end: false },
 ];
