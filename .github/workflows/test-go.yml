@@ -155,6 +155,12 @@ jobs:
             exit 1
           fi
 
+      # The firmware also builds for 32-bit mipsle routers, where int is 32
+      # bits. Compile and vet every pure-Go package for mipsle and arm so a
+      # 64-bit-only constant or conversion fails here, not in the firmware.
+      - name: Check 32-bit builds
+        run: make check-32bit
+
       - name: Build daemon and check comms races
         run: |
           go build ./...
