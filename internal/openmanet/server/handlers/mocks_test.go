@@ -21,6 +21,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
 	"github.com/openmanet/openmanetd/internal/hardware"
+	"github.com/openmanet/openmanetd/internal/jamdetect"
 	"github.com/openmanet/openmanetd/internal/openmanet/server/handlers"
 	"github.com/openmanet/openmanetd/internal/pathsel"
 	"github.com/openmanet/openmanetd/internal/radiogate"
@@ -1080,4 +1081,77 @@ func (r *diskWirelessReader) ReloadConfig() error {
 	r.Revert("network")
 
 	return nil
+}
+
+// fakeJamSource is a jamdetect.Source for one 5 GHz radio whose counters
+// advance by the deltas passed to step.
+type fakeJamSource struct {
+	mu     sync.Mutex
+	survey jamdetect.Survey
+}
+
+func (f *fakeJamSource) step(noise int, active, busy, rx, tx uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	s := &f.survey
+	s.FreqMHz, s.InUse = 5180, true
+	s.NoiseDBm, s.HasNoise = noise, true
+	s.HasActive, s.HasBusy, s.HasRx, s.HasTx = true, true, true, true
+	s.ActiveMs += active
+	s.BusyMs += busy
+	s.RxMs += rx
+	s.TxMs += tx
+}
+
+func (f *fakeJamSource) Radios(context.Context) ([]jamdetect.Radio, error) {
+	return []jamdetect.Radio{{Ifname: "phy1-mesh0", PHY: "phy1"}}, nil
+}
+
+func (f *fakeJamSource) Survey(context.Context, string) ([]jamdetect.Survey, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return []jamdetect.Survey{f.survey}, nil
+}
+
+// newJamDetector returns a detector over a fakeJamSource and a function
+// that feeds it n healthy (false) or jammed (true) samples.
+func newJamDetector(t *testing.T) (*jamdetect.Detector, func(jammed bool, n int)) {
+	t.Helper()
+
+	src := &fakeJamSource{}
+	now := time.Date(2026, 11, 7, 1, 0, 0, 0, time.UTC)
+
+	var mu sync.Mutex
+
+	det := jamdetect.New(jamdetect.Options{
+		Log:      zerolog.Nop(),
+		Source:   src,
+		Identity: func() (string, string) { return "02:00:00:00:00:01", "mast-1" },
+		Now: func() time.Time {
+			mu.Lock()
+			defer mu.Unlock()
+
+			return now
+		},
+	})
+
+	feed := func(jammed bool, n int) {
+		for range n {
+			if jammed {
+				src.step(-80, 5000, 4000, 400, 100)
+			} else {
+				src.step(-92, 5000, 1500, 1200, 200)
+			}
+
+			mu.Lock()
+			now = now.Add(5 * time.Second)
+			mu.Unlock()
+
+			det.Sample(context.Background())
+		}
+	}
+
+	return det, feed
 }

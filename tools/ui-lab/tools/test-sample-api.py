@@ -22,4 +22,6 @@ class SampleBackendTests(unittest.TestCase):
  def test_channel_migration_is_read_only_sample(self):
   st=api.rpc('GetChannelMigrationStatus',{})['status'];self.assertTrue(st['enabled']);self.assertEqual(st['phase'],'MIGRATION_PHASE_STABLE');self.assertEqual(len(st['peers']),2)
   with self.assertRaises(NotImplementedError):api.rpc('ProposeChannelPlan',{})
+ def test_jam_status_is_sample(self):
+  st=api.rpc('GetJamStatus',{});self.assertTrue(st['enabled']);self.assertEqual(st['local']['activeEvents'][0]['state'],'JAM_STATE_JAMMED');self.assertEqual(len(st['remote']),2)
 if __name__=='__main__':unittest.main()

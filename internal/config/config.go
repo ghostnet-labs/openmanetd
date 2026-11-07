@@ -373,6 +373,7 @@ type Config struct {
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
 	Chanmig                                   ChanmigConfig
+	Jamdetect                                 JamdetectConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
 	MeshTopologyDeltaSampleInterval           int
@@ -1029,6 +1030,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 
 	c.Hardware = c.loadHardware()
 	c.Chanmig = c.loadChanmig()
+	c.Jamdetect = c.loadJamdetect()
 	c.Scanner = c.loadScanner()
 	c.Radio = c.loadRadio()
 }
