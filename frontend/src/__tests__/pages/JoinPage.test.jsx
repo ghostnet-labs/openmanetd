@@ -50,6 +50,7 @@ describe('JoinPage', () => {
     const link = await screen.findByRole('link', { name: /Download ATAK · 215 MB/ });
     expect(link).toHaveAttribute('href', 'http://10.41.3.7:8080/onboard/atak.apk');
     expect(screen.getByText(/OpenMANET · node-7/)).toBeInTheDocument();
+    expect(screen.getByText(/turn off Auto Blocker/)).toBeInTheDocument();
   });
 
   it('builds the tak:// import link from the profile and remembers it', async () => {

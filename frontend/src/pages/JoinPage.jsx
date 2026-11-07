@@ -133,6 +133,7 @@ export default function JoinPage() {
                 <ol className="join-steps">
                   <li>If Chrome warns about the download, tap Keep or Download anyway.</li>
                   <li>Open the file. Allow installs from Chrome when asked, then tap Install.</li>
+                  <li>Samsung: if the install is blocked, turn off Auto Blocker in Settings, Security and privacy.</li>
                   <li>Open ATAK once and accept its prompts.</li>
                 </ol>
               </>
