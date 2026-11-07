@@ -1,0 +1,109 @@
+name: "Publish frontend bundle"
+
+# static/ (the built React app that //go:embed puts in the binary) is not
+# committed: two open PRs that each rebuilt it always conflicted. Instead every
+# push to main builds it once here and uploads it to the rolling
+# "static-bundles" prerelease as openmanetd-static-<commit>.tar.gz. The OpenWrt
+# package (ghostnet-labs/packages openmanetd/Makefile) downloads the bundle
+# for the commit it pins and unpacks it into static/ before go build.
+#
+# workflow_dispatch with a commit builds the bundle for an older commit, for
+# example the one the package pins today.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to build (full SHA); empty = the dispatched ref"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: static-bundle-${{ inputs.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: "Build and publish static bundle"
+    # Trusted code only (main pushes and dispatches, never a PR), on an
+    # ephemeral ARC pod, so the write token never meets PR code.
+    runs-on: ghostnet-linux-arm64
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=1400
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        run: make frontend
+
+      - name: Pack static/
+        id: pack
+        run: |
+          sha=$(git rev-parse HEAD)
+          test -f static/index.html
+          file="openmanetd-static-${sha}.tar.gz"
+          # whisper/ stays committed (make whisper-js); everything else is the build.
+          tar -C static --exclude=./whisper --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime='@0' -czf "$file" .
+          sha256sum "$file" | tee "$file.sha256"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to the static-bundles prerelease
+        uses: actions/github-script@v7
+        env:
+          FILE: ${{ steps.pack.outputs.file }}
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const tag = 'static-bundles';
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
+            } catch (err) {
+              if (err.status !== 404) throw err;
+              release = (await github.rest.repos.createRelease({
+                owner, repo, tag_name: tag, target_commitish: 'main', prerelease: true,
+                name: 'Frontend static bundles',
+                body: 'Built static/ for each main commit, used by the OpenWrt package build. ' +
+                      'Made by .github/workflows/static-bundle.yml; not a release.',
+              })).data;
+            }
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets,
+              { owner, repo, release_id: release.id, per_page: 100 });
+            for (const name of [process.env.FILE, process.env.FILE + '.sha256']) {
+              const old = assets.find(a => a.name === name);
+              if (old) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: old.id });
+              await github.rest.repos.uploadReleaseAsset({
+                owner, repo, release_id: release.id, name, data: fs.readFileSync(name),
+                headers: { 'content-type': 'application/octet-stream', 'content-length': fs.statSync(name).size },
+              });
+            }
+            // Bounded: keep the newest 300 bundles (150 commits), drop the rest.
+            const sorted = assets.filter(a => a.name.startsWith('openmanetd-static-'))
+              .sort((a, b) => b.created_at.localeCompare(a.created_at));
+            for (const a of sorted.slice(298)) {
+              await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: a.id });
+            }
+            core.notice(`Published ${process.env.FILE}`);

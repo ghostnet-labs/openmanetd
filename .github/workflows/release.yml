@@ -27,6 +27,20 @@ jobs:
       - name: Compile Alfred Go Bindings
         run: make alfred
 
+      # static/ is not committed; //go:embed needs the built app.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Build frontend
+        run: make frontend
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
