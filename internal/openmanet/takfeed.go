@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/openmanet/openmanetd/internal/comms"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/cotmcast"
 	"github.com/openmanet/openmanetd/internal/database/models"
@@ -13,6 +14,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/jamdetect"
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/scanner"
+	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/takfeed"
 	"github.com/openmanet/openmanetd/internal/util/board"
 )
@@ -169,7 +171,13 @@ func takFeedOptions(
 		if api.Battery != nil {
 			opts.Battery = api.Battery
 		}
+
+		if api.Wifi != nil {
+			opts.Signals = stationSignals{wifi: api.Wifi}
+		}
 	}
+
+	opts.Status = newTAKStatus(opts.Platform, gps, api, scannerMgr, jamDetector)
 
 	if scannerMgr != nil {
 		opts.Aircraft = scannerMgr
@@ -181,4 +189,58 @@ func takFeedOptions(
 	}
 
 	return opts
+}
+
+// newTAKStatus wires the node marker's status lines to whichever
+// subsystems are running. Interface fields are only set from non-nil
+// values, so a disabled subsystem is a nil interface, not a typed nil.
+func newTAKStatus(
+	model string,
+	gps *gpsd.GPSService,
+	api *server.APIServer,
+	scannerMgr *scanner.Manager,
+	jamDetector *jamdetect.Detector,
+) *takStatus {
+	st := &takStatus{
+		model: model,
+		comms: func() commsReader { return comms.Default() },
+	}
+
+	if fw, err := (&system.OpenWrtFirmwareProvider{}).GetFirmwareInfo(); err == nil && fw != nil {
+		st.firmware = fw.Release
+	}
+
+	if gps != nil {
+		st.gps = gps
+	}
+
+	if scannerMgr != nil {
+		st.scanner = scannerMgr
+	}
+
+	if jamDetector != nil {
+		st.jam = jamDetector
+	}
+
+	if api == nil {
+		return st
+	}
+
+	if api.SystemSnapshotter != nil {
+		st.sys = api.SystemSnapshotter
+	}
+
+	if api.Hardware != nil {
+		st.hw = api.Hardware
+	}
+
+	if api.BLOSManager != nil {
+		st.blos = api.BLOSManager
+	}
+
+	if api.Chanmig != nil {
+		st.chanmig = api.Chanmig
+	}
+
+	return st
 }

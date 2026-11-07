@@ -32,6 +32,8 @@ func TestTAKFeedOptions_optionalSourcesStayNilInterfaces(t *testing.T) {
 	assert.Nil(t, opts.Battery)
 	assert.Nil(t, opts.Aircraft)
 	assert.Nil(t, opts.Jams)
+	assert.Nil(t, opts.Signals)
+	assert.NotNil(t, opts.Status, "the status lines are always on; each part checks its own source")
 	assert.False(t, opts.CameraOwnsMarker)
 	assert.NotNil(t, opts.Sender)
 	assert.Equal(t, gpsd.NodeCallsign(), opts.Callsign)

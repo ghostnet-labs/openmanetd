@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/coreywagehoft/go-tak/pkg/cot"
@@ -98,6 +99,10 @@ type Options struct {
 	Battery  BatterySource
 	Aircraft AircraftSource
 	Jams     JamSource
+	// Status adds health, radio, GNSS, comms, scanner and uplink lines to
+	// the node marker. Signals adds signal strength to link lines.
+	Status  StatusSource
+	Signals SignalSource
 	// Now defaults to time.Now.
 	Now func() time.Time
 	Log zerolog.Logger
@@ -204,7 +209,7 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	}
 
 	if havePos && !p.opts.CameraOwnsMarker {
-		p.send(NodeEvent(p.nodeInfo(cfg, pos), now))
+		p.send(NodeEvent(p.nodeInfo(ctx, cfg, pos), now))
 	}
 
 	if tick%linkEvery == 0 {
@@ -235,7 +240,7 @@ func (p *Publisher) position(now time.Time) (Position, bool) {
 	return pos, true
 }
 
-func (p *Publisher) nodeInfo(cfg config.TAKConfig, pos Position) *NodeInfo {
+func (p *Publisher) nodeInfo(ctx context.Context, cfg config.TAKConfig, pos Position) *NodeInfo {
 	n := &NodeInfo{
 		Callsign:  p.opts.Callsign,
 		Role:      cfg.Role,
@@ -246,6 +251,11 @@ func (p *Publisher) nodeInfo(cfg config.TAKConfig, pos Position) *NodeInfo {
 		MeshNodes: p.mesh.nodes,
 		Gateway:   p.mesh.gateway,
 		HaveMesh:  p.haveMeshRead,
+	}
+
+	if p.opts.Status != nil {
+		st := p.opts.Status.NodeStatus(ctx)
+		n.Status = &st
 	}
 
 	if p.opts.Battery == nil {
@@ -285,13 +295,19 @@ func (p *Publisher) refreshMesh(ctx context.Context, pos Position, havePos bool)
 		}
 	}
 
-	p.mesh = summarizeMesh(resp.GetTopology(), nodes, p.opts.Hostname, p.opts.Callsign, pos, havePos)
+	var signals map[string]StationSignal
+	if p.opts.Signals != nil {
+		signals = p.opts.Signals.StationSignals(ctx)
+	}
+
+	p.mesh = summarizeMesh(resp.GetTopology(), nodes, signals, p.opts.Hostname, p.opts.Callsign, pos, havePos)
 	p.haveMeshRead = true
 }
 
 func summarizeMesh(
 	topo *meshtopov1.MeshTopology,
 	nodes []models.MeshNode,
+	signals map[string]StationSignal,
 	hostname, callsign string,
 	pos Position,
 	havePos bool,
@@ -360,17 +376,48 @@ func summarizeMesh(
 			continue
 		}
 
-		s.links = append(s.links, Link{
+		link := Link{
 			UID:       linkUID(hostname, peer.GetHostname()),
 			Algorithm: topo.GetAlgorithm(),
 			A:         self,
 			B:         end,
 			Metric:    e.GetMetric(),
 			BLOS:      e.GetBlos(),
-		})
+		}
+
+		if sig, ok := peerSignal(signals, peerMAC, peer); ok && !link.BLOS {
+			link.SignalDBm, link.TxBitrateKbps, link.HaveSignal = sig.SignalDBm, sig.TxBitrateKbps, true
+		}
+
+		s.links = append(s.links, link)
 	}
 
 	return s
+}
+
+// peerSignal finds the station entry for a neighbor. The edge names the
+// neighbor by the interface MAC batman heard it on, which is the station
+// address on that radio; its other interfaces are tried too.
+func peerSignal(signals map[string]StationSignal, edgeMAC string, peer *meshtopov1.MeshNode) (StationSignal, bool) {
+	if len(signals) == 0 {
+		return StationSignal{}, false
+	}
+
+	if sig, ok := signals[strings.ToLower(edgeMAC)]; ok {
+		return sig, true
+	}
+
+	if sig, ok := signals[strings.ToLower(peer.GetMac())]; ok {
+		return sig, true
+	}
+
+	for _, mac := range peer.GetSecondaryMacs() {
+		if sig, ok := signals[strings.ToLower(mac)]; ok {
+			return sig, true
+		}
+	}
+
+	return StationSignal{}, false
 }
 
 // linkUID is the same on both ends of a link, so the two nodes that

@@ -79,7 +79,9 @@ type Battery struct {
 
 // NodeInfo is everything this node shows about itself.
 type NodeInfo struct {
-	Battery   *Battery
+	Battery *Battery
+	// Status is the rest of the node's state; nil leaves it out.
+	Status    *Status
 	Callsign  string
 	Role      string
 	Platform  string
@@ -107,7 +109,13 @@ type Link struct {
 	A         Endpoint
 	B         Endpoint
 	Metric    float64
-	BLOS      bool
+	// SignalDBm and TxBitrateKbps come from this node's station list;
+	// they are left out when HaveSignal is false (a BLOS link, or a
+	// neighbor heard only through another interface).
+	SignalDBm     int
+	TxBitrateKbps int
+	HaveSignal    bool
+	BLOS          bool
 }
 
 // JamState is how sure a detector is about a jamming episode.
@@ -187,7 +195,8 @@ func NodeEvent(n *NodeInfo, now time.Time) *cotproto.TakMessage {
 func nodeRemarks(n *NodeInfo) string {
 	var b strings.Builder
 
-	b.Grow(160)
+	b.Grow(640)
+	writeAlerts(&b, n.Status)
 
 	if n.Role == config.TAKRoleMast {
 		b.WriteString("OpenMANET mast")
@@ -225,6 +234,7 @@ func nodeRemarks(n *NodeInfo) string {
 	}
 
 	b.WriteString(".")
+	writeStatus(&b, n.Status)
 
 	return b.String()
 }
@@ -267,6 +277,13 @@ func LinkEvent(l *Link, now time.Time, stale time.Duration) *cotproto.TakMessage
 		}
 
 		remarks += ")"
+	}
+
+	if l.HaveSignal {
+		remarks += ", signal " + strconv.Itoa(l.SignalDBm) + " dBm"
+		if l.TxBitrateKbps > 0 {
+			remarks += ", sending at " + strconv.FormatFloat(float64(l.TxBitrateKbps)/1000, 'f', 1, 64) + " Mbit/s"
+		}
 	}
 
 	if l.BLOS {

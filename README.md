@@ -48,7 +48,7 @@ Management and operations daemon for OpenMANET mesh networks. Runs on OpenMANET 
 - Publishes in NMEA and/or Cursor-on-Target (CoT) formats
 
 ### ATAK feed
-- Puts every node (radio or mast icon, with battery and mesh health), its mesh links (lines colored by link quality), aircraft heard by the scanner and jamming detections on every ATAK map on the mesh
+- Puts every node (radio or mast icon, with battery, mesh, system health, radio, GPS, voice, scanner and uplink state, and alerts for faults), its mesh links (lines colored by link quality, with signal strength), aircraft heard by the scanner and jamming detections on every ATAK map on the mesh
 - Plain CoT on the ATAK SA multicast group, so phones need no plugin and no setup
 
 ### API
