@@ -10,7 +10,7 @@ Public, no login (a phone that has just joined has no session):
 
 | Method | Path | What it does |
 | --- | --- | --- |
-| GET | `/onboard/status` | JSON: whether an APK is stored (name, size, SHA-256, upload time), the plain-HTTP `apkUrl` and `packageUrl` for the address the phone used, and the team, role and map source names to offer. |
+| GET | `/onboard/status` | JSON: whether an APK is stored (name, size, SHA-256, upload time), the plain-HTTP `apkUrl` and `packageUrl` for the address the phone used, and the team, role and map source names to offer, and the node's hostname (`node`). |
 | GET, HEAD | `/onboard/atak.apk` | The stored APK as `application/vnd.android.package-archive`. Supports `Range`, so a dropped download resumes. The ETag is the SHA-256. 404 until an APK is uploaded. |
 | GET | `/onboard/atak-setup.zip` | An ATAK data package built per request. Optional query: `callsign` (up to 40 letters, digits, space, `-`, `_`, `.`), `team` (one of ATAK's 14 team colors), `role` (one of ATAK's 8 roles). 400 on a bad value. |
 
@@ -55,6 +55,15 @@ tak://com.atakmap.app/import?url=<percent-encoded packageUrl with query>
 ATAK asks the user to confirm once, then imports the preferences and map
 sources.
 
+## Web pages
+
+| Path | Who | What it does |
+| --- | --- | --- |
+| `/join` | Phone, no login | Step 1 downloads the APK. Step 2 takes a callsign, team and role, then opens the `tak://` import link (with a plain download of the package as a fallback). The answers are remembered in the browser. Shows an iPhone notice (ATAK is Android only) and, when opened over HTTPS, a link to the plain-HTTP page so the download works. `/join` skips the setup wizard gate. |
+| Settings, Phones | Operator, login | Upload, replace or remove the APK with a progress bar, see its size and SHA-256, and copy the `/join` link to give phones. |
+
+Give phones `http://<node address>:8080/join`.
+
 ## Configuration
 
 See `onboard.*` in `example_config.yml`. Onboarding is on by default and
@@ -63,13 +72,11 @@ persistent storage.
 
 ## Still to come
 
-1. The phone-facing setup page in the web UI (download, callsign and team,
-   one-tap configure) and the admin upload control.
-2. The setup page popping up when a phone joins the access point.
-3. Plug-in setup: the node installs and configures ATAK over USB or
+1. The setup page popping up when a phone joins the access point.
+2. Plug-in setup: the node installs and configures ATAK over USB or
    wireless debugging, with permissions granted and battery optimization
    off.
-4. Copying the APK to every node on the mesh.
+3. Copying the APK to every node on the mesh.
 
 ## Licensing note
 

@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -117,6 +118,10 @@ func TestOnboardStatus_noAPK(t *testing.T) {
 	assert.Contains(t, st.Teams, "Cyan")
 	assert.Contains(t, st.Roles, "Team Member")
 	assert.Equal(t, []string{"Manet Satellite", "Manet Topo"}, st.MapSources)
+
+	host, err := os.Hostname()
+	require.NoError(t, err)
+	assert.Equal(t, host, st.Node, "the join page shows which node the phone reached")
 
 	resp, _ := do(t, http.MethodGet, ts.URL+onboardAPKPath, nil, nil)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,7 @@ type onboardStatus struct {
 	Teams      []string         `json:"teams"`
 	Roles      []string         `json:"roles"`
 	MapSources []string         `json:"mapSources"`
+	Node       string           `json:"node"`
 	APKURL     string           `json:"apkUrl"`
 	PackageURL string           `json:"packageUrl"`
 	APK        onboardAPKStatus `json:"apk"`
@@ -128,7 +130,10 @@ func (s *Server) handleOnboardStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	base := s.httpBaseURL(r)
+	node, _ := os.Hostname() // empty name is fine; the page falls back
+
 	st := onboardStatus{
+		Node:       node,
 		APKURL:     base + onboardAPKPath,
 		PackageURL: base + onboardPackagePath,
 		Teams:      onboard.Teams(),
