@@ -9,6 +9,18 @@ import (
 	"time"
 )
 
+type CoverageCell struct {
+	CellM         int64
+	CellRow       int64
+	CellCol       int64
+	Samples       int64
+	NoLinkSamples int64
+	SignalDbm     float64
+	MaxLinks      int64
+	FirstSeen     time.Time
+	LastSeen      time.Time
+}
+
 type MeshNode struct {
 	MacAddr      string
 	Hostname     string

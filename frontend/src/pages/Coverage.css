@@ -1,0 +1,133 @@
+/* =============================================================================
+ * Coverage.css — Coverage map page layout + SVG cell styles
+ * ============================================================================= */
+
+.coverage-body {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+}
+.cov-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .coverage-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cov-hint {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+/* ── Map canvas ─────────────────────────────────────────────────────────── */
+
+.cov-canvas {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.cov-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+}
+
+.cov-cell {
+  stroke: var(--bg-2);
+  stroke-width: 1;
+  cursor: pointer;
+}
+.cov-cell.good { fill: var(--ok); fill-opacity: 0.45; }
+.cov-cell.fair { fill: var(--warn); fill-opacity: 0.45; }
+.cov-cell.weak { fill: var(--crit); fill-opacity: 0.3; }
+.cov-cell.none { fill: var(--crit); fill-opacity: 0.7; }
+.cov-cell:hover,
+.cov-cell:focus-visible {
+  outline: none;
+  stroke: var(--border-hi);
+  stroke-width: 2;
+}
+.cov-cell.selected {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* Node spots sit on top of cells; taps go through to the cell below. */
+.cov-node { pointer-events: none; }
+.cov-node circle {
+  fill: var(--text);
+  stroke: var(--bg);
+}
+.cov-node.local circle { fill: var(--accent); }
+.cov-node text,
+.cov-scale text {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  pointer-events: none;
+}
+.cov-scale line {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+/* ── Legend ─────────────────────────────────────────────────────────────── */
+
+.cov-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.cov-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cov-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--border);
+}
+.cov-swatch.good { background: var(--ok); opacity: 0.6; }
+.cov-swatch.fair { background: var(--warn); opacity: 0.6; }
+.cov-swatch.weak { background: var(--crit); opacity: 0.4; }
+.cov-swatch.none { background: var(--crit); }
+.cov-swatch.node { background: var(--accent); }
+
+/* ── Dead spots ─────────────────────────────────────────────────────────── */
+
+.cov-dead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cov-dead-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+}
+.cov-dead-ref {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.cov-dead-age {
+  color: var(--dim);
+  white-space: nowrap;
+}

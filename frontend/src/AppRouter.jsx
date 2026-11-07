@@ -28,6 +28,7 @@ const SettingsNetwork = lazy(() => import('./pages/SettingsNetwork.jsx'));
 const SettingsFirmware = lazy(() => import('./pages/SettingsFirmware.jsx'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard.jsx'));
 const ScannerPage = lazy(() => import('./pages/Scanner.jsx'));
+const CoveragePage = lazy(() => import('./pages/Coverage.jsx'));
 
 export default function AppRouter() {
   return (
@@ -40,6 +41,7 @@ export default function AppRouter() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/comms" element={<CommsPage />} />
             <Route path="/topology" element={<TopologyPage />} />
+            <Route path="/coverage" element={<CoveragePage />} />
             <Route path="/gps" element={<GpsStatusPage />} />
             <Route path="/blos" element={<BLOSPage />} />
             <Route path="/scanner" element={<ScannerPage />} />
