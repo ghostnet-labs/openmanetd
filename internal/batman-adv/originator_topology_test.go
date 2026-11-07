@@ -2,6 +2,7 @@ package batmanadv_test
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -220,4 +221,56 @@ func TestGetOriginatorTopology_CycleSafety(t *testing.T) {
 	for _, e := range snap.Originators {
 		assert.Equal(t, 99, e.Hops, "cyclic chains must cap at the unknown sentinel")
 	}
+}
+
+// TestGetOriginatorTopology_MultiInterfaceNeighbor pins the hop count when
+// the neighbor's link MAC is not its originator address: node2 has two
+// mesh interfaces, its originator is its eth2 MAC, and node1 reaches it
+// (and node3 behind it) through its eth1 MAC. Taken from the firmware QEMU
+// mesh test, which saw both peers at the unknown sentinel.
+func TestGetOriginatorTopology_MultiInterfaceNeighbor(t *testing.T) {
+	dir := t.TempDir()
+	hosts := filepath.Join(dir, "bat-hosts")
+	require.NoError(t, os.WriteFile(hosts, []byte(
+		"# Node 52:54:00:aa:02:02\n52:54:00:aa:02:01 node2_eth1\n52:54:00:aa:02:02 node2_eth2\n"+
+			"# Node 52:54:00:aa:03:01\n52:54:00:aa:03:01 node3_eth1\n"), 0o600))
+
+	rows := []batmanadv.Originator{
+		{OrigAddress: "52:54:00:aa:02:02", HardIfname: "eth1", BestNeigh: "52:54:00:aa:02:01", Throughput: 1000, Best: true},
+		{OrigAddress: "52:54:00:aa:03:01", HardIfname: "eth1", BestNeigh: "52:54:00:aa:02:01", Throughput: 800, Best: true},
+	}
+	p := &batmanadv.BatctlOriginatorTopologyProvider{
+		Originators:   &fakeOrigProvider{rows: rows},
+		BatHostsPath:  hosts,
+		SelfMACReader: func() (string, error) { return "b6:93:05:a5:b3:d6", nil },
+	}
+
+	snap, err := p.GetOriginatorTopology()
+	require.NoError(t, err)
+
+	hops := make(map[string]int, len(snap.Originators))
+	for _, e := range snap.Originators {
+		hops[e.OrigMAC] = e.Hops
+	}
+
+	assert.Equal(t, 1, hops["52:54:00:aa:02:02"], "node2 is a direct neighbor through its eth1")
+	assert.Equal(t, 2, hops["52:54:00:aa:03:01"], "node3 is routed through node2")
+}
+
+// Without bat-hosts the owner of a link MAC is unknown, so the chain stays
+// unknown rather than guessing.
+func TestGetOriginatorTopology_MultiInterfaceNeighborNoBatHosts(t *testing.T) {
+	rows := []batmanadv.Originator{
+		{OrigAddress: "52:54:00:aa:02:02", HardIfname: "eth1", BestNeigh: "52:54:00:aa:02:01", Throughput: 1000, Best: true},
+	}
+	p := &batmanadv.BatctlOriginatorTopologyProvider{
+		Originators:   &fakeOrigProvider{rows: rows},
+		BatHostsPath:  filepath.Join(t.TempDir(), "none"),
+		SelfMACReader: func() (string, error) { return "", nil },
+	}
+
+	snap, err := p.GetOriginatorTopology()
+	require.NoError(t, err)
+	require.Len(t, snap.Originators, 1)
+	assert.Equal(t, 99, snap.Originators[0].Hops)
 }

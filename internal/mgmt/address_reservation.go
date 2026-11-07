@@ -38,7 +38,9 @@ type reservationDeps struct {
 	getMeshConfig   func(string) (*batmanadv.MeshConfig, error)
 	getHostname     func() (string, error)
 	reloadNetwork   func(context.Context) error
-	reboot          func() error
+	// restartServices brings dnsmasq, the firewall and openmanetd up on
+	// the new address once the network has been reloaded.
+	restartServices func(context.Context) error
 }
 
 func NewAddressReservationWorker(config *ManagementConfig, client *alfred.Client, ctx context.Context) *AddressReservationWorker {
@@ -57,7 +59,7 @@ func NewAddressReservationWorker(config *ManagementConfig, client *alfred.Client
 }
 
 // productionDeps wires the tick to the real UCI readers, netlink, batctl
-// and the reboot command.
+// and the init scripts.
 func (arw *AddressReservationWorker) productionDeps() reservationDeps {
 	return reservationDeps{
 		openMANETReader: arw.uciOpenMANETConfig,
@@ -68,7 +70,7 @@ func (arw *AddressReservationWorker) productionDeps() reservationDeps {
 		getMeshConfig:   batmanadv.GetMeshConfig,
 		getHostname:     os.Hostname,
 		reloadNetwork:   network.ReloadNetwork,
-		reboot:          system.Reboot,
+		restartServices: system.RestartForNewAddress,
 	}
 }
 
@@ -171,13 +173,13 @@ func (arw *AddressReservationWorker) reserveOnceWithDeps(ctx context.Context, de
 			Msg("IP conflict: this node has the higher MAC, re-reserving")
 	}
 
-	return arw.applyReservationWithDeps(nodes, deps)
+	return arw.applyReservationWithDeps(ctx, nodes, deps)
 }
 
 // yieldsAddress reports whether this node must give up its address in a
 // conflict. The node with the lowest MAC keeps the address and every other
-// party re-addresses, so two colliding gates converge in one extra reboot
-// of one node instead of chasing each other (ledger D3). MACs compare
+// party re-addresses, so two colliding gates converge in one extra
+// re-address of one node instead of chasing each other (ledger D3). MACs compare
 // case-insensitively; equal or empty MACs never yield.
 func yieldsAddress(ownMAC string, peers []models.MeshNode) bool {
 	own := strings.ToLower(ownMAC)
@@ -212,16 +214,26 @@ func findIPConflicts(iface network.NetworkInterface, nodes []models.MeshNode) []
 
 // applyReservationWithDeps claims an address and DHCP window from what the
 // peer rows leave free, persists them, marks DHCP configured, cleans up the
-// bootstrap sections and reboots so every service comes back on the final
-// address (ledger D2: the reboot is by design).
-func (arw *AddressReservationWorker) applyReservationWithDeps(nodes []models.MeshNode, deps reservationDeps) error {
+// bootstrap sections, then applies the address in place: a network reload
+// and a restart of the services that bind to it. This used to reboot the
+// node (ledger D2), which cost a fresh node one to two minutes off the
+// mesh on its first power-up.
+func (arw *AddressReservationWorker) applyReservationWithDeps(
+	ctx context.Context,
+	nodes []models.MeshNode,
+	deps reservationDeps,
+) error {
 	// The gateway flag decides both the address range and the cleanup.
 	meshCfg, err := deps.getMeshConfig(arw.Config.BatInterface)
 	if err != nil {
 		return fmt.Errorf("get mesh config: %w", err)
 	}
 
-	staticIP, err := network.SelectAvailableStaticIPFromNodeData(nodes, meshCfg.IsGatewayMode())
+	// Point nodes derive the address from their mesh interface's MAC so
+	// nodes that join together don't pick the same one.
+	mac := deps.getIface(arw.Config.IFace).MAC
+
+	staticIP, err := network.SelectStaticIPForMAC(nodes, mac, meshCfg.IsGatewayMode())
 	if err != nil {
 		return fmt.Errorf("select available static IP: %w", err)
 	}
@@ -245,7 +257,9 @@ func (arw *AddressReservationWorker) applyReservationWithDeps(nodes []models.Mes
 		return fmt.Errorf("set network config: %w", err)
 	}
 
-	dhcpStart, err := network.CalculateAvailableDHCPStart(nodes, network.DefaultNetworkAddress, network.DefaultNetworkMask, network.DefaultDHCPAddressLimit)
+	// The phone address pool comes from the MAC too, so nodes that join
+	// together don't lease phones the same addresses.
+	dhcpStart, err := network.SelectDHCPStartForMAC(nodes, mac, staticIP, network.DefaultDHCPAddressLimit)
 	if err != nil {
 		return fmt.Errorf("calculate DHCP start: %w", err)
 	}
@@ -272,14 +286,18 @@ func (arw *AddressReservationWorker) applyReservationWithDeps(nodes []models.Mes
 
 	// Bootstrap cleanup only happens here, on initial configuration. Sections
 	// an operator creates later are left alone unless a re-reservation runs.
-	if err = arw.cleanUpInterfacesWithDeps(meshCfg.IsGatewayMode(), deps.networkReader, deps.dhcpReader, deps.reloadNetwork); err != nil {
+	if err = arw.cleanUpInterfacesWithDeps(meshCfg.IsGatewayMode(), deps.networkReader, deps.dhcpReader); err != nil {
 		return fmt.Errorf("clean up interfaces: %w", err)
 	}
 
-	arw.Config.Log.Info().Msg("Rebooting system to apply new network settings")
+	arw.Config.Log.Info().Str("ip", staticIP).Msg("Applying the reserved address without a reboot")
 
-	if err = deps.reboot(); err != nil {
-		return fmt.Errorf("reboot: %w", err)
+	if err = deps.reloadNetwork(ctx); err != nil {
+		return fmt.Errorf("reload network: %w", err)
+	}
+
+	if err = deps.restartServices(ctx); err != nil {
+		return fmt.Errorf("restart services: %w", err)
 	}
 
 	return nil
@@ -289,8 +307,7 @@ func (arw *AddressReservationWorker) cleanUpInterfacesWithDeps(
 	isGateway bool,
 	networkReader network.ConfigReader,
 	dhcpReader network.DHCPConfigReader,
-	reloadFn func(context.Context) error,
-) error { //nolint:gocognit
+) error {
 	if isGateway {
 		arw.Config.Log.Info().Msg("Mesh gateway mode enabled, skipping interface cleanup")
 
@@ -325,11 +342,6 @@ func (arw *AddressReservationWorker) cleanUpInterfacesWithDeps(
 	// Commit DHCP changes
 	if err := dhcpReader.Commit(); err != nil {
 		return fmt.Errorf("error committing DHCP config: %w", err)
-	}
-
-	// Reload network to apply changes
-	if err := reloadFn(context.Background()); err != nil {
-		return fmt.Errorf("error reloading network configuration: %w", err)
 	}
 
 	return nil
