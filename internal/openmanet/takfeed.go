@@ -10,6 +10,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/cotmcast"
 	"github.com/openmanet/openmanetd/internal/database/models"
 	"github.com/openmanet/openmanetd/internal/gpsd"
+	"github.com/openmanet/openmanetd/internal/jamdetect"
 	"github.com/openmanet/openmanetd/internal/openmanet/server"
 	"github.com/openmanet/openmanetd/internal/scanner"
 	"github.com/openmanet/openmanetd/internal/takfeed"
@@ -44,6 +45,53 @@ func (g gpsPosition) Position() (takfeed.Position, bool) {
 	}, true
 }
 
+// jamSource adapts the jamming detector to takfeed.JamSource. Active is
+// local-only, so each node marks only its own detections.
+type jamSource struct {
+	det *jamdetect.Detector
+}
+
+func (j jamSource) ActiveJams() []takfeed.Jam {
+	events := j.det.Active()
+	out := make([]takfeed.Jam, 0, len(events))
+
+	for i := range events {
+		if jam, ok := toTAKJam(&events[i]); ok {
+			out = append(out, jam)
+		}
+	}
+
+	return out
+}
+
+// toTAKJam converts one detector episode; ok is false for a cleared one.
+func toTAKJam(e *jamdetect.Event) (takfeed.Jam, bool) {
+	var state takfeed.JamState
+
+	switch e.State {
+	case jamdetect.StateJammed:
+		state = takfeed.JamActive
+	case jamdetect.StateSuspected:
+		state = takfeed.JamSuspected
+	default:
+		return takfeed.Jam{}, false
+	}
+
+	return takfeed.Jam{
+		Started:            e.Started,
+		ID:                 e.ID,
+		Radio:              e.Radio,
+		Band:               string(e.Band),
+		FreqMHz:            e.FreqMHz,
+		NoiseDBm:           float64(e.NoiseDBm),
+		BaselineNoiseDBm:   e.BaselineNoiseDBm,
+		BusyPct:            e.BusyPct,
+		UnexplainedBusyPct: e.UnexplainedBusyPct,
+		State:              state,
+		NoiseKnown:         e.NoiseKnown,
+	}, true
+}
+
 // startTAKFeed starts the ATAK feed goroutine (GHO-94). It always runs:
 // tak.enable is read every tick, so turning the feed on or off in
 // config.yml applies without a restart. The returned channel closes once
@@ -56,9 +104,10 @@ func startTAKFeed(
 	db *models.Queries,
 	api *server.APIServer,
 	scannerMgr *scanner.Manager,
+	jamDetector *jamdetect.Detector,
 	log zerolog.Logger,
 ) <-chan struct{} {
-	opts := takFeedOptions(cfg, gps, db, api, scannerMgr, log)
+	opts := takFeedOptions(cfg, gps, db, api, scannerMgr, jamDetector, log)
 
 	if problems := cfg.GetTAK().Problems; len(problems) > 0 {
 		log.Warn().Strs("problems", problems).Msg("ATAK feed: rejected tak settings, using defaults for them")
@@ -81,6 +130,7 @@ func takFeedOptions(
 	db *models.Queries,
 	api *server.APIServer,
 	scannerMgr *scanner.Manager,
+	jamDetector *jamdetect.Detector,
 	log zerolog.Logger,
 ) takfeed.Options {
 	hostname, err := os.Hostname()
@@ -95,8 +145,8 @@ func takFeedOptions(
 		Position: gpsPosition{gps: gps},
 		Callsign: gpsd.NodeCallsign(),
 		Hostname: hostname,
-		// takfeed.AircraftSource and JamSource stay nil until wired below;
-		// a nil interface (not a typed nil pointer) disables that layer.
+		// Optional sources stay nil until wired below; a nil interface
+		// (not a typed nil pointer) disables that layer.
 	}
 
 	if info, infoErr := board.NewBoardConfigInfo(); infoErr == nil && info != nil {
@@ -123,6 +173,11 @@ func takFeedOptions(
 
 	if scannerMgr != nil {
 		opts.Aircraft = scannerMgr
+	}
+
+	// jamDetector is nil when jamdetect.enable is false.
+	if jamDetector != nil {
+		opts.Jams = jamSource{det: jamDetector}
 	}
 
 	return opts
