@@ -109,6 +109,7 @@ func (p *BatctlOriginatorTopologyProvider) GetOriginatorTopology() (*OriginatorT
 		bestByMAC[strings.ToLower(r.OrigAddress)] = r
 	}
 
+	owner := ifaceOwners(batHosts, bestByMAC)
 	hopsCache := make(map[string]int, len(bestByMAC))
 	entries := make([]OriginatorEntry, 0, len(bestByMAC))
 	algorithm := ""
@@ -123,7 +124,7 @@ func (p *BatctlOriginatorTopologyProvider) GetOriginatorTopology() (*OriginatorT
 			TQ:              r.TQ,
 			Throughput:      r.Throughput,
 			LastSeenMs:      r.LastSeenMs,
-			Hops:            hopsFor(r.OrigAddress, bestByMAC, hopsCache),
+			Hops:            hopsFor(r.OrigAddress, bestByMAC, owner, hopsCache),
 		})
 
 		// BATMAN_V reports throughput; BATMAN_IV reports TQ. When we see
@@ -200,15 +201,52 @@ const (
 	hopsUnknown  = 99
 )
 
+// ifaceOwners maps every interface MAC that bat-hosts lists to the
+// originator address of the node it belongs to, for the nodes that appear
+// in the originator table.
+//
+// A next hop is the neighbour's MAC on the shared link. On a node with
+// more than one mesh interface that MAC differs from the node's
+// originator address (its primary interface), so without this map a
+// direct neighbour reached through its secondary interface, and every
+// node routed through it, would read as a broken chain.
+func ifaceOwners(batHosts *BatHosts, best map[string]Originator) map[string]string {
+	owner := make(map[string]string)
+
+	for _, node := range batHosts.Nodes {
+		orig := ""
+
+		for _, h := range node.Hosts {
+			if _, ok := best[strings.ToLower(h.MAC)]; ok {
+				orig = strings.ToLower(h.MAC)
+
+				break
+			}
+		}
+
+		if orig == "" {
+			continue
+		}
+
+		for _, h := range node.Hosts {
+			owner[strings.ToLower(h.MAC)] = orig
+		}
+	}
+
+	return owner
+}
+
 // hopsFor returns the hop distance from the self node to orig, walking the
 // best next hop (neigh_address) chain until a direct neighbor is reached (next hop ==
-// orig_address) or the chain is broken/cyclic. Results are memoized in cache
-// so the whole snapshot resolves in O(N) amortized.
+// orig_address) or the chain is broken/cyclic. A next hop that is not an
+// originator itself is resolved through owner to the originator of the
+// node it belongs to. Results are memoized in cache so the whole snapshot
+// resolves in O(N) amortized.
 //
 // chain records the walk order from the original orig to the current node;
 // when termination is reached, hops are back-filled in LIFO order so that
 // every host on the walked path caches its correct distance in one pass.
-func hopsFor(origMAC string, best map[string]Originator, cache map[string]int) int {
+func hopsFor(origMAC string, best map[string]Originator, owner map[string]string, cache map[string]int) int {
 	key := strings.ToLower(origMAC)
 	if v, ok := cache[key]; ok {
 		return v
@@ -224,6 +262,11 @@ func hopsFor(origMAC string, best map[string]Originator, cache map[string]int) i
 		}
 
 		next := strings.ToLower(entry.BestNeigh)
+		if _, isOrig := best[next]; !isOrig {
+			if o, ok := owner[next]; ok {
+				next = o
+			}
+		}
 
 		if next == cur || next == "" {
 			// cur is a direct neighbor — one hop from self. Back-fill the

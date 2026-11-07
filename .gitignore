@@ -45,3 +45,9 @@ frontend/coverage
 bench
 .superpowers
 docs/superpowers
+
+# Built frontend (make frontend). Not committed: two open PRs that each rebuilt
+# it always conflicted. static-bundle.yml publishes it per main commit for the
+# OpenWrt package build. whisper/ (make whisper-js) stays committed.
+/static/*
+!/static/whisper/
