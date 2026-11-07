@@ -266,14 +266,30 @@ func TestMesh_topologyRPC(t *testing.T) {
 				}
 			}
 
+			// While batman-adv converges a snapshot can still carry a
+			// transient extra edge or hop count, so wait for the steady
+			// line rather than checking once after the first full one.
+			for _, pair := range [][2]string{{"a", "c"}, {"a", "d"}, {"b", "d"}} {
+				if hasEdge(topo, macOf(pair[0]), macOf(pair[1])) {
+					return fmt.Errorf("edge %s-%s, but they cannot hear each other: %s", pair[0], pair[1], describe(topo))
+				}
+			}
+
+			if got := len(topo.GetEdges()); got != 3 {
+				return fmt.Errorf("%d edges, want 3: %s", got, describe(topo))
+			}
+
+			for i, name := range names {
+				for _, n := range topo.GetNodes() {
+					if n.GetHostname() == name && n.GetHopsFromSelf() != int32(i) {
+						return fmt.Errorf("%d hops from a to %s, want %d: %s", n.GetHopsFromSelf(), name, i, describe(topo))
+					}
+				}
+			}
+
 			return nil
 		})
 
-		for _, pair := range [][2]string{{"a", "c"}, {"a", "d"}, {"b", "d"}} {
-			assert.False(t, hasEdge(topo, macOf(pair[0]), macOf(pair[1])), "%s and %s cannot hear each other", pair[0], pair[1])
-		}
-
-		assert.Len(t, topo.GetEdges(), 3, describe(topo))
 		assert.Equal(t, m.Algo(), topo.GetAlgorithm())
 		assert.Equal(t, m.Node("a").BatMAC, macOf("a"), "self renders under bat0's MAC")
 
