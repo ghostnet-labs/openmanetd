@@ -372,6 +372,7 @@ type Config struct {
 	Radio                                     RadioConfig
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
+	TAK                                       TAKConfig
 	Chanmig                                   ChanmigConfig
 	AlfredNodeExpiry                          time.Duration
 	BLOSStatusWorkerInterval                  int
@@ -1030,6 +1031,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	c.Hardware = c.loadHardware()
 	c.Chanmig = c.loadChanmig()
 	c.Scanner = c.loadScanner()
+	c.TAK = c.loadTAK()
 	c.Radio = c.loadRadio()
 }
 
