@@ -7,6 +7,7 @@ import (
 
 	"github.com/coreywagehoft/go-tak/pkg/cotproto"
 
+	coveragev1 "github.com/openmanet/openmanetd/internal/api/openmanet/coverage/v1"
 	"github.com/openmanet/openmanetd/internal/coverage"
 )
 
@@ -19,14 +20,6 @@ const (
 	coveragePerTick = 8
 	// minCoverageStale keeps a cell on the map well past one full cycle.
 	minCoverageStale = 30 * time.Minute
-)
-
-// Coverage cell signal thresholds (dBm of the best heard station).
-const (
-	coverageGoodDBm = -70
-	coverageOkDBm   = -82
-	// coverageDeadPct is the no-link share at which a cell counts as dead.
-	coverageDeadPct = 50
 )
 
 // Half-transparent fills so the basemap shows through.
@@ -52,16 +45,18 @@ func CoverageUID(callsign string, k coverage.Key) string {
 
 // coverageGrade is a cell's color and a one-word verdict.
 func coverageGrade(c *coverage.Cell) (int, string) {
-	switch {
-	case !c.HasLink() || c.NoLinkPct() >= coverageDeadPct:
-		return fillRed, "no mesh link"
-	case c.SignalDBm >= coverageGoodDBm && c.NoLinkSamples == 0:
+	switch c.Grade() {
+	case coveragev1.CoverageGrade_COVERAGE_GRADE_GOOD:
 		return fillGreen, "good"
-	case c.SignalDBm >= coverageOkDBm:
+	case coveragev1.CoverageGrade_COVERAGE_GRADE_FAIR:
 		return fillYellow, "fair"
-	default:
+	case coveragev1.CoverageGrade_COVERAGE_GRADE_WEAK:
 		return fillRed, "weak"
+	case coveragev1.CoverageGrade_COVERAGE_GRADE_NO_LINK, coveragev1.CoverageGrade_COVERAGE_GRADE_UNSPECIFIED:
+		return fillRed, "no mesh link"
 	}
+
+	return fillRed, "no mesh link"
 }
 
 // CoverageEvent builds one coverage heatmap cell measured by callsign.

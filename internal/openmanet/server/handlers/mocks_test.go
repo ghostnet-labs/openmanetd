@@ -14,6 +14,7 @@ import (
 	"github.com/digineo/go-uci/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdlayher/wifi"
+	coveragev1 "github.com/openmanet/openmanetd/internal/api/openmanet/coverage/v1"
 	"github.com/openmanet/openmanetd/internal/blos"
 	"github.com/openmanet/openmanetd/internal/chanmig"
 	"github.com/openmanet/openmanetd/internal/comms/control/alsa"
@@ -1166,4 +1167,35 @@ func newJamDetector(t *testing.T) (*jamdetect.Detector, func(jammed bool, n int)
 	}
 
 	return det, feed
+}
+
+// fakeCoverageMap serves fixed coverage reports.
+type fakeCoverageMap struct {
+	mu     sync.Mutex
+	local  *coveragev1.CoverageReport
+	remote []*coveragev1.CoverageReport
+	calls  int
+}
+
+func (f *fakeCoverageMap) Local() *coveragev1.CoverageReport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls++
+
+	return f.local
+}
+
+func (f *fakeCoverageMap) Remote() []*coveragev1.CoverageReport {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.remote
+}
+
+func (f *fakeCoverageMap) getCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.calls
 }
