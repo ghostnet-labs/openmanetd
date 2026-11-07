@@ -186,10 +186,6 @@ func (f *fakeNetworkReader) seedLanDHCPSection() {
 	_ = f.SetType("dhcp", "lan", "interface", uci.TypeOption, "lan")
 }
 
-func noopReload(_ context.Context) error {
-	return nil
-}
-
 func TestAddressReservationReloadsAllUCIConfigs(t *testing.T) {
 	openmanetReader := newReloadTrackingReader()
 	networkReader := newReloadTrackingReader()
@@ -263,7 +259,7 @@ func TestAddressReservationLoopObservesWizardRerun(t *testing.T) {
 
 	openmanetReader.reloadHook = func() error {
 		if openmanetReader.calls() == 2 {
-			assert.Zero(t, f.reboots, "the already-configured first tick must stay idle")
+			assert.Zero(t, f.restarts, "the already-configured first tick must stay idle")
 			assert.Zero(t, networkReader.commitCalls)
 
 			return openmanetReader.SetType("openmanetd", "config", "dhcpconfigured", uci.TypeOption, "0")
@@ -279,8 +275,8 @@ func TestAddressReservationLoopObservesWizardRerun(t *testing.T) {
 	}
 	deps := f.deps()
 	deps.openMANETReader, deps.networkReader, deps.dhcpReader = openmanetReader, networkReader, dhcpReader
-	deps.reboot = func() error {
-		f.reboots++
+	deps.restartServices = func(context.Context) error {
+		f.restarts++
 
 		cancel()
 
@@ -294,7 +290,7 @@ func TestAddressReservationLoopObservesWizardRerun(t *testing.T) {
 
 	f.arw.runReservationTicks(ctx, ticks, deps)
 
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 	assert.Equal(t, 2, openmanetReader.calls())
 	assert.Equal(t, 2, networkReader.calls())
 	assert.Equal(t, 2, dhcpReader.calls())
@@ -341,7 +337,7 @@ func TestAddressReservationLoopReloadFailureSkipsWrites(t *testing.T) {
 				}
 			}
 
-			assert.Zero(t, f.reboots)
+			assert.Zero(t, f.restarts)
 			assert.Zero(t, f.reloads)
 		})
 	}
@@ -366,8 +362,8 @@ func TestAddressReservationLoopRetriesAfterReservationError(t *testing.T) {
 
 		return &batmanadv.MeshConfig{GwMode: f.gwMode}, nil
 	}
-	deps.reboot = func() error {
-		f.reboots++
+	deps.restartServices = func(context.Context) error {
+		f.restarts++
 
 		cancel()
 
@@ -382,7 +378,7 @@ func TestAddressReservationLoopRetriesAfterReservationError(t *testing.T) {
 	f.arw.runReservationTicks(ctx, ticks, deps)
 
 	assert.Equal(t, 2, meshCalls)
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 	assert.Equal(t, "1", f.dhcpConfigured())
 }
 
@@ -393,7 +389,7 @@ func TestCleanUpInterfacesWithDeps_GatewayModeSkips(t *testing.T) {
 	networkReader := newFakeNetworkReader()
 	dhcpReader := newFakeNetworkReader()
 
-	err := arw.cleanUpInterfacesWithDeps(true, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(true, networkReader, dhcpReader)
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, networkReader.commitCalls, "no network commits expected in gateway mode")
@@ -410,7 +406,7 @@ func TestCleanUpInterfacesWithDeps_LanSectionsExist(t *testing.T) {
 	dhcpReader := newFakeNetworkReader()
 	dhcpReader.seedLanDHCPSection()
 
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader)
 	require.NoError(t, err)
 
 	// Verify lan sections were deleted.
@@ -433,7 +429,7 @@ func TestCleanUpInterfacesWithDeps_NoLanSections(t *testing.T) {
 	networkReader := newFakeNetworkReader()
 	dhcpReader := newFakeNetworkReader()
 
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader)
 	require.NoError(t, err)
 
 	// Commits still happen even when no sections to delete.
@@ -450,7 +446,7 @@ func TestCleanUpInterfacesWithDeps_NetworkCommitError(t *testing.T) {
 
 	dhcpReader := newFakeNetworkReader()
 
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "error committing network config")
 }
@@ -463,7 +459,7 @@ func TestCleanUpInterfacesWithDeps_DHCPCommitError(t *testing.T) {
 	dhcpReader := newFakeNetworkReader()
 	dhcpReader.commitErr = errors.New("dhcp commit failure")
 
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "error committing DHCP config")
 }
@@ -478,44 +474,28 @@ func TestCleanUpInterfacesWithDeps_NetworkDeleteError(t *testing.T) {
 
 	dhcpReader := newFakeNetworkReader()
 
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, noopReload)
+	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "error deleting 'lan' network section")
-}
-
-func TestCleanUpInterfacesWithDeps_ReloadError(t *testing.T) {
-	cfg := newTestManagementConfig()
-	arw := &AddressReservationWorker{Config: cfg}
-
-	networkReader := newFakeNetworkReader()
-	dhcpReader := newFakeNetworkReader()
-
-	reloadErr := func(_ context.Context) error {
-		return errors.New("reload failed")
-	}
-
-	err := arw.cleanUpInterfacesWithDeps(false, networkReader, dhcpReader, reloadErr)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "error reloading network configuration")
 }
 
 // ── reserveOnceWithDeps fixture ──────────────────────────────────────────────
 
 // reservationFixture wires an AddressReservationWorker to in-memory fakes so a
-// single tick can run without batctl, netlink, UCI files, or a reboot.
+// single tick can run without batctl, netlink, UCI files, or init scripts.
 type reservationFixture struct {
-	arw       *AddressReservationWorker
-	db        *models.Queries
-	openmanet *fakeOpenMANETReader
-	network   *fakeNetworkReader
-	dhcp      *fakeNetworkReader
-	client    *fakeAlfredClient
-	iface     network.NetworkInterface
-	gwMode    string
-	meshErr   error
-	rebootErr error
-	reboots   int
-	reloads   int
+	arw        *AddressReservationWorker
+	db         *models.Queries
+	openmanet  *fakeOpenMANETReader
+	network    *fakeNetworkReader
+	dhcp       *fakeNetworkReader
+	client     *fakeAlfredClient
+	iface      network.NetworkInterface
+	gwMode     string
+	meshErr    error
+	restartErr error
+	restarts   int
+	reloads    int
 }
 
 func newReservationFixture(t *testing.T) *reservationFixture {
@@ -558,10 +538,10 @@ func (f *reservationFixture) deps() reservationDeps {
 
 			return nil
 		},
-		reboot: func() error {
-			f.reboots++
+		restartServices: func(context.Context) error {
+			f.restarts++
 
-			return f.rebootErr
+			return f.restartErr
 		},
 	}
 }
@@ -612,14 +592,14 @@ func (f *reservationFixture) dhcpConfigured() string {
 }
 
 // assertNoWrites checks that a tick left every UCI reader untouched and did
-// not reboot.
+// not re-address.
 func (f *reservationFixture) assertNoWrites(t *testing.T) {
 	t.Helper()
 
 	assert.Equal(t, 0, f.network.commitCalls, "network must not be committed")
 	assert.Equal(t, 0, f.dhcp.commitCalls, "dhcp must not be committed")
 	assert.Equal(t, 0, f.openmanet.commitCalls, "openmanetd must not be committed")
-	assert.Equal(t, 0, f.reboots, "must not reboot")
+	assert.Equal(t, 0, f.restarts, "must not re-address")
 }
 
 // ── reserveOnceWithDeps characterisation tests (pin today's behavior) ────────
@@ -650,8 +630,8 @@ func TestReserveOnce_GatewayFirstPick(t *testing.T) {
 	assert.Equal(t, network.DefaultDHCPLeaseTime, firstValue(f.dhcp, "dhcp", "ahwlan", "leasetime"))
 	assert.Equal(t, "1", firstValue(f.dhcp, "dhcp", "ahwlan", "force"))
 	assert.Equal(t, "1", f.dhcpConfigured())
-	assert.Equal(t, 0, f.reloads, "gateways skip the lan cleanup and its reload")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.reloads, "gateways skip the lan cleanup but still reload the network")
+	assert.Equal(t, 1, f.restarts)
 }
 
 func TestReserveOnce_GatewaySkipsReservedAddressesAndPools(t *testing.T) {
@@ -664,7 +644,7 @@ func TestReserveOnce_GatewaySkipsReservedAddressesAndPools(t *testing.T) {
 
 	assert.Equal(t, "10.41.0.3", f.ahwlanIP())
 	assert.Equal(t, "132", f.dhcpStart(), "first 16-address window after 100 and 116")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
 func TestReserveOnce_PointAloneRandomRange(t *testing.T) {
@@ -695,19 +675,37 @@ func TestReserveOnce_PointAloneRandomRange(t *testing.T) {
 	_, lanDHCP := f.dhcp.Get("dhcp", "lan", "interface")
 	assert.False(t, lanDHCP, "points drop the bootstrap lan dhcp section")
 	assert.Equal(t, 1, f.reloads, "points reload the network after cleanup")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
-func TestReserveOnce_PointWithPeersFirstFree(t *testing.T) {
+func TestReserveOnce_PointAddressComesFromMAC(t *testing.T) {
 	f := newReservationFixture(t)
+	f.iface = makeTestIface("aa:bb:cc:dd:ee:01", "10.41.254.1")
 	f.seedPeer(t, "aa:bb:cc:dd:ee:02", "10.41.1.1", 100)
 	f.seedPeer(t, "aa:bb:cc:dd:ee:03", "10.41.1.2", 116)
 
+	want, err := network.SelectStaticIPForMAC(nil, f.iface.MAC, false)
+	require.NoError(t, err)
+
 	require.NoError(t, f.tick(t))
 
-	assert.Equal(t, "10.41.1.3", f.ahwlanIP(), "two or more peers switch the point to sequential first-free")
+	assert.Equal(t, want, f.ahwlanIP(), "a point takes the address its MAC hashes to")
 	assert.Equal(t, "132", f.dhcpStart())
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
+}
+
+func TestReserveOnce_PointStepsPastPeerOnItsMACAddress(t *testing.T) {
+	f := newReservationFixture(t)
+	f.iface = makeTestIface("aa:bb:cc:dd:ee:01", "10.41.254.1")
+
+	taken, err := network.SelectStaticIPForMAC(nil, f.iface.MAC, false)
+	require.NoError(t, err)
+	f.seedPeer(t, "aa:bb:cc:dd:ee:02", taken, 100)
+
+	require.NoError(t, f.tick(t))
+
+	assert.NotEqual(t, taken, f.ahwlanIP(), "a peer already holds the MAC's address")
+	assert.NotEmpty(t, f.ahwlanIP())
 }
 
 func TestReserveOnce_ConflictReReserves(t *testing.T) {
@@ -721,7 +719,7 @@ func TestReserveOnce_ConflictReReserves(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.2", f.ahwlanIP(), "the peer row keeps .1, so the next free address is .2")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
 func TestReserveOnce_MeshConfigError_NoWrites(t *testing.T) {
@@ -761,17 +759,56 @@ func TestReserveOnce_NonBridgeInterface_NoWrites(t *testing.T) {
 	f.assertNoWrites(t)
 }
 
-func TestReserveOnce_RebootError_AfterWrites(t *testing.T) {
+func TestReserveOnce_RestartError_AfterWrites(t *testing.T) {
 	f := newReservationFixture(t)
 	f.gwMode = batmanadv.GwModeServer
-	f.rebootErr = errors.New("reboot: exec: not found")
+	f.restartErr = errors.New("exec: not found")
 
 	err := f.tick(t)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reboot")
+	assert.Contains(t, err.Error(), "restart services")
 
-	assert.Equal(t, "1", f.dhcpConfigured(), "UCI writes happen before the reboot attempt")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, "1", f.dhcpConfigured(), "UCI writes happen before the services restart")
+	assert.Equal(t, 1, f.restarts)
+}
+
+func TestReserveOnce_ReloadError_SkipsRestart(t *testing.T) {
+	f := newReservationFixture(t)
+	f.network.seedLanNetworkSection()
+	f.dhcp.seedLanDHCPSection()
+
+	deps := f.deps()
+	deps.reloadNetwork = func(context.Context) error { return errors.New("netifd busy") }
+
+	err := f.arw.reserveOnceWithDeps(context.Background(), deps)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reload network")
+	assert.Equal(t, 0, f.restarts, "services restart only on a reloaded network")
+}
+
+func TestReserveOnce_AppliesAddressInPlace(t *testing.T) {
+	f := newReservationFixture(t)
+	f.network.seedLanNetworkSection()
+	f.dhcp.seedLanDHCPSection()
+
+	var order []string
+
+	deps := f.deps()
+	deps.reloadNetwork = func(context.Context) error {
+		order = append(order, "reload")
+
+		return nil
+	}
+	deps.restartServices = func(context.Context) error {
+		order = append(order, "restart")
+
+		return nil
+	}
+
+	require.NoError(t, f.arw.reserveOnceWithDeps(context.Background(), deps))
+	assert.Equal(t, []string{"reload", "restart"}, order,
+		"one network reload, then the services restart on the new address")
+	assert.Equal(t, "1", f.dhcpConfigured())
 }
 
 func TestFindIPConflicts(t *testing.T) {
@@ -836,7 +873,7 @@ func TestReserveOnce_GossipRequestError_UsesStoredPeers(t *testing.T) {
 	require.NoError(t, f.tick(t), "a failed refresh must not stall the reservation")
 
 	assert.Equal(t, "10.41.0.2", f.ahwlanIP(), "decision falls back to the stored rows")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
 // ── MAC tie-break + per-tick conflict decision (ledger P5 step 3, D3) ────────
@@ -863,7 +900,7 @@ func TestReserveOnce_ConflictHigherMACMoves(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.2", f.ahwlanIP(), "the peer keeps .1; this node takes the next free address")
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
 // TestReserveOnce_ConflictFlagDoesNotLeak replaces the Task 1
@@ -876,14 +913,14 @@ func TestReserveOnce_ConflictFlagDoesNotLeak(t *testing.T) {
 	f.seedPeer(t, "aa:bb:cc:dd:ee:01", "10.41.0.1", 100)
 
 	require.NoError(t, f.tick(t))
-	require.Equal(t, 1, f.reboots)
+	require.Equal(t, 1, f.restarts)
 
 	// Second tick: this node now sits on a clean address.
 	f.iface = makeTestIface("aa:bb:cc:dd:ee:02", "10.41.0.2")
 
 	require.NoError(t, f.tick(t))
 
-	assert.Equal(t, 1, f.reboots, "no conflict this tick, so no re-reservation")
+	assert.Equal(t, 1, f.restarts, "no conflict this tick, so no re-reservation")
 }
 
 func TestReserveOnce_NotConfiguredIgnoresTieBreak(t *testing.T) {
@@ -897,7 +934,7 @@ func TestReserveOnce_NotConfiguredIgnoresTieBreak(t *testing.T) {
 	require.NoError(t, f.tick(t))
 
 	assert.Equal(t, "10.41.0.2", f.ahwlanIP())
-	assert.Equal(t, 1, f.reboots)
+	assert.Equal(t, 1, f.restarts)
 }
 
 func TestYieldsAddress(t *testing.T) {

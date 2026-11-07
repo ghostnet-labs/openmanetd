@@ -27,12 +27,17 @@ done. None of them is a CI acceptance criterion; they are field checks.
 
 ## P5 — address reservation
 
-- The post-reservation reboot is still required — confirm the in-place network
-  reload alone does not wedge the mesh/alfred/batman interfaces.
+- Reservation no longer reboots: it reloads the network, reloads dnsmasq and
+  the firewall, and restarts openmanetd. Confirm the mesh, alfred and batman
+  interfaces stay up through that (the firmware QEMU mesh test checks this on
+  x86; confirm on the CM5).
+- A point node's address comes from its `br-ahwlan` MAC (FNV-1a hash into
+  10.41.1.1–10.41.252.254, stepping past addresses peers already hold).
+  Confirm two nodes powered on together get different addresses.
 - Alfred propagation latency between a peer's `Set` and this node's `Request` is
   within the 60 s / 125 s worker cadence.
-- Two fresh gates that both take `10.41.0.1` converge after one extra reboot of
-  the higher-MAC node (derived from the allocator and the MAC tie-break, not
+- Two fresh gates that both take `10.41.0.1` converge after one extra in-place
+  re-address of the higher-MAC node (derived from the allocator and the MAC tie-break, not
   reproduced on hardware).
 
 ## P6 — transport MTU (do these before removing the daemon's netlink pass)
