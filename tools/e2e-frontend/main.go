@@ -53,6 +53,7 @@ type options struct {
 	tlsListen    string
 	api          string
 	luciUpstream string
+	onboardDir   string
 }
 
 func main() {
@@ -108,6 +109,7 @@ func parseFlags(args []string, out io.Writer) (options, error) {
 	fs.StringVar(&opts.tlsListen, "tls-listen", "127.0.0.1:18443", "HTTPS listen address (self-signed certificate)")
 	fs.StringVar(&opts.api, "api", "", "upstream API base URL, e.g. http://127.0.0.1:18087")
 	fs.StringVar(&opts.luciUpstream, "luci-upstream", "", "LuCI upstream URL; empty leaves frontend.luciProxy disabled")
+	fs.StringVar(&opts.onboardDir, "onboard-dir", "", "phone onboarding directory (onboard.dir); empty keeps the node default")
 
 	if err := fs.Parse(args); err != nil {
 		return options{}, fmt.Errorf("parse flags: %w", err)
@@ -136,6 +138,10 @@ func newConfig(opts options) *config.Config {
 	v.Set("frontend.tlsHostPort", opts.tlsListen)
 	v.Set("openmanetAPIAddress", opts.api)
 	v.Set("openmanetCommsAPIAddress", opts.api)
+
+	if opts.onboardDir != "" {
+		v.Set("onboard.dir", opts.onboardDir)
+	}
 
 	if opts.luciUpstream != "" {
 		v.Set("frontend.luciProxy.enable", true)

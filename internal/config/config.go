@@ -372,6 +372,7 @@ type Config struct {
 	Radio                                     RadioConfig
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
+	Onboard                                   OnboardConfig
 	TAK                                       TAKConfig
 	Chanmig                                   ChanmigConfig
 	Jamdetect                                 JamdetectConfig
@@ -1035,6 +1036,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	c.Scanner = c.loadScanner()
 	c.TAK = c.loadTAK()
 	c.Radio = c.loadRadio()
+	c.Onboard = c.loadOnboard()
 }
 
 // loadRadio reads the radio capacity gate section, applying defaults. An

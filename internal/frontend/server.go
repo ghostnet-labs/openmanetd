@@ -20,6 +20,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/auth"
 	"github.com/openmanet/openmanetd/internal/bridge"
 	"github.com/openmanet/openmanetd/internal/config"
+	"github.com/openmanet/openmanetd/internal/onboard"
 	"github.com/openmanet/openmanetd/internal/terminal"
 	"github.com/openmanet/openmanetd/internal/util/logger"
 	ws "github.com/openmanet/openmanetd/internal/websocket"
@@ -50,6 +51,7 @@ type Server struct {
 	rpcProxy     http.Handler
 	authProxy    http.Handler
 	luci         *luciProxy
+	onboard      *onboard.Store
 	indexHTML    []byte
 	authEnabled  bool
 }
@@ -107,7 +109,7 @@ func NewFrontendServer(ctx context.Context, cfg *config.Config, staticFS fs.FS, 
 
 	rpcProxy, authProxy := buildAPIProxies(apiAddr, log)
 
-	return &Server{
+	srv := &Server{
 		log:          log,
 		staticFS:     staticFS,
 		hub:          hub,
@@ -121,6 +123,9 @@ func NewFrontendServer(ctx context.Context, cfg *config.Config, staticFS fs.FS, 
 		authProxy:    authProxy,
 		luci:         &luciProxy{},
 	}
+	srv.onboard = newOnboardStore(cfg, srv)
+
+	return srv
 }
 
 // buildAPIProxies constructs reverse-proxy handlers that forward /rpc/* and
@@ -304,6 +309,9 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/api/whisper/download/status", s.handleWhisperDownloadStatus)
 	mux.HandleFunc("/api/whisper/remove", s.handleWhisperRemove)
 
+	// Phone onboarding admin (APK upload/remove).
+	s.registerOnboardAdmin(mux)
+
 	// SPA-aware static file server.
 	// Serves static files if they exist, otherwise serves index.html
 	// for client-side routing (React Router).
@@ -379,6 +387,10 @@ func (s *Server) handler() http.Handler {
 		// authenticates; the prefix stays unchanged on the wire.
 		root.Handle("/api/sysupgrade/", s.authProxy)
 	}
+
+	// Phone onboarding is public: a phone that has just joined the
+	// access point has no login.
+	s.registerOnboardPublic(root)
 
 	root.Handle("/", authMW(mux))
 
