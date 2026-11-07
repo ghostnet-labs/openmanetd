@@ -29,9 +29,11 @@ import { useGnssStatus } from '../hooks/useGnssStatus.js';
 import { useBLOSStatus } from '../hooks/useBLOSStatus.js';
 import { useNetworkInterfaces } from '../hooks/useNetworkInterfaces.js';
 import { useHardwareBattery } from '../hooks/useHardwareBattery.js';
+import { useJamStatus } from '../hooks/useJamStatus.js';
 import { pushSparklineSample, useSparklineSamples } from '../services/sparklineStore.js';
 import { classifyAlerts, findLostPeers } from './dashboardAlerts.js';
 import { batteryView } from './dashboardBattery.js';
+import { jamAlerts, jamRadioRows, jamSummary } from './dashboardJam.js';
 import DataTable from '../components/DataTable.jsx';
 import './Dashboard.css';
 
@@ -380,6 +382,15 @@ const INTERFACE_COLUMNS = [
   { key: 'tx', label: 'TX', className: 'mono', render: (iface) => formatBytes(iface.txBytes) },
 ];
 
+const JAM_COLUMNS = [
+  { key: 'radio', label: 'Radio', render: (r) => r.radio },
+  { key: 'band', label: 'Channel', className: 'mono', render: (r) => r.band },
+  { key: 'state', label: 'State', cellClass: (r) => `badge-${r.level}`, render: (r) => r.state },
+  { key: 'noise', label: 'Noise', className: 'mono num', headerClass: 'num', render: (r) => r.noise },
+  { key: 'baseNoise', label: 'Normal', className: 'mono num', headerClass: 'num', render: (r) => r.baseNoise },
+  { key: 'busy', label: 'Unexpl busy / normal', className: 'mono num', headerClass: 'num', render: (r) => r.busy },
+];
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -415,6 +426,7 @@ export default function DashboardPage() {
   // INA228 telemetry from the hardware manager: low-battery level and the
   // stale / absent flags. Null when the daemon runs no hardware manager.
   const hwBattery = useHardwareBattery(DASH_POLL_MS);
+  const jamStatus = useJamStatus(DASH_POLL_MS);
   const interfaces = useMemo(
     () => ifaceSnapshot?.interfaces ?? [],
     [ifaceSnapshot],
@@ -572,9 +584,13 @@ export default function DashboardPage() {
   const batteryState = battery?.state ?? null;
   const batteryCurrent = battery?.current ?? null;
 
+  const jamRows = useMemo(() => jamRadioRows(jamStatus), [jamStatus]);
+  const jam = useMemo(() => jamSummary(jamStatus), [jamStatus]);
+  const jamAlertList = useMemo(() => jamAlerts(jamStatus), [jamStatus]);
+
   const alerts = useMemo(
-    () => classifyAlerts({ mesh: meshData, lostPeers, delta }),
-    [meshData, lostPeers, delta],
+    () => classifyAlerts({ mesh: meshData, lostPeers, delta, jam: jamAlertList }),
+    [meshData, lostPeers, delta, jamAlertList],
   );
 
   // Acked alert texts. ACK ALL snapshots the currently-visible non-OK
@@ -804,6 +820,33 @@ export default function DashboardPage() {
             emptyLabel="No network data"
           />
         </div>
+
+        {jamStatus ? (
+          <div className="lat-panel col-span-all">
+            <div className="panel-head"><h3>Jamming · Radios</h3></div>
+            {jam.enabled ? (
+              <>
+                <div className="kv">
+                  <span className="k">This node</span>
+                  <span className={`v ${jam.localLevel}`}>{jam.localLabel}</span>
+                </div>
+                <div className="kv">
+                  <span className="k">Other nodes</span>
+                  <span className={`v ${jam.remoteLevel}`}>{jam.remoteLabel}</span>
+                </div>
+                <DataTable
+                  ariaLabel="Jamming detection per radio"
+                  columns={JAM_COLUMNS}
+                  rows={jamRows}
+                  rowKey={(r) => r.key}
+                  emptyLabel="No radios reporting a survey"
+                />
+              </>
+            ) : (
+              <div className="lat-empty">Jamming detection off</div>
+            )}
+          </div>
+        ) : null}
 
       </div>
     </>

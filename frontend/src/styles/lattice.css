@@ -792,10 +792,14 @@ input[type="range"].lat-slider:disabled {
    .lat-cardlist (see components/DataTable.jsx), so the rule must reach both
    renderings. The class names are unique enough that scoping buys nothing.
    (.mono also reaches any standalone `.kv .v.mono` outside a DataTable
-   entirely, e.g. SettingsFirmware's KV helper — same defect, same fix.) */
-.badge-ok { color: var(--ok); }
-.badge-warn { color: var(--warn); }
-.badge-crit { color: var(--crit); }
+   entirely, e.g. SettingsFirmware's KV helper — same defect, same fix.)
+   The td and .kv .v forms are listed too: `.lat-table td` and `.kv .v` set
+   color: var(--text) with higher specificity, which silently overrode the
+   status color in both renderings. */
+.badge-ok, .lat-table td.badge-ok, .kv .v.badge-ok { color: var(--ok); }
+.badge-warn, .lat-table td.badge-warn, .kv .v.badge-warn { color: var(--warn); }
+.badge-crit, .lat-table td.badge-crit, .kv .v.badge-crit { color: var(--crit); }
+.badge-muted, .lat-table td.badge-muted, .kv .v.badge-muted { color: var(--muted); }
 .mono { font-family: var(--font-mono); color: var(--muted); }
 
 .table-scroll { overflow-x: auto; max-width: 100%; }

@@ -16,6 +16,7 @@ import (
 	dashboardconnect "github.com/openmanet/openmanetd/internal/api/openmanet/dashboard/v1/dashboardv1connect"
 	gnssconnect "github.com/openmanet/openmanetd/internal/api/openmanet/gnss/v1/gnssv1connect"
 	hardwareconnect "github.com/openmanet/openmanetd/internal/api/openmanet/hardware/v1/hardwarev1connect"
+	jamdetectconnect "github.com/openmanet/openmanetd/internal/api/openmanet/jamdetect/v1/jamdetectv1connect"
 	logsconnect "github.com/openmanet/openmanetd/internal/api/openmanet/logs/v1/logsv1connect"
 	meshjoinconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_join/v1/mesh_joinv1connect"
 	meshtopoconnect "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1/mesh_topologyv1connect"
@@ -85,6 +86,10 @@ type APIServer struct {
 	// constructs it (it owns no goroutines while scanner.enable is false);
 	// nil leaves ScannerService reporting enabled false.
 	Scanner handlers.ScannerManager
+	// JamDetector is the jamming detector; nil when jamdetect.enable is
+	// false. Like Hardware it must be a nil interface, not a typed nil
+	// pointer.
+	JamDetector handlers.JamDetector
 	// Setup wizard dependencies. Each is constructed in
 	// internal/openmanet/openmanet.go and passed through here so the
 	// server registration block can stay declarative.
@@ -350,6 +355,14 @@ func NewAPIServer(cfg APIServer) *APIServer {
 		Cfg:            cfg.Cfg,
 		Manager:        cfg.Scanner,
 		NewOpusEncoder: newScannerOpusEncoder,
+	}, connect.WithInterceptors(validateInterceptor)))
+
+	// JamDetectService (GHO-93) reports jamming detection on this node's
+	// radios and the reports other nodes gossip. Session-gated (not in
+	// isAPISkipPath).
+	api.Handle(jamdetectconnect.NewJamDetectServiceHandler(&handlers.JamDetectService{
+		Log:      cfg.Log.With().Str("service", "jamdetect").Logger(),
+		Detector: cfg.JamDetector,
 	}, connect.WithInterceptors(validateInterceptor)))
 
 	api.Handle(logsconnect.NewLogsServiceHandler(&handlers.LogsService{

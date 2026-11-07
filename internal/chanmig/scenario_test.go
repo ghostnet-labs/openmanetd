@@ -157,7 +157,7 @@ func TestScenario_multipleMissedSwitchesAfterColdBoot(t *testing.T) {
 func TestScenario_rendezvousLoss(t *testing.T) {
 	s := newMesh(t, nodeB, nodeD)
 
-	for _, a := range []chanmig.Assignment{halow(9), halow(10), chanmig.Assignment{Band: chanmig.Band5G, Channel: 165, WidthMHz: 20}} {
+	for _, a := range []chanmig.Assignment{halow(9), halow(10), {Band: chanmig.Band5G, Channel: 165, WidthMHz: 20}} {
 		s.medium.jam(a)
 	}
 

@@ -144,7 +144,7 @@ describe('TestStatusAndValueClassesReachCards', () => {
       // Reachable from a bare `.lat-card .v.badge-ok` element: a selector
       // that starts the class at the beginning of a rule (optionally
       // compounded, e.g. `.badge-ok,`) rather than prefixed by `.lat-table `.
-      expect(css).toMatch(new RegExp(`(^|\\n)\\.${cls}\\s*\\{`));
+      expect(css).toMatch(new RegExp(`(^|\\n)\\.${cls}\\s*[,{]`));
       expect(css).not.toMatch(new RegExp(`\\.lat-table \\.${cls}\\s*\\{`));
     },
   );

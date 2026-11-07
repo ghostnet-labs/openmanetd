@@ -47,6 +47,11 @@ def rpc(method,b):
  if method=='ListAdmissionDecisions':return dict(decisions=[dict(decidedAt=now,gateMode='CAPACITY_GATE_MODE_ADVISORY',outcome='ADMISSION_OUTCOME_REJECT',reason='ADMISSION_REASON_UNQUALIFIED_ONLY',explanation='Sample decision: no PHY is qualified in the sandbox',physicalQualification='PHYSICAL_QUALIFICATION_NOT_EVALUATED')][:b.get('limit',64)])
  if method=='ListPathDecisions':return dict(decisions=[])
  if method=='GetChannelMigrationStatus':return dict(status=dict(generatedAt=now,enabled=True,nodeId='1',meshId='1',clockSynced=True,phase='MIGRATION_PHASE_STABLE',currentPlan=dict(version='2',signerId='1',issuedAt=now,activateAt=now,assignments=[dict(band='BAND_HALOW',channel=42,widthMhz=2)]),bands=[dict(band='BAND_HALOW',operating=dict(band='BAND_HALOW',channel=42,widthMhz=2),target=dict(band='BAND_HALOW',channel=42,widthMhz=2),mode='BAND_MODE_SETTLED',modeSince=now)],peers=[dict(nodeId='2',lastSeen=now),dict(nodeId='3',lastSeen=now)]))
+ if method=='GetJamStatus':
+  halow=dict(radio='wlan0',phy='phy1',band='RADIO_BAND_S1G',freqMhz=915.5,state='JAM_STATE_JAMMED',noiseKnown=True,noiseDbm=-84,baselineNoiseDbm=-100.2,busyPct=78,unexplainedBusyPct=71,baselineUnexplainedBusyPct=4,reasons=['JAM_REASON_NOISE_RISE','JAM_REASON_BUSY_RISE'],updatedAt=now)
+  wifi=dict(radio='wlan1',phy='phy0',band='RADIO_BAND_2G4',freqMhz=2437,state='JAM_STATE_CLEAR',noiseKnown=True,noiseDbm=-95,baselineNoiseDbm=-94.8,busyPct=22,unexplainedBusyPct=3,baselineUnexplainedBusyPct=3,updatedAt=now)
+  ev=lambda r,st:dict(id=r['radio']+'-1794013400',state=st,radio=dict(r,state=st),startedAt=now,updatedAt=now,peakNoiseDbm=r['noiseDbm'],peakUnexplainedBusyPct=r['unexplainedBusyPct'])
+  return dict(enabled=True,local=dict(primaryMac=macs[0],hostname=HOST,collectedAt=now,radios=[halow,wifi],activeEvents=[ev(halow,'JAM_STATE_JAMMED')]),remote=[dict(primaryMac=macs[1],hostname='SAMPLE-ALPHA',collectedAt=now,radios=[],activeEvents=[ev(dict(halow,noiseDbm=-90),'JAM_STATE_SUSPECTED')]),dict(primaryMac=macs[2],hostname='SAMPLE-BRAVO',collectedAt=now)],recent=[ev(halow,'JAM_STATE_JAMMED')])
  raise NotImplementedError(method)
 
 class Handler(BaseHTTPRequestHandler):

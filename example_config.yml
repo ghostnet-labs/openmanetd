@@ -171,6 +171,28 @@ sysupgrade:
 #       allowed: ["36/80", "149/80"]
 #   timing:
 #     advertInterval: 10s
+# Jamming detection (GHO-93). On by default: every node reads its radios'
+# channel surveys (`iw dev <if> survey dump`) every interval, learns the
+# normal noise floor and busy time, and flags sudden jumps. Busy time the
+# radio cannot explain by its own RX/TX is the main signal. Read-only: no
+# radio is changed. Reports are shared over alfred (datatype 105) so any
+# node shows the whole mesh; the ATAK feed marks this node's own JAMMED
+# radios at its GNSS fix. Thresholds left at 0 keep the built-in defaults.
+# jamdetect:
+#   enable: true
+#   gossip: true                 # share reports over alfred
+#   interval: 5s
+#   gossipInterval: 10s
+#   gossipExpiry: 2m             # drop a node's report after it stops changing
+#   noiseRiseDb: 10              # abnormal when noise is this far above baseline
+#   noiseCeilingDbm: -70         # abnormal at or above this, baseline or not
+#   busyRisePct: 30              # unexplained busy points above baseline...
+#   busyFloorPct: 40             # ...and at least this much
+#   busyCeilingPct: 85           # abnormal at or above this, baseline or not
+#   warmupSamples: 12            # samples learned before relative checks
+#   suspectSamples: 2            # abnormal samples in a row -> SUSPECTED
+#   jamSamples: 4                # abnormal samples in a row -> JAMMED (alert)
+#   clearSamples: 6              # normal samples in a row -> CLEAR
 # Radio capacity gate (GHO-59). Radio changes from the settings page and
 # mesh join are checked against the PHYs `iw list` reports before anything
 # is written. advisory (default) logs and records the decision but never

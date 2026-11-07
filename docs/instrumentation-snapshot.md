@@ -43,7 +43,7 @@ Every snapshot is a single JSON object with this shape:
 
 ```json
 {
-  "schema_version": "2.0.0",
+  "schema_version": "2.1.0",
   "captured_at_start": "2026-04-09T12:34:56.789012345Z",
   "captured_at_end":   "2026-04-09T12:34:56.789013101Z",
   "daemon": { ... },
@@ -61,7 +61,7 @@ Every snapshot is a single JSON object with this shape:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `2.0.0`. |
+| `schema_version` | string | Semver of the envelope schema. Bump minor for additive fields, major for breaking changes. The current value is `2.1.0`. |
 | `captured_at_start` | RFC3339 timestamp | Wall-clock time when the capture loop began reading counters. |
 | `captured_at_end` | RFC3339 timestamp | Wall-clock time when the capture loop finished. The difference `captured_at_end - captured_at_start` bounds the counter-read skew window; in practice this is microseconds, but it can stretch into milliseconds when the `wireless` section's cache is cold (the first `Refresh` after the 5 s TTL walks netlink under the registry mutex). |
 | `daemon.version` | string | openmanetd build version. Empty until the build system populates it. |
@@ -484,6 +484,56 @@ default until the pin map is verified on hardware), `control_mode` is
 | `board_detected` | bool | — | True when board.json identifies a Ghostnet V1 carrier. |
 | `battery_stale` | bool | — | True when the newest battery reading is older than 5 s or there is none (monitor absent or unreachable). The two `battery_*` values are then not current. |
 
+### `jamdetect` — jamming detection on this node's radios
+
+The jamming detector (`internal/jamdetect`, GHO-93). Every
+`jamdetect.interval` (5 s) it reads each radio's channel survey (`iw dev
+<if> survey dump`), learns the in-use channel's normal noise floor and
+unexplained busy time (busy time not covered by the radio's own receive
+and transmit time), and moves the radio through `warming_up`, `clear`,
+`suspected` and `jammed`. `Refresh` copies counters under the detector's
+mutex; it does no I/O and does not allocate. The section is registered
+only when `jamdetect.enable` is true (the default). Per-radio readings and
+episodes are served by `JamDetectService`, not here.
+
+```json
+{
+  "samples_total": 720,
+  "survey_errors_total": 0,
+  "events_total": 3,
+  "jammed_events_total": 1,
+  "events_dropped_total": 0,
+  "gossip_publish_errors_total": 0,
+  "gossip_fetch_errors_total": 0,
+  "gossip_decode_errors_total": 0,
+  "radios_monitored": 3,
+  "radios_warming_up": 0,
+  "radios_suspected": 0,
+  "radios_jammed": 1,
+  "remote_nodes": 2,
+  "remote_nodes_jammed": 1,
+  "subscribers": 1
+}
+```
+
+| Field | Type | Unit | Meaning |
+|---|---|---|---|
+| `samples_total` | uint64 | count | Sampling ticks that listed radios successfully since start. |
+| `survey_errors_total` | uint64 | count | Failed `iw dev` listings plus failed per-radio survey reads since start. |
+| `events_total` | uint64 | count | Episode changes raised (opened as `suspected`, escalated to `jammed`, cleared) since start. |
+| `jammed_events_total` | uint64 | count | Episodes that reached `jammed` (the alert level) since start. |
+| `events_dropped_total` | uint64 | count | Events a slow `StreamJamEvents` client lost because its 16-event queue was full (oldest dropped first). |
+| `gossip_publish_errors_total` | uint64 | count | Failed publishes of this node's `JamReport` to alfred (datatype 105). |
+| `gossip_fetch_errors_total` | uint64 | count | Failed alfred requests for other nodes' reports. |
+| `gossip_decode_errors_total` | uint64 | count | Alfred records that did not decode as a `JamReport`. |
+| `radios_monitored` | uint32 | count | Radios (one per wiphy) with an in-use survey entry on the last tick. |
+| `radios_warming_up` | uint32 | count | Monitored radios still learning their baseline (about one minute after start or a channel change). |
+| `radios_suspected` | uint32 | count | Monitored radios currently `suspected`. |
+| `radios_jammed` | uint32 | count | Monitored radios currently `jammed`. |
+| `remote_nodes` | uint32 | count | Other nodes whose report is fresh (changed within `jamdetect.gossipExpiry`). |
+| `remote_nodes_jammed` | uint32 | count | Remote nodes reporting at least one `jammed` episode. |
+| `subscribers` | uint32 | count | Open `StreamJamEvents` streams (at most 8). |
+
 ## Interpretation heuristics for LLM triage
 
 When a snapshot is provided for analysis, apply the following rules of
@@ -692,6 +742,22 @@ thumb in order and flag anything that fits.
    - With `monitored: false` and the key enabled, the line request failed.
      The pin mapping is unverified, so check the startup warning before
      you trust a zero count.
+
+27. **Jamming versus a busy channel.** `jamdetect.radios_jammed > 0`
+   means a radio's in-use channel read abnormal for 4 samples in a row
+   (20 s at the default interval).
+   - Cross-check `wireless` station rates and `comms` RTP loss: a real
+     jammer drops rates and raises loss on that band at the same time.
+   - A healthy but crowded channel does not trip detection, because the
+     busy time is explained by received frames. If `radios_jammed` rises
+     with normal rates and no loss, the driver may be misreporting its
+     survey counters; check `JamDetectService.GetJamStatus` for
+     `noise_known` and the busy percentages.
+   - `remote_nodes_jammed > 0` with `radios_jammed == 0` means a peer
+     hears it and this node does not: the source is local to that peer.
+     Several nodes jammed at once points to a wideband or nearby source.
+   - `survey_errors_total` rising every tick means the driver does not
+     support `iw survey dump` on that radio; detection is blind there.
 
 ## Skew note
 
