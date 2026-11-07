@@ -10,6 +10,7 @@
 | Run Go tests | `make test` |
 | Tests with race detector | `make test-race` |
 | Integration tests (no hardware needed) | `make integration-test` |
+| 32-bit compile check (mipsle, arm; pure-Go packages) | `make check-32bit` |
 | Frontend tests | `make test-frontend` |
 | Lint React frontend | `make lint-frontend` |
 | Format Go code | `make fmt` |

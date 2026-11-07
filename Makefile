@@ -98,6 +98,10 @@ e2e: ## Browser e2e suite (Playwright + axe) and bundle budget, against the real
 bundle-size: ## Check the gzip size of static/ (run after make frontend) against frontend/scripts/bundle-budget.json.
 	cd frontend && node scripts/check-bundle-size.mjs ../static
 
+.PHONY: check-32bit
+check-32bit: ## Compile and vet every pure-Go package for linux/mipsle and linux/arm (32-bit int).
+	./scripts/check-32bit.sh
+
 .PHONY: lint-go
 lint-go: ## Install golangci-lint if not present, then run it.
 	$(GOBIN)/golangci-lint run --fix --timeout 5m
