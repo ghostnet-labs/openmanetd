@@ -14,6 +14,13 @@ import authFetch from '../services/authFetch.js';
 
 export const LUCI_PATH = '/cgi-bin/luci/';
 
+// luciUrl is where the Advanced entry points. With the proxy on, LuCI is on
+// this origin; with it off, LuCI is on its own address, uhttpd on port 80
+// of the same node.
+export function luciUrl(proxied, hostname = window.location.hostname) {
+  return proxied ? LUCI_PATH : `http://${hostname}${LUCI_PATH}`;
+}
+
 let cached = null; // resolved boolean once a fetch succeeds
 let inflight = null; // shared promise while a fetch is running
 
