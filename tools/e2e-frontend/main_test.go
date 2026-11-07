@@ -17,7 +17,7 @@ func TestParseFlags_valid(t *testing.T) {
 		"--listen", "127.0.0.1:1",
 		"--tls-listen", "127.0.0.1:2",
 		"--luci-upstream", "http://127.0.0.1:18088",
-		"--onboard-dir", dir+"/onboard",
+		"--onboard-dir", dir + "/onboard",
 	}, io.Discard)
 	require.NoError(t, err)
 	assert.Equal(t, options{
