@@ -1,21 +1,26 @@
 name: "Publish frontend bundle"
 
 # static/ (the built React app that //go:embed puts in the binary) is not
-# committed: two open PRs that each rebuilt it always conflicted. Instead every
-# push to main builds it once here and uploads it to the rolling
-# "static-bundles" prerelease as openmanetd-static-<commit>.tar.gz. The OpenWrt
-# package (ghostnet-labs/packages openmanetd/Makefile) downloads the bundle
-# for the commit it pins and unpacks it into static/ before go build.
+# committed: two open PRs that each rebuilt it always conflicted. Instead each
+# main commit is built once here and uploaded to the rolling "static-bundles"
+# prerelease as openmanetd-static-<commit>.tar.gz. The OpenWrt package
+# (ghostnet-labs/packages openmanetd/Makefile) downloads the bundle for the
+# commit it pins and unpacks it into static/ before go build.
 #
-# workflow_dispatch with a commit builds the bundle for an older commit, for
-# example the one the package pins today.
+# Most main commits come from the merge sweep, which merges with the Actions
+# token, and GitHub starts no push workflow for those. So besides push, a
+# schedule backfills: each run builds the bundles that the newest main commits
+# are missing. workflow_dispatch with a commit builds that one commit, for
+# example an older one the package pins.
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       sha:
-        description: "Commit to build (full SHA); empty = the dispatched ref"
+        description: "Commit to build (full SHA); empty = backfill recent main commits"
         required: false
         default: ""
 
@@ -23,12 +28,67 @@ permissions:
   contents: write
 
 concurrency:
-  group: static-bundle-${{ inputs.sha || github.sha }}
+  group: static-bundle-plan-${{ inputs.sha || github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  plan:
+    name: "Find commits without a bundle"
+    runs-on: ghostnet-linux-arm64
+    timeout-minutes: 10
+    outputs:
+      shas: ${{ steps.find.outputs.shas }}
+    steps:
+      - name: List missing bundles
+        id: find
+        uses: actions/github-script@v7
+        env:
+          SHA: ${{ inputs.sha }}
+          # How many of the newest first-parent main commits to cover, and how
+          # many bundles one run may build. Bounded so a long gap can't start
+          # dozens of builds at once; the next run picks up the rest.
+          LOOKBACK: "20"
+          MAX_BUILDS: "4"
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            if (process.env.SHA) {
+              core.setOutput('shas', JSON.stringify([process.env.SHA]));
+              return;
+            }
+            const have = new Set();
+            try {
+              const release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag: 'static-bundles' })).data;
+              const assets = await github.paginate(github.rest.repos.listReleaseAssets,
+                { owner, repo, release_id: release.id, per_page: 100 });
+              for (const a of assets) have.add(a.name);
+            } catch (err) {
+              if (err.status !== 404) throw err;
+            }
+            const lookback = Number(process.env.LOOKBACK);
+            const shas = [];
+            let sha = context.eventName === 'push' ? context.sha : 'main';
+            for (let i = 0; i < lookback && sha; i++) {
+              const c = (await github.rest.repos.getCommit({ owner, repo, ref: sha })).data;
+              if (!have.has(`openmanetd-static-${c.sha}.tar.gz`)) shas.push(c.sha);
+              sha = c.parents.length ? c.parents[0].sha : '';
+            }
+            const pick = shas.slice(0, Number(process.env.MAX_BUILDS));
+            core.info(`missing ${shas.length}, building ${pick.length}: ${pick.join(' ')}`);
+            core.setOutput('shas', JSON.stringify(pick));
+
   publish:
     name: "Build and publish static bundle"
+    needs: plan
+    if: needs.plan.outputs.shas != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        sha: ${{ fromJSON(needs.plan.outputs.shas) }}
+    concurrency:
+      group: static-bundle-${{ matrix.sha }}
+      cancel-in-progress: false
     # Trusted code only (main pushes and dispatches, never a PR), on an
     # ephemeral ARC pod, so the write token never meets PR code.
     runs-on: ghostnet-linux-arm64
@@ -39,7 +99,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.sha || github.sha }}
+          ref: ${{ matrix.sha }}
           persist-credentials: false
 
       - name: Install pnpm
