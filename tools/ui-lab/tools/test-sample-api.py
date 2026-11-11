@@ -24,4 +24,7 @@ class SampleBackendTests(unittest.TestCase):
   with self.assertRaises(NotImplementedError):api.rpc('ProposeChannelPlan',{})
  def test_jam_status_is_sample(self):
   st=api.rpc('GetJamStatus',{});self.assertTrue(st['enabled']);self.assertEqual(st['local']['activeEvents'][0]['state'],'JAM_STATE_JAMMED');self.assertEqual(len(st['remote']),2)
+ def test_weather_is_simulated_sample(self):
+  r=api.rpc('ListWeatherStations',{});self.assertTrue(r['sensorEnabled']);self.assertEqual(len(r['stations']),2)
+  self.assertTrue(r['stations'][0]['local']);self.assertEqual(r['stations'][0]['report']['model'],'sim');self.assertTrue(r['stations'][1]['stale'])
 if __name__=='__main__':unittest.main()

@@ -18,6 +18,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/system"
 	"github.com/openmanet/openmanetd/internal/takfeed"
 	"github.com/openmanet/openmanetd/internal/util/board"
+	"github.com/openmanet/openmanetd/internal/weather"
 )
 
 // gpsPosition adapts the GNSS service to takfeed.PositionSource. A nil
@@ -109,9 +110,15 @@ func startTAKFeed(
 	scannerMgr *scanner.Manager,
 	jamDetector *jamdetect.Detector,
 	cov *coverageMap,
+	weatherMon *weather.Monitor,
 	log zerolog.Logger,
 ) <-chan struct{} {
 	opts := takFeedOptions(cfg, gps, db, api, scannerMgr, jamDetector, log)
+
+	if weatherMon != nil {
+		opts.Weather = weatherMon
+		opts.WeatherMaxAge = cfg.GetWeather().StaleAfter
+	}
 
 	if problems := cfg.GetTAK().Problems; len(problems) > 0 {
 		log.Warn().Strs("problems", problems).Msg("ATAK feed: rejected tak settings, using defaults for them")

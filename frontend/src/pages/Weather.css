@@ -1,0 +1,55 @@
+/* =============================================================================
+ * Weather.css — weather stations page
+ * ============================================================================= */
+
+/* Alerts and the loading line span the whole body grid. */
+.weather-alerts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weather-loading {
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* Temperature readout with the °C / source line under it. */
+.weather-temp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.weather-temp-sub {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.weather-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weather-toolbar {
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .weather-temp {
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Refresh is the page's primary mobile action: 44px touch target. */
+  .weather-toolbar .lat-btn {
+    min-height: 44px;
+  }
+}

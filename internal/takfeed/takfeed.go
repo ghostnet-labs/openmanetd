@@ -1,7 +1,7 @@
 // Package takfeed puts everything a node knows onto every ATAK map on the
 // mesh: this node (radio or mast icon, with battery and mesh health), its
-// direct mesh links as colored lines, aircraft its scanner hears, and
-// jamming its radios detect.
+// direct mesh links as colored lines, aircraft its scanner hears,
+// jamming its radios detect, and the weather station wired to it.
 //
 // It sends plain Cursor-on-Target to the ATAK SA multicast group
 // (239.2.3.1:6969). ATAK listens there out of the box, and the mesh
@@ -26,6 +26,7 @@ import (
 	"github.com/coreywagehoft/go-tak/pkg/cot"
 	"github.com/coreywagehoft/go-tak/pkg/cotproto"
 	meshtopov1 "github.com/openmanet/openmanetd/internal/api/openmanet/mesh_topology/v1"
+	weatherv1 "github.com/openmanet/openmanetd/internal/api/openmanet/weather/v1"
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/coverage"
 	"github.com/openmanet/openmanetd/internal/database/models"
@@ -84,6 +85,12 @@ type AircraftSource interface {
 	Aircraft(dst []aircraft.Aircraft, includeStale bool) ([]aircraft.Aircraft, []aircraft.FeedStatus, time.Time)
 }
 
+// WeatherSource returns the report of the weather station wired to this
+// node, or nil when it has none. *weather.Monitor implements it.
+type WeatherSource interface {
+	Local() *weatherv1.WeatherReport
+}
+
 // JamSource lists this node's own active jamming episodes (not ones
 // gossiped from other nodes: those nodes publish their own markers).
 type JamSource interface {
@@ -107,6 +114,8 @@ type Options struct {
 	// Coverage records a coverage sample on each link tick (needs
 	// Signals) and draws its cells as a heatmap.
 	Coverage CoverageMap
+	// Weather adds this node's weather station marker.
+	Weather WeatherSource
 	// Now defaults to time.Now.
 	Now func() time.Time
 	Log zerolog.Logger
@@ -119,6 +128,9 @@ type Options struct {
 	Platform string
 	// MaxPositionAge defaults to DefaultMaxPositionAge.
 	MaxPositionAge time.Duration
+	// WeatherMaxAge pulls the weather marker once the reading is this
+	// old; it defaults to DefaultWeatherMaxAge.
+	WeatherMaxAge time.Duration
 	// CameraOwnsMarker is true on camera nodes: gpsd publishes the node
 	// as a camera sensor under the same uid, so this feed skips its own
 	// node marker there to avoid the two fighting over one map item.
@@ -136,6 +148,7 @@ type Publisher struct {
 	tick         uint64
 	sendFailing  bool
 	haveMeshRead bool
+	weatherUp    bool
 }
 
 type meshSummary struct {
@@ -159,6 +172,10 @@ func New(opts Options) *Publisher {
 
 	if opts.MaxPositionAge <= 0 {
 		opts.MaxPositionAge = DefaultMaxPositionAge
+	}
+
+	if opts.WeatherMaxAge <= 0 {
+		opts.WeatherMaxAge = DefaultWeatherMaxAge
 	}
 
 	return &Publisher{
@@ -226,6 +243,7 @@ func (p *Publisher) PublishOnce(ctx context.Context) {
 	}
 
 	p.publishJams(cfg, now, pos, havePos)
+	p.publishWeather(cfg, now, pos, havePos)
 
 	if cfg.CoverageEnable {
 		p.publishCoverage(cfg, now)
@@ -554,6 +572,48 @@ func (p *Publisher) retractMissing(tracked, seen map[string]struct{}, now time.T
 func (p *Publisher) retractAll(now time.Time) {
 	p.retractMissing(p.links, nil, now)
 	p.retractMissing(p.jams, nil, now)
+	p.retractWeather(now)
+}
+
+// publishWeather places this node's weather station, at the position the
+// report carries or else this node's own fix. The marker is pulled when
+// the station goes away, its reading turns old, or tak.weather is off.
+func (p *Publisher) publishWeather(cfg config.TAKConfig, now time.Time, pos Position, havePos bool) {
+	var rep *weatherv1.WeatherReport
+
+	if p.opts.Weather != nil && cfg.Weather {
+		rep = p.opts.Weather.Local()
+	}
+
+	obs := rep.GetReading().GetObservedAt()
+	if obs == nil || now.Sub(obs.AsTime()) > p.opts.WeatherMaxAge {
+		p.retractWeather(now)
+
+		return
+	}
+
+	if rep.GetHasPosition() {
+		pos = Position{Lat: rep.GetLatitude(), Lon: rep.GetLongitude(), HAE: rep.GetAltitudeM()}
+		havePos = true
+	}
+
+	if !havePos {
+		p.retractWeather(now)
+
+		return
+	}
+
+	p.send(WeatherEvent(rep, p.opts.Callsign, pos, now))
+	p.weatherUp = true
+}
+
+func (p *Publisher) retractWeather(now time.Time) {
+	if !p.weatherUp {
+		return
+	}
+
+	p.send(DeleteEvent(WeatherUID(p.opts.Callsign), now))
+	p.weatherUp = false
 }
 
 func (p *Publisher) send(msg *cotproto.TakMessage) {

@@ -18,8 +18,15 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
+/* A heard weather station adds a third KPI panel. */
+.dashboard-kpi-row.with-weather { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .dashboard-kpi-row.with-weather { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-kpi-row.with-weather .dashboard-weather { grid-column: 1 / -1; }
+}
 @media (max-width: 768px) {
-  .dashboard-kpi-row { grid-template-columns: 1fr; }
+  .dashboard-kpi-row,
+  .dashboard-kpi-row.with-weather { grid-template-columns: 1fr; }
 }
 
 /* System resources two-column inner layout (pbars on left, kv on right). */

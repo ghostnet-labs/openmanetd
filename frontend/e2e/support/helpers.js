@@ -13,6 +13,7 @@ export const PAGES = [
   { path: '/topology', heading: 'Topology' },
   { path: '/gps', heading: 'GPS / GNSS' },
   { path: '/blos', heading: 'BLOS' },
+  { path: '/weather', heading: 'Weather' },
   { path: '/settings', heading: 'Settings' },
   { path: '/settings/wireless', heading: 'Wireless Radios' },
   { path: '/settings/network', heading: 'Network' },

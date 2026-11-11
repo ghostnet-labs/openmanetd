@@ -16,6 +16,7 @@ const (
 	DefaultTAKInterval        = 10 * time.Second
 	DefaultTAKLinks           = true
 	DefaultTAKJamming         = true
+	DefaultTAKWeather         = true
 	DefaultTAKAircraftEnable  = true
 	DefaultTAKAircraftMax     = 32
 	DefaultTAKAircraftRangeKm = 150.0
@@ -68,6 +69,8 @@ type TAKConfig struct {
 	Links bool
 	// Jamming places a marker for each jamming detection.
 	Jamming bool
+	// Weather places a marker for the weather station wired to this node.
+	Weather bool
 	// AircraftEnable forwards aircraft heard by this node's scanner.
 	AircraftEnable bool
 	// CoverageEnable records how well this node hears the mesh at each
@@ -83,6 +86,7 @@ func (c *Config) loadTAK() TAKConfig {
 		Interval:         DefaultTAKInterval,
 		Links:            DefaultTAKLinks,
 		Jamming:          DefaultTAKJamming,
+		Weather:          DefaultTAKWeather,
 		AircraftEnable:   DefaultTAKAircraftEnable,
 		AircraftMax:      DefaultTAKAircraftMax,
 		AircraftRangeKm:  DefaultTAKAircraftRangeKm,
@@ -98,6 +102,7 @@ func (c *Config) loadTAK() TAKConfig {
 		{&tc.Enable, "tak.enable"},
 		{&tc.Links, "tak.links"},
 		{&tc.Jamming, "tak.jamming"},
+		{&tc.Weather, "tak.weather"},
 		{&tc.AircraftEnable, "tak.aircraft.enable"},
 		{&tc.CoverageEnable, "tak.coverage.enable"},
 	}

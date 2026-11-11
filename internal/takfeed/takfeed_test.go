@@ -31,6 +31,7 @@ type harness struct {
 	nodes    *fakeNodes
 	aircraft *fakeAircraft
 	jams     *fakeJams
+	weather  *fakeWeather
 	opts     takfeed.Options
 }
 
@@ -45,6 +46,7 @@ func newHarness(t *testing.T, yaml string) *harness {
 		nodes:    &fakeNodes{nodes: threeNodeRows()},
 		aircraft: &fakeAircraft{},
 		jams:     &fakeJams{},
+		weather:  &fakeWeather{},
 	}
 
 	h.opts = takfeed.Options{
@@ -57,6 +59,7 @@ func newHarness(t *testing.T, yaml string) *harness {
 		Battery:  &fakeBattery{st: &system.BatteryStatus{Present: true, ChargePercent: 50, VoltageVolts: 11.5}},
 		Aircraft: h.aircraft,
 		Jams:     h.jams,
+		Weather:  h.weather,
 		Callsign: "manet01-MANET",
 		Hostname: "manet01",
 		Now:      func() time.Time { return testNow },

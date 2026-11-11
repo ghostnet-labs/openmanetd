@@ -109,6 +109,13 @@ export const ICONS = Object.assign(Object.create(null), {
     </svg>
   ),
 
+  // A wind vane: arrow on a mast with the tail feathers, over a ground line.
+  weather: (
+    <svg {...SVG_PROPS} data-icon="weather">
+      <path d="M8 4v10M4 14h8M2 4h11M10 1l3 3-3 3M2 4l-1-2M2 4l-1 2M4 4l-1-2M4 4l-1 2" />
+    </svg>
+  ),
+
   // Three sliders at different positions.
   settings: (
     <svg {...SVG_PROPS} data-icon="settings">
