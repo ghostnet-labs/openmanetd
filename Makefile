@@ -27,8 +27,12 @@ fmt: ## Run go fmt against code.
 	go fmt ./...
 
 .PHONY: vet
-vet: ## Run go vet against code.
+vet: check-32bit ## Run go vet against code.
 	go vet ./...
+
+.PHONY: check-32bit
+check-32bit: ## Type-check for linux/mipsle (32-bit int) without a C cross-compiler.
+	go run ./internal/tools/archcheck linux/mipsle
 
 .PHONY: alfred
 alfred: ## Make Alfred for Go Bindings

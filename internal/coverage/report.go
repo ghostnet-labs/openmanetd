@@ -74,7 +74,7 @@ func (g *Grid) Report(primaryMAC, hostname string, now time.Time, limit int) *co
 			Row:       c.Key.Row,
 			Col:       c.Key.Col,
 			Grade:     c.Grade(),
-			Samples:   uint32(min(c.Samples, math.MaxUint32)), //nolint:gosec // clamped
+			Samples:   uint32(min(int64(c.Samples), math.MaxUint32)), //nolint:gosec // clamped; int64 so the bound fits 32-bit int
 			NoLinkPct: uint32(math.Round(c.NoLinkPct())),
 			MaxLinks:  uint32(max(c.MaxLinks, 0)), //nolint:gosec // non-negative
 			LastSeen:  timestamppb.New(c.LastSeen),

@@ -72,6 +72,13 @@ jobs:
         # PRs run on ubuntu-latest and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
+      # The firmware ships openmanetd to 32-bit linux/mipsle routers. Host
+      # builds are 64-bit, so code that only breaks with a 32-bit int (for
+      # example math.MaxUint32 in an int expression) used to pass here and
+      # fail later in the packages/firmware build. Needs no cross gcc.
+      - name: Type-check for 32-bit mipsle
+        run: go run ./internal/tools/archcheck linux/mipsle
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
