@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ghostnet-labs/docs
-          ref: add59ce9c28925ddd9c274b6ec7f5348e2448b47
+          ref: 84d7e0cf9c7aa3b9fd80d57af3f3cac0d5127c1d
           persist-credentials: false
       - name: Check out the runner policy
         uses: actions/checkout@v4
