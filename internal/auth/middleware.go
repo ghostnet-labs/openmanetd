@@ -12,6 +12,7 @@ type ctxKey int
 
 const (
 	ctxKeyUsername ctxKey = iota
+	ctxKeySession
 )
 
 // Session cookie names. The daemon serves the same UI over plain HTTP
@@ -80,8 +81,7 @@ func NewAPIAuthMiddleware(store *SessionStore, enabled bool) func(http.Handler) 
 				return
 			}
 
-			ctx := ContextWithUsername(r.Context(), sess.Username)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(contextWithSession(r.Context(), sess)))
 		})
 	}
 }
@@ -108,8 +108,7 @@ func NewFrontendAuthMiddleware(store *SessionStore, enabled bool) func(http.Hand
 				return
 			}
 
-			ctx := ContextWithUsername(r.Context(), sess.Username)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(contextWithSession(r.Context(), sess)))
 		})
 	}
 }
@@ -162,6 +161,20 @@ func UsernameFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(ctxKeyUsername).(string)
 
 	return v
+}
+
+// SessionFromContext returns the session the auth middleware validated for
+// this request, or nil when there is none (auth disabled, or a path that
+// skips authentication).
+func SessionFromContext(ctx context.Context) *Session {
+	sess, _ := ctx.Value(ctxKeySession).(*Session)
+
+	return sess
+}
+
+// contextWithSession returns a copy of ctx carrying sess and its username.
+func contextWithSession(ctx context.Context, sess *Session) context.Context {
+	return ContextWithUsername(context.WithValue(ctx, ctxKeySession, sess), sess.Username)
 }
 
 // ContextWithUsername returns a copy of ctx with the authenticated username
