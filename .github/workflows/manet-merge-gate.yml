@@ -16,7 +16,7 @@ jobs:
   gate:
     name: Manet merge gate
     if: github.event.action != 'closed'
-    runs-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted", "macOS", "ARM64"]') || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted", "macOS", "ARM64"]') || 'ubuntu-24.04' }}
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ghostnet-labs/docs
-          ref: bfce82e015097cd392ec7ca252772a6a0000196e
+          ref: e2cdaa5139a32e19d3d9569d06c632efa6fbb893
           path: runner-policy
           sparse-checkout: |
             project/scripts/check_runners.py

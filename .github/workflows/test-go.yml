@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
@@ -58,7 +58,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-latest)
+      - name: Install build dependencies (fork PRs on ubuntu-24.04)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           sudo apt-get update
@@ -69,7 +69,7 @@ jobs:
 
       - name: Check build dependencies are installed
         # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-latest and install them at runtime in the step above.
+        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       # The firmware ships openmanetd to 32-bit linux/mipsle routers. Host
@@ -88,7 +88,7 @@ jobs:
           args: --allow-parallel-runners
 
   test:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
@@ -118,7 +118,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-latest)
+      - name: Install build dependencies (fork PRs on ubuntu-24.04)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           sudo apt-get update
@@ -129,7 +129,7 @@ jobs:
 
       - name: Check build dependencies are installed
         # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-latest and install them at runtime in the step above.
+        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -185,7 +185,7 @@ jobs:
 
   integration_test:
     name: "Integration tests"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
@@ -215,7 +215,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-latest)
+      - name: Install build dependencies (fork PRs on ubuntu-24.04)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           sudo apt-get update
@@ -226,7 +226,7 @@ jobs:
 
       - name: Check build dependencies are installed
         # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-latest and install them at runtime in the step above.
+        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -256,7 +256,7 @@ jobs:
 
   benchmark:
     name: "Benchmarks"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
@@ -286,7 +286,7 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-latest)
+      - name: Install build dependencies (fork PRs on ubuntu-24.04)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           sudo apt-get update
@@ -297,7 +297,7 @@ jobs:
 
       - name: Check build dependencies are installed
         # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-latest and install them at runtime in the step above.
+        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings

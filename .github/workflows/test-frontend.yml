@@ -19,7 +19,7 @@ concurrency:
 jobs:
   frontend_test:
     name: "Frontend tests"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Leave native overhead beneath the 2 GiB ephemeral runner limit.
     env:

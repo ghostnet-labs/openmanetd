@@ -38,7 +38,7 @@ jobs:
     # (2-3 GB peak) can only exhaust its own pod, and later jobs wait in the
     # queue instead of being cancelled. Fork PRs stay on GitHub-hosted
     # runners so outside code never reaches the Mac.
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64-large' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64-large' || 'ubuntu-24.04' }}
     # Time spent queued behind another CodeQL job does not count; 60 minutes
     # covers a cold run with headroom.
     timeout-minutes: 60

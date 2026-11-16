@@ -31,7 +31,7 @@ jobs:
     # (it checks out a pinned docs commit and makes API calls).
     # Hosted on purpose: this job holds a write token, so it must not share a persistent
     # self-hosted runner with jobs that run PR code. Revisit with dedicated JIT runners.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
