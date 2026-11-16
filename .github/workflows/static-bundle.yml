@@ -8,19 +8,13 @@ name: "Publish frontend bundle"
 # commit it pins and unpacks it into static/ before go build.
 #
 # Most main commits come from the merge sweep, which merges with the Actions
-# token, and GitHub starts no push workflow for those. So besides push, each
-# finished sweep run ("Handle passing PRs") starts a backfill: it builds the
-# bundles that the newest main commits are missing, and does nothing when none
-# is. GitHub runs the schedule here only every 5 to 8 hours, so on 2026-11-16
-# the bundle for #80's merge did not exist until it was dispatched by hand.
-# workflow_dispatch with a commit builds that one commit, for example an older
-# one the package pins.
+# token, and GitHub starts no push workflow for those. So besides push, a
+# schedule backfills: each run builds the bundles that the newest main commits
+# are missing. workflow_dispatch with a commit builds that one commit, for
+# example an older one the package pins.
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: ["Handle passing PRs"]
-    types: [completed]
   schedule:
     - cron: "17,47 * * * *"
   workflow_dispatch:

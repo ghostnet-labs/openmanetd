@@ -1,0 +1,52 @@
+name: "Start missing frontend bundle"
+
+# The merge sweep ("Handle passing PRs") merges with the Actions token, which
+# starts no push run of static-bundle.yml, and GitHub runs its schedule here
+# only every 5 to 8 hours. On 2026-11-16 the bundle for #80's merge did not
+# exist until it was dispatched by hand, so the packages pin bump waited.
+# After each sweep run this checks whether main's head has its bundle and, if
+# not, dispatches static-bundle.yml (a dispatch with the Actions token does
+# start a run). It checks out and runs no code, so the write-capable bundle
+# build keeps only trusted triggers (push, schedule, dispatch).
+on:
+  workflow_run:
+    workflows: ["Handle passing PRs"]
+    types: [completed]
+
+permissions:
+  actions: write  # dispatch static-bundle.yml
+  contents: read  # read main's head and the static-bundles release
+
+concurrency:
+  group: static-bundle-kick
+  cancel-in-progress: true
+
+jobs:
+  kick:
+    name: "Dispatch the bundle build when main's head has none"
+    runs-on: ghostnet-linux-arm64
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = (await github.rest.repos.getCommit({ owner, repo, ref: 'main' })).data.sha;
+            const name = `openmanetd-static-${sha}.tar.gz`;
+            let have = false;
+            try {
+              const release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag: 'static-bundles' })).data;
+              const assets = await github.paginate(github.rest.repos.listReleaseAssets,
+                { owner, repo, release_id: release.id, per_page: 100 });
+              have = assets.some(a => a.name === name);
+            } catch (err) {
+              if (err.status !== 404) throw err;
+            }
+            if (have) {
+              core.info(`${name} exists; nothing to do`);
+              return;
+            }
+            // Empty sha = backfill: builds every recent main commit that lacks a bundle.
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id: 'static-bundle.yml', ref: 'main', inputs: { sha: '' } });
+            core.notice(`dispatched static-bundle.yml: ${name} was missing`);
