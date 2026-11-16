@@ -22,7 +22,10 @@ permissions:
 jobs:
   e2e:
     name: "Browser e2e"
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.56 cannot
+    # install Chromium on. Move this only together with a Playwright bump
+    # that lists the new image as supported.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout code
