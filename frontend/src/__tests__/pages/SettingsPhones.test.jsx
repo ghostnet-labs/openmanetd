@@ -18,6 +18,9 @@ vi.mock('../../services/onboardApi.js', async (importOriginal) => ({
   removeAtakApk: api.removeAtakApk,
 }));
 
+// The offline maps panel has its own tests.
+vi.mock('../../pages/SettingsPhonesMaps.jsx', () => ({ default: () => null }));
+
 import SettingsPhones from '../../pages/SettingsPhones.jsx';
 
 function status(apk) {

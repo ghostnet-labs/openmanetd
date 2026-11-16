@@ -22,6 +22,7 @@ import (
 	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/onboard"
 	"github.com/openmanet/openmanetd/internal/terminal"
+	"github.com/openmanet/openmanetd/internal/tiles"
 	"github.com/openmanet/openmanetd/internal/util/logger"
 	ws "github.com/openmanet/openmanetd/internal/websocket"
 	"github.com/rs/zerolog"
@@ -55,6 +56,7 @@ type Server struct {
 	authProxy    http.Handler
 	luci         *luciProxy
 	onboard      *onboard.Store
+	tiles        *tiles.Cache
 	indexHTML    []byte
 	authEnabled  bool
 }
@@ -127,6 +129,7 @@ func NewFrontendServer(ctx context.Context, cfg *config.Config, staticFS fs.FS, 
 		luci:         &luciProxy{},
 	}
 	srv.onboard = newOnboardStore(cfg, srv)
+	srv.tiles = newTileCache(ctx, cfg, srv)
 
 	return srv
 }
@@ -315,6 +318,9 @@ func (s *Server) handler() http.Handler {
 	// Phone onboarding admin (APK upload/remove).
 	s.registerOnboardAdmin(mux)
 
+	// Map tile cache status and area downloads.
+	s.registerTilesAdmin(mux)
+
 	// SPA-aware static file server.
 	// Serves static files if they exist, otherwise serves index.html
 	// for client-side routing (React Router).
@@ -394,6 +400,9 @@ func (s *Server) handler() http.Handler {
 	// Phone onboarding is public: a phone that has just joined the
 	// access point has no login.
 	s.registerOnboardPublic(root)
+
+	// Map tiles are public too: ATAK fetches them with no session.
+	s.registerTilesPublic(root)
 
 	root.Handle("/", authMW(mux))
 

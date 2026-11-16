@@ -218,7 +218,7 @@ func TestBuildDataPackage_full(t *testing.T) {
 	assert.Contains(t, sat, "<name>Manet Satellite</name>")
 	assert.Contains(t, sat, "<url>http://10.41.3.7:8080/tiles/satellite/{$z}/{$x}/{$y}</url>", "trailing slash on the base is trimmed")
 	assert.Contains(t, sat, "<tileType>jpg</tileType>")
-	assert.Contains(t, sat, "<maxZoom>17</maxZoom>")
+	assert.Contains(t, sat, "<maxZoom>16</maxZoom>", "USGS tile caches stop at zoom 16")
 }
 
 func TestBuildDataPackage_emptyProfileAndNoMaps(t *testing.T) {

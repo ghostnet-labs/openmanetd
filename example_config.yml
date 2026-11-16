@@ -129,14 +129,36 @@ sysupgrade:
 # (POST /api/onboard/atak, multipart field "file"). The APK (~200 MB)
 # needs persistent storage, so dir must not be under /tmp. Map source
 # URLs point at /tiles/<layer>/{z}/{x}/{y} on whichever address the
-# phone used; mapSources: [] leaves maps out.
+# phone used; mapSources: [] leaves maps out. A map source whose layer the
+# tile cache below does not serve (or serves as another tileType) is left
+# out of the package, so a phone never gets a map that loads blank.
 onboard:
   enable: true
   dir: /srv/openmanet/onboard
   maxApkBytes: 629145600
   # mapSources:
-  #   - {name: Manet Satellite, layer: satellite, tileType: jpg, minZoom: 0, maxZoom: 17}
-  #   - {name: Manet Topo, layer: topo, tileType: png, minZoom: 0, maxZoom: 16}
+  #   - {name: Manet Satellite, layer: satellite, tileType: jpg, minZoom: 0, maxZoom: 16}
+  #   - {name: Manet Topo, layer: topo, tileType: jpg, minZoom: 0, maxZoom: 16}
+# Map tiles for ATAK phones (docs/offline-maps.md). Every node serves
+# /tiles/<layer>/<z>/<x>/<y> on the frontend port with no login. A missing
+# tile comes from the peers below (a mast that downloaded the area), then
+# the internet, and is kept on disk, so a downloaded area works offline.
+# The cache never grows past maxBytes and always leaves minFreeBytes free.
+tiles:
+  enable: true
+  dir: /srv/openmanet/tiles
+  maxBytes: 536870912           # 512 MiB; least recently used tiles go first
+  minFreeBytes: 67108864        # 64 MiB kept free on the filesystem
+  # fetchTimeout: 10s           # one peer or internet fetch
+  # offlineBackoff: 30s         # skip a source this long after it fails
+  # seedConcurrency: 2          # parallel downloads while seeding
+  # peers:                      # other nodes' frontend URLs, asked first
+  #   - http://10.41.0.1:8080
+  # layers:                     # defaults: USGS imagery and topo, public domain
+  #   - {layer: satellite, tileType: jpg, minZoom: 0, maxZoom: 16, upstream: "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"}
+  #   - {layer: topo, tileType: jpg, minZoom: 0, maxZoom: 16, upstream: "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"}
+  # seed:                       # areas downloaded at start (a mast's town)
+  #   - {name: Eagle Mountain, lat: 40.314, lon: -112.006, radiusKm: 12, maxZoom: 16}
 # Ghostnet V1 hardware manager: battery telemetry, radio power state machine
 # and recovery ladder. On other boards it runs telemetry-only. Every GPIO
 # write, bus reset, watchdog pet and low-battery poweroff is OFF by default

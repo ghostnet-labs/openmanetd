@@ -122,7 +122,7 @@ func (s *Server) handleOnboardStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sources := s.cfg.GetOnboard().MapSources
+	sources := s.servedMapSources()
 	names := make([]string, 0, len(sources))
 
 	for _, src := range sources {
@@ -210,7 +210,7 @@ func (s *Server) handleOnboardPackage(w http.ResponseWriter, r *http.Request) {
 	// A package is a few KB, so build it in memory and send it with a
 	// Content-Length.
 	var buf bytes.Buffer
-	if err := onboard.BuildDataPackage(&buf, s.httpBaseURL(r)+"/tiles", p, s.cfg.GetOnboard().MapSources); err != nil {
+	if err := onboard.BuildDataPackage(&buf, s.httpBaseURL(r)+"/tiles", p, s.servedMapSources()); err != nil {
 		s.log.Error().Err(err).Msg("build onboard data package")
 		s.writeErrorStatus(w, http.StatusInternalServerError, "cannot build the settings package")
 

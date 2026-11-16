@@ -34,8 +34,11 @@ mapsources/<layer>.xml       one MOBAC customMapSource per onboard.mapSources en
 Each map source points at `http://<address the phone used>:<HTTP port>/tiles/<layer>/{$z}/{$x}/{$y}`.
 Using the request's own address means the same package works on every
 node, and on phones that cannot resolve node names (Android keeps using
-mobile data DNS on a Wi-Fi network with no internet). The `/tiles/`
-endpoint itself is GHO-95.
+mobile data DNS on a Wi-Fi network with no internet). The node serves
+those tiles itself; see [offline-maps.md](offline-maps.md). Only map
+sources whose layer the tile cache serves, with the same tile type, go
+into the package, and their zooms are clipped to what is served, so a
+phone never gets a map that loads blank.
 
 The URLs are plain HTTP on purpose. ATAK downloads the package itself and
 does not trust the node's self-signed HTTPS certificate.

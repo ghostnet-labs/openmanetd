@@ -32,3 +32,24 @@
   font-size: 11px;
   margin: 12px 0 0;
 }
+
+/* Offline maps: status beside the area form; stacked on phones. */
+.phones-maps-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.phones-maps-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.phones-maps-form .phones-help { margin-top: 8px; }
+
+.phones-warn { color: var(--warn); }
+
+@media (max-width: 900px) {
+  .phones-maps-grid { grid-template-columns: minmax(0, 1fr); }
+}

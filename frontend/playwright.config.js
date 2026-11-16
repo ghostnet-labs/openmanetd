@@ -71,6 +71,8 @@ const webServer = external ? undefined : [
       `--luci-upstream http://127.0.0.1:${ports.luci}`,
       // Throwaway phone onboarding store, so /onboard/* answers like a node.
       '--onboard-dir e2e/.onboard',
+      // Throwaway map tile cache, so /tiles and /api/tiles/* answer.
+      '--tiles-dir e2e/.tiles',
     ].join(' '),
     url: `http://127.0.0.1:${ports.http}/`,
     stderr: 'ignore',
