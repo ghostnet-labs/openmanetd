@@ -54,6 +54,7 @@ type options struct {
 	api          string
 	luciUpstream string
 	onboardDir   string
+	tilesDir     string
 }
 
 func main() {
@@ -110,6 +111,7 @@ func parseFlags(args []string, out io.Writer) (options, error) {
 	fs.StringVar(&opts.api, "api", "", "upstream API base URL, e.g. http://127.0.0.1:18087")
 	fs.StringVar(&opts.luciUpstream, "luci-upstream", "", "LuCI upstream URL; empty leaves frontend.luciProxy disabled")
 	fs.StringVar(&opts.onboardDir, "onboard-dir", "", "phone onboarding directory (onboard.dir); empty keeps the node default")
+	fs.StringVar(&opts.tilesDir, "tiles-dir", "", "map tile cache directory (tiles.dir); empty keeps the node default")
 
 	if err := fs.Parse(args); err != nil {
 		return options{}, fmt.Errorf("parse flags: %w", err)
@@ -141,6 +143,10 @@ func newConfig(opts options) *config.Config {
 
 	if opts.onboardDir != "" {
 		v.Set("onboard.dir", opts.onboardDir)
+	}
+
+	if opts.tilesDir != "" {
+		v.Set("tiles.dir", opts.tilesDir)
 	}
 
 	if opts.luciUpstream != "" {

@@ -2,8 +2,9 @@
 // SettingsPhones.jsx — operator side of phone onboarding
 // =============================================================================
 //
-// Upload or remove the ATAK APK this node hands to phones, and show the
-// link phones open (/join over plain HTTP). See docs/phone-onboarding.md.
+// Upload or remove the ATAK APK this node hands to phones, show the link
+// phones open (/join over plain HTTP), and manage the offline map tiles
+// phones load. See docs/phone-onboarding.md and docs/offline-maps.md.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
   removeAtakApk,
   uploadAtakApk,
 } from '../services/onboardApi.js';
+import SettingsPhonesMaps from './SettingsPhonesMaps.jsx';
 import './SettingsPhones.css';
 
 export default function SettingsPhones() {
@@ -148,6 +150,8 @@ export default function SettingsPhones() {
           A phone on this node&apos;s Wi-Fi opens this link to install ATAK and load its callsign, team and maps.
         </p>
       </section>
+
+      <SettingsPhonesMaps />
     </div>
     </PhonesShell>
   );

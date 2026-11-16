@@ -33,11 +33,14 @@ type OnboardMapSource struct {
 }
 
 // DefaultOnboardMapSources returns the layers served by the node tile
-// cache (GHO-95): public-domain USGS imagery and topo.
+// cache (GHO-95): public-domain USGS imagery and topo. They must match
+// DefaultTileLayers (name, tile type, zooms); a test keeps them in step.
+// USGS caches stop at zoom 16, so ATAK over-zooms past that instead of
+// asking for tiles that do not exist.
 func DefaultOnboardMapSources() []OnboardMapSource {
 	return []OnboardMapSource{
-		{Name: "Manet Satellite", Layer: "satellite", TileType: "jpg", MinZoom: 0, MaxZoom: 17},
-		{Name: "Manet Topo", Layer: "topo", TileType: "png", MinZoom: 0, MaxZoom: 16},
+		{Name: "Manet Satellite", Layer: "satellite", TileType: TileTypeJPG, MinZoom: 0, MaxZoom: 16},
+		{Name: "Manet Topo", Layer: "topo", TileType: TileTypeJPG, MinZoom: 0, MaxZoom: 16},
 	}
 }
 
@@ -101,7 +104,7 @@ func validOnboardMapSources(in []OnboardMapSource) []OnboardMapSource {
 			continue
 		}
 
-		if s.TileType != "jpg" && s.TileType != "png" {
+		if s.TileType != TileTypeJPG && s.TileType != TileTypePNG {
 			continue
 		}
 

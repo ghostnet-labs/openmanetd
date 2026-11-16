@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/openmanet/openmanetd/internal/auth"
+	"github.com/openmanet/openmanetd/internal/config"
 	"github.com/openmanet/openmanetd/internal/onboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,6 +50,8 @@ func newOnboardServer(t *testing.T, authOn bool) (*httptest.Server, *onboard.Sto
 
 	srv := newTestServer(func(s *Server) {
 		s.onboard = st
+		s.tiles = newTestTiles(t, config.DefaultTileLayers())
+
 		if authOn {
 			s.authEnabled = true
 			s.sessionStore = auth.NewSessionStore(time.Hour, 4)

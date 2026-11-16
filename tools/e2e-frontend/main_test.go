@@ -18,6 +18,7 @@ func TestParseFlags_valid(t *testing.T) {
 		"--tls-listen", "127.0.0.1:2",
 		"--luci-upstream", "http://127.0.0.1:18088",
 		"--onboard-dir", dir + "/onboard",
+		"--tiles-dir", dir + "/tiles",
 	}, io.Discard)
 	require.NoError(t, err)
 	assert.Equal(t, options{
@@ -27,6 +28,7 @@ func TestParseFlags_valid(t *testing.T) {
 		api:          "http://127.0.0.1:18087",
 		luciUpstream: "http://127.0.0.1:18088",
 		onboardDir:   dir + "/onboard",
+		tilesDir:     dir + "/tiles",
 	}, opts)
 }
 
@@ -54,8 +56,10 @@ func TestParseFlags_errors(t *testing.T) {
 
 func TestNewConfig_mapsOptions(t *testing.T) {
 	onboardDir := t.TempDir()
+	tilesDir := t.TempDir()
 	cfg := newConfig(options{
 		onboardDir:   onboardDir,
+		tilesDir:     tilesDir,
 		static:       t.TempDir(),
 		listen:       "127.0.0.1:18081",
 		tlsListen:    "127.0.0.1:18443",
@@ -69,6 +73,7 @@ func TestNewConfig_mapsOptions(t *testing.T) {
 	assert.True(t, cfg.GetFrontendLuCIProxyEnable())
 	assert.Equal(t, "http://127.0.0.1:18088", cfg.GetFrontendLuCIProxyUpstream())
 	assert.Equal(t, onboardDir, cfg.GetOnboard().Dir)
+	assert.Equal(t, tilesDir, cfg.GetTiles().Dir)
 }
 
 func TestNewConfig_luciProxyOffWithoutUpstream(t *testing.T) {

@@ -82,4 +82,21 @@ test.describe('Settings › Phones', () => {
       await expectTouchTarget(page.getByRole('button', { name: 'Replace APK' }));
     }
   });
+
+  test('offline maps panel fits the screen with 44px actions', async ({ page, baseURL }, testInfo) => {
+    await serveStatus(page, baseURL);
+    await gotoPage(page, { path: '/settings/phones', heading: 'Phones' });
+    await expect(page.getByRole('heading', { name: 'Offline maps' })).toBeVisible();
+    await expect(page.getByText(/satellite \(to zoom 16\)/)).toBeVisible();
+
+    await page.getByLabel('Latitude').fill('40.314');
+    await page.getByLabel('Longitude').fill('-112.006');
+    await expect(page.getByText(/^About [\d,]+ tiles/)).toBeVisible();
+
+    await expectNoHorizontalScroll(page);
+    if (isMobile(testInfo)) {
+      await expectTouchTarget(page.getByRole('button', { name: 'Download area' }));
+      await expectTouchTarget(page.getByLabel('Latitude'));
+    }
+  });
 });

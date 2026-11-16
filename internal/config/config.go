@@ -373,6 +373,7 @@ type Config struct {
 	Hardware                                  HardwareConfig
 	Scanner                                   ScannerConfig
 	Onboard                                   OnboardConfig
+	Tiles                                     TilesConfig
 	TAK                                       TAKConfig
 	Weather                                   WeatherConfig
 	Chanmig                                   ChanmigConfig
@@ -1039,6 +1040,7 @@ func (c *Config) reload() { //nolint:gocognit,gocyclo
 	c.Weather = c.loadWeather()
 	c.Radio = c.loadRadio()
 	c.Onboard = c.loadOnboard()
+	c.Tiles = c.loadTiles()
 }
 
 // loadRadio reads the radio capacity gate section, applying defaults. An
