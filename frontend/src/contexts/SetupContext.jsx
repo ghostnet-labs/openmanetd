@@ -86,6 +86,13 @@ export const SETUP_ACTIONS = {
   HYDRATE_FROM_STATUS:    'HYDRATE_FROM_STATUS',
 };
 
+// BACKHAUL_FOLLOWS_MESH maps each HaLow mesh field to the backhaul
+// field seeded from it (see SET_RADIO_MODE).
+const BACKHAUL_FOLLOWS_MESH = {
+  meshId:     'backhaulMeshId',
+  passphrase: 'backhaulPassphrase',
+};
+
 // reducer is exported for unit tests so they can drive it without a
 // full Provider tree.
 export function reducer(state, action) {
@@ -123,7 +130,19 @@ export function reducer(state, action) {
       // Any manual edit (other than picking the radio) ends the
       // scanned-values hold so the snap-to-legal effects resume.
       const fromScan = action.field === 'radioName' ? state.mesh.fromScan : false;
-      return { ...state, mesh: { ...state.mesh, [action.field]: action.value, fromScan } };
+      const next = { ...state, mesh: { ...state.mesh, [action.field]: action.value, fromScan } };
+      // A backhaul still on the HaLow credentials follows a later
+      // Step-2 edit, so it keeps matching nodes on the daemon fallback.
+      const backhaulField = BACKHAUL_FOLLOWS_MESH[action.field];
+      if (backhaulField) {
+        const old = state.mesh[action.field];
+        next.aps = state.aps.map(ap => (
+          ap.meshBackhaul && !ap.backhaulFromScan && ap[backhaulField] === old
+            ? { ...ap, [backhaulField]: action.value }
+            : ap
+        ));
+      }
+      return next;
     }
 
     case SETUP_ACTIONS.SET_UPLINK_TYPE:
@@ -166,16 +185,22 @@ export function reducer(state, action) {
       const isBackhaul = mode === 'backhaul';
       const idx = state.aps.findIndex(ap => ap.radioName === radioName);
       const existing = idx >= 0 ? state.aps[idx] : apDefaults(radioName);
+      // The backhaul starts on the HaLow mesh ID and passphrase: the
+      // daemon's boot-time fallback (mgmt.setupBatMesh1Interface) borrows
+      // exactly those for nodes where nobody picked a backhaul, so a
+      // node set up by hand still links on 2.4 GHz with nodes left on
+      // the automatic setup. Both fields cap at 32 / 63 like the HaLow
+      // inputs, so no clamping is needed.
       const updated = {
         ...existing,
         enabled:      mode === 'ap',
         meshBackhaul: isBackhaul,
-        // The Step-2 mesh-ID input allows up to 32 chars, but
-        // MeshBackhaulProfile.mesh_id caps at 32 — clamp the seed so
-        // appending "-2g" can never push it past the proto limit.
         backhaulMeshId: isBackhaul && !existing.backhaulMeshId
-          ? `${state.mesh.meshId.slice(0, 29)}-2g`
+          ? state.mesh.meshId
           : existing.backhaulMeshId,
+        backhaulPassphrase: isBackhaul && !existing.backhaulPassphrase
+          ? state.mesh.passphrase
+          : existing.backhaulPassphrase,
       };
       const aps = state.aps.map(ap => (
         isBackhaul && ap.radioName !== radioName && ap.meshBackhaul

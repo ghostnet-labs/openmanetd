@@ -107,7 +107,7 @@ describe('StepAPsRadioMode', () => {
     pickMode('radio0', 'Mesh backhaul');
 
     expect(within(modeGroup('radio0')).getByRole('radio', { name: 'Mesh backhaul' }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByLabelText('Backhaul mesh ID')).toHaveValue('openmanet-2g');
+    expect(screen.getByLabelText('Backhaul mesh ID')).toHaveValue('openmanet');
     expect(screen.getByLabelText('Backhaul passphrase')).toBeInTheDocument();
     expect(screen.queryByLabelText('SSID')).toBeNull();
   });
