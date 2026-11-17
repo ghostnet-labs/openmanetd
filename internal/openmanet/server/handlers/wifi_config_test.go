@@ -2694,3 +2694,78 @@ func TestUpdateRadioSettings_MeshToAPOrSTA_ClearsMeshOnlyOptions(t *testing.T) {
 		})
 	}
 }
+
+// The settings page never sees stored keys, so an AP-to-mesh switch on
+// the 2.4 GHz radio arrives with no password. It must take the HaLow
+// key — what the daemon's batmesh1 fallback borrows — not keep the old
+// AP passphrase, or the two kinds of node never peer.
+func TestUpdateRadioSettings_APToMesh_NoPassword_BorrowsHaLowKey(t *testing.T) {
+	reader := newWifiConfigMockReader()
+	svc := newTestWifiConfigService(t)
+	svc.ConfigReader = reader
+
+	resp, err := svc.UpdateRadioSettings(context.Background(), &wificonfigv1.UpdateRadioSettingsRequest{
+		RadioName: "radio2",
+		Settings: &wificonfigv1.RadioSettings{
+			Ssid:   "openmanet-mesh",
+			MeshId: strPtr("openmanet-mesh"),
+			Mode:   wificonfigv1.WifiMode_WIFI_MODE_MESH,
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetSuccess(), "message: %v", resp.GetMessage())
+
+	key, _ := reader.Get("wireless", "default_radio2", "key")
+	assert.Equal(t, []string{"meshsecret"}, key)
+
+	wantID, wantKey, err := network.PrimaryMeshCredentials(reader, "default_radio2")
+	require.NoError(t, err)
+
+	meshID, _ := reader.Get("wireless", "default_radio2", "mesh_id")
+	assert.Equal(t, []string{wantID}, meshID, "mesh_id must match the HaLow link the fallback borrows")
+	assert.Equal(t, []string{wantKey}, key)
+}
+
+func TestUpdateRadioSettings_MeshKeyBorrowing_LeavesOtherCasesAlone(t *testing.T) {
+	tests := []struct {
+		name     string
+		radio    string
+		iface    string
+		seedMode string
+		password *string
+		wantKey  string
+	}{
+		{"typed password wins", "radio2", "default_radio2", "ap", strPtr("typed-secret"), "typed-secret"},
+		{"radio already in mesh keeps its key", "radio2", "default_radio2", "mesh", nil, "testsecret"},
+		{"HaLow radio keeps its key", "radio3", "default_radio3", "mesh", nil, "meshsecret"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := newWifiConfigMockReader()
+			require.NoError(t, reader.SetType("wireless", tc.iface, "mode", uci.TypeOption, tc.seedMode))
+
+			if tc.seedMode == "mesh" {
+				require.NoError(t, reader.SetType("wireless", tc.iface, "network", uci.TypeOption, "batmesh0"))
+			}
+
+			svc := newTestWifiConfigService(t)
+			svc.ConfigReader = reader
+
+			resp, err := svc.UpdateRadioSettings(context.Background(), &wificonfigv1.UpdateRadioSettingsRequest{
+				RadioName: tc.radio,
+				Settings: &wificonfigv1.RadioSettings{
+					Ssid:     "openmanet-mesh",
+					MeshId:   strPtr("openmanet-mesh"),
+					Password: tc.password,
+					Mode:     wificonfigv1.WifiMode_WIFI_MODE_MESH,
+				},
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetSuccess(), "message: %v", resp.GetMessage())
+
+			key, _ := reader.Get("wireless", tc.iface, "key")
+			assert.Equal(t, []string{tc.wantKey}, key)
+		})
+	}
+}

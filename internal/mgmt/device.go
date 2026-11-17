@@ -130,8 +130,8 @@ func (m *ManagementConfig) setupBatMesh1Interface(ctx context.Context) error {
 //     network.SupportsSecondaryMeshLink accepts.
 //  3. Leaves the radio alone when its AP section (default_<radio>) is
 //     enabled — the operator's AP wins over the fallback link.
-//  4. Locates an existing wifi-iface with mode=mesh and borrows its
-//     mesh_id and key values.
+//  4. Borrows mesh_id and key from the primary (HaLow) mesh link via
+//     network.PrimaryMeshCredentials.
 //  5. Creates wifi-iface <batmesh1>_<radio> from network.MeshLink so the
 //     section can never collide with the AP section on the same radio.
 //  6. Updates the matched 2g radio with the secondary-link channel and
@@ -209,26 +209,11 @@ func (m *ManagementConfig) setupBatMesh1InterfaceWithDeps(
 		return nil
 	}
 
-	// Step 4: find mesh credentials from an existing mesh wifi-iface.
-	ifaceSections, err := wirelessReader.GetSections("wireless", "wifi-iface")
+	// Step 4: borrow the primary (HaLow) mesh credentials. The settings
+	// page's AP-to-mesh switch uses the same helper, so both paths agree.
+	meshID, meshKey, err := network.PrimaryMeshCredentials(wirelessReader, "")
 	if err != nil {
-		return fmt.Errorf("get wifi-iface sections: %w", err)
-	}
-
-	var meshID, meshKey string
-
-	for _, section := range ifaceSections {
-		iface, ierr := network.GetWirelessIfaceByNameWithReader(section, wirelessReader)
-		if ierr != nil {
-			continue
-		}
-
-		if iface.Mode == network.WifiModeMesh {
-			meshID = iface.MeshID
-			meshKey = iface.Key
-
-			break
-		}
+		return fmt.Errorf("find mesh credentials: %w", err)
 	}
 
 	if meshID == "" {

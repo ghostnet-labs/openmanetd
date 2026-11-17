@@ -506,6 +506,72 @@ describe('TestSettingsWirelessModeSelector', () => {
   });
 });
 
+// The daemon's boot-time 2.4 GHz fallback borrows the HaLow mesh ID and
+// key. Switching a 2.4 GHz radio into mesh here must land on the same
+// pair: the HaLow mesh ID, and a blank password the daemon fills with
+// the HaLow key.
+describe('TestSettingsWirelessMeshSwitchUsesHaLow', () => {
+  function renderNode(radio2Settings) {
+    mockListRadios.mockResolvedValue({ radios: [RADIO_S1G, RADIO_AP] });
+    mockGetRadioStatus.mockImplementation(({ radioName }) =>
+      Promise.resolve({ status: radioName === 'radio0' ? STATUS_S1G : STATUS_AP }));
+    settingsFor({ radio0: SETTINGS_S1G, radio2: radio2Settings });
+    mockUpdateRadioSettings.mockResolvedValue({ success: true });
+    render(<SettingsWireless />);
+  }
+
+  function pickMode(name) {
+    fireEvent.click(screen.getByRole('button', { name: 'Mode' }));
+    fireEvent.click(screen.getByRole('option', { name }));
+  }
+
+  it('an AP switched to mesh takes the HaLow mesh ID and leaves the password to the daemon', async () => {
+    renderNode({ ...SETTINGS_AP, settings: { ...SETTINGS_AP.settings, password: 'ap-secret' } });
+    await waitFor(() => screen.getByDisplayValue('openmanet'));
+    await waitFor(() => screen.getByDisplayValue('old-mesh'));
+
+    pickMode('Mesh');
+
+    const meshIds = screen.getAllByLabelText('Mesh ID');
+    expect(meshIds.map(el => el.value)).toEqual(['old-mesh', 'old-mesh']);
+    const passwords = screen.getAllByLabelText('Password');
+    expect(passwords[1]).toHaveValue('');
+    expect(passwords[1]).toHaveAttribute('placeholder', '(HaLow mesh password)');
+
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(mockUpdateRadioSettings).toHaveBeenCalledTimes(1));
+    const callArg = mockUpdateRadioSettings.mock.calls[0][0];
+    expect(callArg.radioName).toBe('radio2');
+    expect(callArg.settings.meshId).toBe('old-mesh');
+    expect(callArg.settings.ssid).toBe('old-mesh');
+    expect(callArg.settings.password ?? '').toBe('');
+  });
+
+  it('a radio that was already mesh keeps its own mesh ID across a mode round trip', async () => {
+    renderNode(SETTINGS_2G_MESH);
+    await waitFor(() => screen.getByDisplayValue('old-2g'));
+
+    pickMode('Access Point');
+    pickMode('Mesh');
+
+    expect(screen.getByDisplayValue('old-2g')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Password')[1]).toHaveAttribute('placeholder', '(unchanged)');
+  });
+
+  it('without a HaLow mesh it still seeds the mesh ID from the SSID', async () => {
+    mockListRadios.mockResolvedValue({ radios: [RADIO_AP] });
+    mockGetRadioStatus.mockResolvedValue({ status: STATUS_AP });
+    mockGetRadioSettings.mockResolvedValue(SETTINGS_AP);
+    render(<SettingsWireless />);
+    await waitFor(() => screen.getByDisplayValue('openmanet'));
+
+    pickMode('Mesh');
+
+    expect(screen.getByLabelText('Mesh ID')).toHaveValue('openmanet');
+    expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', '(unchanged)');
+  });
+});
+
 describe('TestSettingsWirelessEnableToggle', () => {
   it('toggles the disabled flag in the draft', async () => {
     mockListRadios.mockResolvedValue({ radios: [RADIO_AP] });
