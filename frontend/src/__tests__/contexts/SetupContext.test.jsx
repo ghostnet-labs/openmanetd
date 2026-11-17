@@ -218,7 +218,7 @@ describe('SetupContext.reducer', () => {
     const r0 = first.aps.find(a => a.radioName === 'radio0');
     expect(r0.enabled).toBe(false);
     expect(r0.meshBackhaul).toBe(true);
-    expect(r0.backhaulMeshId).toBe(`${initialState.mesh.meshId}-2g`);
+    expect(r0.backhaulMeshId).toBe(initialState.mesh.meshId);
     expect(r0.ssid).toBe('home'); // AP fields survive a mode flip
 
     const second = reducer(first, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio2', mode: 'backhaul' });
@@ -252,17 +252,48 @@ describe('SetupContext.reducer', () => {
     expect(next.aps[0]).toMatchObject({ meshBackhaul: false, backhaulMeshId: '', backhaulPassphrase: '' });
   });
 
-  it('SET_RADIO_MODE clamps the seeded backhaul mesh ID to 32 characters', () => {
-    const longMeshId = 'a'.repeat(32);
-    const withMeshId = reducer(initialState, {
-      type: SETUP_ACTIONS.SET_MESH_FIELD,
-      field: 'meshId',
-      value: longMeshId,
-    });
-    const next = reducer(withMeshId, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'backhaul' });
-    const seeded = next.aps.find(a => a.radioName === 'radio0').backhaulMeshId;
-    expect(seeded.length).toBeLessThanOrEqual(32);
-    expect(seeded.endsWith('-2g')).toBe(true);
+  // The daemon's boot-time fallback (internal/mgmt/device.go,
+  // setupBatMesh1InterfaceWithDeps) builds the 2.4 GHz link from the
+  // HaLow mesh_id and key. A hand-picked backhaul must start on the same
+  // pair or the two kinds of node never link on 2.4 GHz.
+  function withHalow(meshId, passphrase) {
+    const a = reducer(initialState, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'meshId', value: meshId });
+    return reducer(a, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'passphrase', value: passphrase });
+  }
+
+  it('SET_RADIO_MODE backhaul seeds the HaLow mesh ID and passphrase, like the daemon fallback', () => {
+    const halow = withHalow('a'.repeat(32), 'halow-secret');
+    const next = reducer(halow, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'backhaul' });
+    const r0 = next.aps.find(a => a.radioName === 'radio0');
+    expect(r0.backhaulMeshId).toBe('a'.repeat(32));
+    expect(r0.backhaulPassphrase).toBe('halow-secret');
+  });
+
+  it('SET_MESH_FIELD carries a later HaLow edit into a backhaul still on the HaLow values', () => {
+    const halow = withHalow('field', 'halow-secret');
+    const bh = reducer(halow, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'backhaul' });
+    const renamed = reducer(bh, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'meshId', value: 'field-b' });
+    const rekeyed = reducer(renamed, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'passphrase', value: 'new-secret' });
+    expect(rekeyed.aps[0]).toMatchObject({ backhaulMeshId: 'field-b', backhaulPassphrase: 'new-secret' });
+  });
+
+  it('SET_MESH_FIELD leaves a user-typed or scanned backhaul alone', () => {
+    const halow = withHalow('field', 'halow-secret');
+    const bh = reducer(halow, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'backhaul' });
+    const typed = reducer(bh, { type: SETUP_ACTIONS.SET_AP, value: { radioName: 'radio0', backhaulMeshId: 'mine' } });
+    const renamed = reducer(typed, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'meshId', value: 'field-b' });
+    expect(renamed.aps[0].backhaulMeshId).toBe('mine');
+
+    const scanned = reducer(bh, { type: SETUP_ACTIONS.SET_AP, value: { radioName: 'radio0', backhaulFromScan: true } });
+    const rekeyed = reducer(scanned, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'passphrase', value: 'new-secret' });
+    expect(rekeyed.aps[0].backhaulPassphrase).toBe('halow-secret');
+  });
+
+  it('SET_MESH_FIELD on other fields does not touch the backhaul', () => {
+    const halow = withHalow('field', 'halow-secret');
+    const bh = reducer(halow, { type: SETUP_ACTIONS.SET_RADIO_MODE, radioName: 'radio0', mode: 'backhaul' });
+    const next = reducer(bh, { type: SETUP_ACTIONS.SET_MESH_FIELD, field: 'channel', value: 44 });
+    expect(next.aps).toBe(bh.aps);
   });
 
   const RADIOS = [

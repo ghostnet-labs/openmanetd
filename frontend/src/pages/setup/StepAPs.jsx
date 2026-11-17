@@ -200,7 +200,8 @@ function APRow({ radio, state, dispatch, status }) {
           <div className="setup-help">
             Second batman-adv mesh link on this radio — WPA3 (SAE). Every
             node on the 2.4 GHz backhaul must share the mesh ID, passphrase,
-            channel and width.
+            channel and width. It starts on the HaLow mesh ID and passphrase,
+            the same ones nodes that set up 2.4 GHz automatically use.
           </div>
 
           {ap.backhaulFromScan && (
