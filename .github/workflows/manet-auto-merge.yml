@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ghostnet-labs/docs
-          ref: 84d7e0cf9c7aa3b9fd80d57af3f3cac0d5127c1d
+          ref: cb6dfd118fc46a1bc66eecec2d8243adecbebb96
           persist-credentials: false
       - name: Merge only eligible, protected PRs
         env:
