@@ -233,7 +233,7 @@ function formatBitrate(bps) {
   return `${(Number(bps) / 1_000).toFixed(0)} Kbps`;
 }
 
-function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
+function RadioCard({ radio, prefill, reloadKey = 0, onCardChange, halowMeshId = '' }) {
   const [status, setStatus] = useState(null);
   const [original, setOriginal] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -339,8 +339,18 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
       // floor is seeded the same way (the stored value, else the daemon
       // default) so a settings-page AP→mesh flip writes what setup would;
       // leaving mesh restores the stored value so a round trip stays clean.
+      // A non-HaLow radio coming into mesh for the first time takes the
+      // HaLow mesh ID and a blank password, which the daemon fills with
+      // the HaLow key. That is the pair the boot-time 2.4 GHz fallback
+      // borrows, so nodes set up either way peer with each other.
       if (isMeshMode(newMode)) {
-        if (!next.meshId) next.meshId = prev.ssid;
+        const firstMesh = !isMeshMode(prev.mode) && !isMeshMode(original?.mode);
+        if (!isS1G && firstMesh && halowMeshId) {
+          next.meshId = halowMeshId;
+          next.password = '';
+        } else if (!next.meshId) {
+          next.meshId = prev.ssid;
+        }
         next.encryption = WifiEncryption.SAE;
         if (next.meshRssiThreshold == null) {
           next.meshRssiThreshold = original?.meshRssiThreshold ?? MESH_RSSI_DEFAULT_DBM;
@@ -413,6 +423,9 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
   const mesh = isMeshMode(draft?.mode);
   const showFloor = mesh && !isS1G;
   const floorOptions = meshRssiOptions(draft?.meshRssiThreshold);
+  const passwordHint = mesh && !isS1G && halowMeshId && !isMeshMode(original?.mode)
+    ? '(HaLow mesh password)'
+    : '(unchanged)';
 
   return (
     <div className={`lat-panel radio-card${enabled ? '' : ' disabled-card'}`}>
@@ -488,7 +501,7 @@ function RadioCard({ radio, prefill, reloadKey = 0, onCardChange }) {
               type="password"
               aria-label="Password"
               value={draft.password ?? ''}
-              placeholder="(unchanged)"
+              placeholder={passwordHint}
               onChange={e => update('password', e.target.value)}
             />
           </div>
@@ -638,6 +651,13 @@ export default function SettingsWireless() {
   const onCardChange = useCallback((radioName, info) => {
     setCards(prev => ({ ...prev, [radioName]: info }));
   }, []);
+
+  // The HaLow mesh ID other radios seed from when switched into mesh.
+  const halowMeshId = useMemo(() => {
+    const halow = radios.find(r => r.band === BAND_S1G);
+    const d = halow ? cards[halow.name]?.draft : null;
+    return d && isMeshMode(d.mode) ? (d.meshId ?? '') : '';
+  }, [radios, cards]);
 
   const handleDecoded = useCallback((payload) => {
     const halowRadio = radios.find(r => r.band === BAND_S1G);
@@ -796,6 +816,7 @@ export default function SettingsWireless() {
                 prefill={join?.prefills[r.name]}
                 reloadKey={refreshKey}
                 onCardChange={onCardChange}
+                halowMeshId={halowMeshId}
               />
             ))
           )}

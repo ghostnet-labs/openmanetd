@@ -591,6 +591,12 @@ func (s *WifiConfigService) stageRadioSettings(ctx context.Context, radioName st
 		}
 	}
 
+	if mode == uciModeMesh {
+		if err := s.stageBorrowedMeshKey(radioName, ifaceName, ifaceCfg); err != nil {
+			return err
+		}
+	}
+
 	effMode := s.effectiveIfaceMode(ifaceName, mode)
 
 	// The admission floor only means something on a mesh iface, and the
@@ -610,6 +616,38 @@ func (s *WifiConfigService) stageRadioSettings(ctx context.Context, radioName st
 	if err := network.SetWirelessIfaceConfigWithReader(ifaceName, ifaceCfg, s.ConfigReader); err != nil {
 		return &stageWriteError{msg: fmt.Sprintf("failed to update iface config: %v", err)}
 	}
+
+	return nil
+}
+
+// stageBorrowedMeshKey fills cfg.Key with the primary (HaLow) mesh key
+// when a non-HaLow radio switches into mesh without a password. The
+// page never sees stored keys (GetRadioSettings omits them), so without
+// this the section would keep its old AP passphrase and never peer with
+// nodes whose 2.4 GHz link came from the daemon's fallback, which
+// borrows the same key through network.PrimaryMeshCredentials. A radio
+// already in mesh keeps its key, as does any password the operator typed.
+func (s *WifiConfigService) stageBorrowedMeshKey(radioName, ifaceName string, cfg *network.UCIWirelessIface) error {
+	if cfg.Key != "" || network.IsMorseDevice(s.ConfigReader, radioName) {
+		return nil
+	}
+
+	if vals, ok := s.ConfigReader.Get(wirelessConfig, ifaceName, wifiOptionMode); ok && len(vals) > 0 && vals[0] == uciModeMesh {
+		return nil
+	}
+
+	meshID, key, err := network.PrimaryMeshCredentials(s.ConfigReader, ifaceName)
+	if err != nil {
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("read primary mesh credentials: %w", err))
+	}
+
+	if meshID == "" || key == "" {
+		return nil
+	}
+
+	cfg.Key = key
+
+	s.Log.Info().Str("radio", radioName).Msg("Mesh switch without a password: using the HaLow mesh key")
 
 	return nil
 }

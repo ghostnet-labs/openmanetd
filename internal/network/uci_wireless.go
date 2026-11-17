@@ -1035,6 +1035,47 @@ func IsMorseDevice(reader ConfigReader, deviceName string) bool {
 	return strings.EqualFold(typ[0], "morse")
 }
 
+// PrimaryMeshCredentials returns the mesh_id and key of the node's
+// primary (HaLow) mesh link: the first mode=mesh wifi-iface on a
+// type=morse radio, else the first mode=mesh wifi-iface of any kind.
+// The section named skip is ignored, so a radio being converted to mesh
+// never reads its own half-written values. meshID is "" when no mesh
+// link exists.
+//
+// Every 2.4 GHz secondary link that nobody gave credentials by hand
+// borrows this pair — the daemon's boot-time fallback
+// (mgmt.setupBatMesh1Interface) and the settings page's AP-to-mesh
+// switch — so nodes set up either way peer with each other.
+func PrimaryMeshCredentials(reader ConfigReader, skip string) (string, string, error) {
+	sections, err := reader.GetSections(wirelessConfigName, "wifi-iface")
+	if err != nil {
+		return "", "", fmt.Errorf("get wifi-iface sections: %w", err)
+	}
+
+	var anyID, anyKey string
+
+	for _, section := range sections {
+		if section == skip {
+			continue
+		}
+
+		iface, ierr := GetWirelessIfaceByNameWithReader(section, reader)
+		if ierr != nil || iface.Mode != WifiModeMesh || iface.MeshID == "" {
+			continue
+		}
+
+		if IsMorseDevice(reader, iface.Device) {
+			return iface.MeshID, iface.Key, nil
+		}
+
+		if anyID == "" {
+			anyID, anyKey = iface.MeshID, iface.Key
+		}
+	}
+
+	return anyID, anyKey, nil
+}
+
 // RemoveNonMeshIfacesOnMorseDevices deletes every wifi-iface whose
 // `device` is a type=morse wifi-device and whose `mode` is anything
 // but mesh (a missing mode counts: netifd defaults it to ap). A HaLow
