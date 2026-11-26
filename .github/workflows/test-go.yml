@@ -42,7 +42,7 @@ jobs:
       build: ${{ steps.pick.outputs.build }}
     steps:
       - id: pick
-        uses: ghostnet-labs/docs/.github/actions/studio-runners@dacb69ade418d5d45645f1aba514f2cdb5fdfcfc
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@1fd19228149f7c2a3d37200b055a139081f457fe
         with:
           runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   lint:
