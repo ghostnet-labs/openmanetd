@@ -77,8 +77,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-24.04)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      - name: Install build dependencies (GitHub-hosted ubuntu-24.04)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
@@ -87,8 +87,8 @@ jobs:
             libudev-dev libpam0g-dev
 
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
+        # Native libraries are baked into the immutable ARC runner image; GitHub-hosted
+        # runs (fork PRs, or any PR while the Studio is offline) install them above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       # The firmware ships openmanetd to 32-bit linux/mipsle routers. Host
@@ -138,8 +138,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-24.04)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      - name: Install build dependencies (GitHub-hosted ubuntu-24.04)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
@@ -148,8 +148,8 @@ jobs:
             libudev-dev libpam0g-dev
 
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
+        # Native libraries are baked into the immutable ARC runner image; GitHub-hosted
+        # runs (fork PRs, or any PR while the Studio is offline) install them above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -236,8 +236,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-24.04)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      - name: Install build dependencies (GitHub-hosted ubuntu-24.04)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
@@ -246,8 +246,8 @@ jobs:
             libudev-dev libpam0g-dev
 
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
+        # Native libraries are baked into the immutable ARC runner image; GitHub-hosted
+        # runs (fork PRs, or any PR while the Studio is offline) install them above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
@@ -308,8 +308,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install build dependencies (fork PRs on ubuntu-24.04)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      - name: Install build dependencies (GitHub-hosted ubuntu-24.04)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential libnl-3-dev \
@@ -318,8 +318,8 @@ jobs:
             libudev-dev libpam0g-dev
 
       - name: Check build dependencies are installed
-        # Native libraries are baked into the immutable ARC runner image; fork
-        # PRs run on ubuntu-24.04 and install them at runtime in the step above.
+        # Native libraries are baked into the immutable ARC runner image; GitHub-hosted
+        # runs (fork PRs, or any PR while the Studio is offline) install them above.
         run: dpkg-query -W build-essential libnl-3-dev libnl-genl-3-dev libgps-dev libcap-dev libopus-dev libopusfile-dev pkg-config portaudio19-dev batctl net-tools alfred iproute2 libhidapi-dev libusb-1.0-0-dev libudev-dev libpam0g-dev >/dev/null
 
       - name: Compile Alfred Go Bindings
