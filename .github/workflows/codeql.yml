@@ -40,7 +40,7 @@ jobs:
       build: ${{ steps.pick.outputs.build }}
     steps:
       - id: pick
-        uses: ghostnet-labs/docs/.github/actions/studio-runners@2018620d06cb3d4a70c373557ce68b75cc5df0c9
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@dacb69ade418d5d45645f1aba514f2cdb5fdfcfc
         with:
           runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   analyze:
