@@ -28,8 +28,27 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  studio:
+    # Which Mac Studio runner pools are online. While one is offline the jobs
+    # below use their GitHub-hosted fallback (docs tools/studio-runners).
+    name: Studio runners
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      mac: ${{ steps.pick.outputs.mac }}
+      arc: ${{ steps.pick.outputs.arc }}
+      build: ${{ steps.pick.outputs.build }}
+    steps:
+      - id: pick
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@2018620d06cb3d4a70c373557ce68b75cc5df0c9
+        with:
+          runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   lint:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
+    needs: studio
+    if: ${{ !cancelled() }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
@@ -88,14 +107,15 @@ jobs:
           args: --allow-parallel-runners
 
   test:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
+    if: ${{ !cancelled() && needs.lint.result == 'success' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
       GOFLAGS: -p=1
       GOMAXPROCS: '1'
       GOMEMLIMIT: 1400MiB
-    needs: lint
+    needs: [lint, studio]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -185,14 +205,15 @@ jobs:
 
   integration_test:
     name: "Integration tests"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
+    if: ${{ !cancelled() && needs.lint.result == 'success' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
       GOFLAGS: -p=1
       GOMAXPROCS: '1'
       GOMEMLIMIT: 1400MiB
-    needs: lint
+    needs: [lint, studio]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -256,14 +277,15 @@ jobs:
 
   benchmark:
     name: "Benchmarks"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Bound cold compilation and tests inside the 2 GiB ARC pilot.
     env:
       GOFLAGS: -p=1
       GOMAXPROCS: '1'
       GOMEMLIMIT: 1400MiB
-    needs: test
+    needs: [test, studio]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

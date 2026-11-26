@@ -63,3 +63,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 stale-run-tool/tools/stale-runs/stale_runs.py --cancel --min-age-hours 24 --repos "${GITHUB_REPOSITORY#*/}"
+      - name: Fetch the Studio runner check
+        if: always()
+        uses: actions/checkout@v4
+        with:
+          repository: ghostnet-labs/docs
+          ref: 2018620d06cb3d4a70c373557ce68b75cc5df0c9
+          path: studio-runner-tool
+          sparse-checkout: tools/studio-runners
+          persist-credentials: false
+      # While a Mac Studio runner pool is offline, cancels and re-runs this repo's
+      # runs that have waited 30+ minutes on it, so they start again on their
+      # GitHub-hosted fallback. Only runs whose workflow has a "Studio runners"
+      # job; never more than 5 per sweep or past a run's third attempt.
+      - name: Move runs stuck on an offline Studio to hosted runners
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+        run: python3 studio-runner-tool/tools/studio-runners/studio_runners.py rescue --repo "$GITHUB_REPOSITORY"
