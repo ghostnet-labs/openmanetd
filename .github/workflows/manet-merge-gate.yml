@@ -13,10 +13,29 @@ concurrency:
   group: manet-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
+  studio:
+    # Which Mac Studio runner pools are online. While one is offline the jobs
+    # below use their GitHub-hosted fallback (docs tools/studio-runners).
+    name: Studio runners
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      mac: ${{ steps.pick.outputs.mac }}
+      arc: ${{ steps.pick.outputs.arc }}
+      build: ${{ steps.pick.outputs.build }}
+    steps:
+      - id: pick
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@1fd19228149f7c2a3d37200b055a139081f457fe
+        with:
+          runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   gate:
     name: Manet merge gate
-    if: github.event.action != 'closed'
-    runs-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted", "macOS", "ARM64"]') || 'ubuntu-24.04' }}
+    if: ${{ !cancelled() && github.event.action != 'closed' }}
+    needs: studio
+    runs-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.studio.outputs.mac != 'false' && fromJSON('["self-hosted", "macOS", "ARM64"]') || 'ubuntu-24.04' }}
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ghostnet-labs/docs
-          ref: e2cdaa5139a32e19d3d9569d06c632efa6fbb893
+          ref: 1fd19228149f7c2a3d37200b055a139081f457fe
           path: runner-policy
           sparse-checkout: |
             project/scripts/check_runners.py

@@ -17,9 +17,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  studio:
+    # Which Mac Studio runner pools are online. While one is offline the jobs
+    # below use their GitHub-hosted fallback (docs tools/studio-runners).
+    name: Studio runners
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      mac: ${{ steps.pick.outputs.mac }}
+      arc: ${{ steps.pick.outputs.arc }}
+      build: ${{ steps.pick.outputs.build }}
+    steps:
+      - id: pick
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@1fd19228149f7c2a3d37200b055a139081f457fe
+        with:
+          runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   frontend_test:
     name: "Frontend tests"
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
+    needs: studio
+    if: ${{ !cancelled() }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64' || 'ubuntu-24.04' }}
     timeout-minutes: 60
     # Leave native overhead beneath the 2 GiB ephemeral runner limit.
     env:

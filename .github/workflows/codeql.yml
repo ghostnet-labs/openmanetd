@@ -26,6 +26,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  studio:
+    # Which Mac Studio runner pools are online. While one is offline the jobs
+    # below use their GitHub-hosted fallback (docs tools/studio-runners).
+    name: Studio runners
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      mac: ${{ steps.pick.outputs.mac }}
+      arc: ${{ steps.pick.outputs.arc }}
+      build: ${{ steps.pick.outputs.build }}
+    steps:
+      - id: pick
+        uses: ghostnet-labs/docs/.github/actions/studio-runners@1fd19228149f7c2a3d37200b055a139081f457fe
+        with:
+          runner-token: ${{ secrets.RUNNER_READ_TOKEN }}
   analyze:
     name: Analyze (${{ matrix.language }})
     # Runner size impacts CodeQL analysis time. To learn more, please see:
@@ -38,7 +55,9 @@ jobs:
     # (2-3 GB peak) can only exhaust its own pod, and later jobs wait in the
     # queue instead of being cancelled. Fork PRs stay on GitHub-hosted
     # runners so outside code never reaches the Mac.
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'ghostnet-linux-arm64-large' || 'ubuntu-24.04' }}
+    needs: studio
+    if: ${{ !cancelled() }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.studio.outputs.arc != 'false' && 'ghostnet-linux-arm64-large' || 'ubuntu-24.04' }}
     # Time spent queued behind another CodeQL job does not count; 60 minutes
     # covers a cold run with headroom.
     timeout-minutes: 60
